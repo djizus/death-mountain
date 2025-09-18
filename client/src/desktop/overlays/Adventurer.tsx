@@ -3,7 +3,7 @@ import { useController } from '@/contexts/controller';
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { CombatStats } from '@/types/game';
-import { calculateLevel, calculateProgress } from '@/utils/game';
+import { calculateLevel, calculateProgress, calculateNextLevelXP } from '@/utils/game';
 import { Box, LinearProgress, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 
@@ -35,6 +35,18 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
   const previewProtectionPercent = Math.min(100, previewProtection);
   const previewAttack = combatStats?.bestDamage || 0;
   const previewAttackPercent = Math.min(100, Math.floor(previewAttack / (beast?.health || 1) * 100));
+
+  // Function to get health color based on percentage
+  const getHealthColor = (percentage: number) => {
+    if (percentage >= 66) return '#4CAF50'; // Original desktop green
+    if (percentage >= 33) return '#FF8C00'; // Orange (matches attack bar color)
+    return '#FF0000'; // Red (matches beast health bar color)
+  };
+
+  // Calculate XP values for display
+  const currentLevel = calculateLevel(adventurer?.xp || 0);
+  const progress = adventurer?.xp || 0;
+  const nextLevelXP = calculateNextLevelXP(currentLevel);
 
   return (
     <>
@@ -69,13 +81,23 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
             <LinearProgress
               variant="determinate"
               value={healthPercent}
-              sx={styles.adventurerHealthBar}
+              sx={{
+                ...styles.adventurerHealthBar,
+                '& .MuiLinearProgress-bar': {
+                  backgroundColor: getHealthColor(healthPercent),
+                },
+              }}
             />
             {cart.potions > 0 && (
               <LinearProgress
                 variant="determinate"
                 value={previewHealthPercent}
-                sx={styles.previewHealthBar}
+                sx={{
+                  ...styles.previewHealthBar,
+                  '& .MuiLinearProgress-bar': {
+                    backgroundColor: getHealthColor(previewHealthPercent),
+                  },
+                }}
               />
             )}
             <Typography
@@ -137,7 +159,7 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
                   variant="body2"
                   sx={styles.xpOverlayText}
                 >
-                  {adventurer?.stat_upgrades_available! > 0 ? 'LEVEL UP' : 'XP'}
+                  {adventurer?.stat_upgrades_available! > 0 ? 'LEVEL UP' : `${progress}/${nextLevelXP}`}
                 </Typography>
               </>
             )}

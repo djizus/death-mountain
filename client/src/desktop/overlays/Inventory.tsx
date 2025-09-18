@@ -4,7 +4,7 @@ import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
 import { calculateCombatStats, calculateLevel } from '@/utils/game';
-import { ItemUtils, Tier } from '@/utils/loot';
+import { ItemUtils, Tier, typeIcons } from '@/utils/loot';
 import { keyframes } from '@emotion/react';
 import { DeleteOutline, Star } from '@mui/icons-material';
 import { Box, Button, Tooltip, Typography } from '@mui/material';
@@ -146,6 +146,22 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
                         <Star sx={[styles.starIcon, hasGoldSpecials ? styles.goldStarIcon : styles.silverStarIcon]} />
                       </Box>
                     )}
+                    {/* Type Icon */}
+                    <Box sx={styles.equipmentTypeIconContainer}>
+                      <Box
+                        component="img"
+                        src={typeIcons[ItemUtils.getItemType(item.id) as keyof typeof typeIcons]}
+                        alt=""
+                        sx={{
+                          ...styles.equipmentTypeIcon,
+                          filter: `brightness(0) saturate(100%) ${ItemUtils.getItemTier(item.id) === 1 ? 'invert(83%) sepia(30%) saturate(638%) hue-rotate(358deg) brightness(103%) contrast(107%)' :
+                            ItemUtils.getItemTier(item.id) === 2 ? 'invert(43%) sepia(15%) saturate(1234%) hue-rotate(231deg) brightness(110%) contrast(87%)' :
+                              ItemUtils.getItemTier(item.id) === 3 ? 'invert(24%) sepia(98%) saturate(1823%) hue-rotate(209deg) brightness(96%) contrast(101%)' :
+                                ItemUtils.getItemTier(item.id) === 4 ? 'invert(48%) sepia(98%) saturate(1183%) hue-rotate(86deg) brightness(94%) contrast(101%)' :
+                                  'invert(60%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(90%) contrast(90%)'}`,
+                        }}
+                      />
+                    </Box>
                   </Box>
                 ) : (
                   <Box sx={styles.emptySlot} title={slot.label}>
@@ -175,6 +191,88 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
   const combatStats = beast ? calculateCombatStats(adventurer!, bag, beast) : null;
   const bestItemIds = combatStats?.bestItems.map((item: Item) => item.id) || [];
 
+  // Sorting function for inventory items (same as mobile CharacterScreen)
+  const sortInventoryItems = (items: Item[]): Item[] => {
+    return [...items].sort((a, b) => {
+      const slotA = ItemUtils.getItemSlot(a.id);
+      const slotB = ItemUtils.getItemSlot(b.id);
+      
+      // First sort by type priority: armors first, then weapons, then necklaces, then rings
+      const getTypePriority = (itemId: number): number => {
+        const slot = ItemUtils.getItemSlot(itemId);
+        switch (slot) {
+          case 'Head':
+          case 'Chest':
+          case 'Hand':
+          case 'Waist':
+          case 'Foot':
+            return 1; // Armors
+          case 'Weapon':
+            return 2; // Weapons
+          case 'Ring':
+            return 3; // Rings
+          case 'Neck':
+            return 4; // Necklaces
+          default:
+            return 5; // Unknown
+        }
+      };
+      
+      const priorityA = getTypePriority(a.id);
+      const priorityB = getTypePriority(b.id);
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      // Within armors, sort by material type first: Cloth, Hide, Metal
+      if (priorityA === 1) {
+        const getMaterialPriority = (itemId: number): number => {
+          const itemType = ItemUtils.getItemType(itemId);
+          switch (itemType) {
+            case 'Cloth':
+              return 1;
+            case 'Hide':
+              return 2;
+            case 'Metal':
+              return 3;
+            default:
+              return 4;
+          }
+        };
+        
+        const materialA = getMaterialPriority(a.id);
+        const materialB = getMaterialPriority(b.id);
+        
+        if (materialA !== materialB) {
+          return materialA - materialB;
+        }
+        
+        // Then sort by armor slot: Head, Chest, Hand, Waist, Foot
+        const armorOrder = ['Head', 'Chest', 'Hand', 'Waist', 'Foot'];
+        const indexA = armorOrder.indexOf(slotA);
+        const indexB = armorOrder.indexOf(slotB);
+        
+        if (indexA !== indexB) {
+          return indexA - indexB;
+        }
+      }
+      
+      // Then sort by tier (1-5)
+      const tierA = ItemUtils.getItemTier(a.id);
+      const tierB = ItemUtils.getItemTier(b.id);
+      
+      if (tierA !== tierB) {
+        return tierA - tierB;
+      }
+      
+      // Finally sort by item ID for consistent ordering
+      return a.id - b.id;
+    });
+  };
+
+  const sortedBag = bag ? sortInventoryItems(bag) : [];
+
   return (
     <Box sx={styles.bagPanel}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
@@ -183,7 +281,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
       </Box>
 
       <Box sx={styles.bagGrid}>
-        {bag?.map((item) => {
+        {sortedBag.map((item) => {
           const metadata = ItemUtils.getMetadata(item.id);
           const isSelected = itemsToDrop.includes(item.id);
           const highlight = isDropMode && itemsToDrop.length === 0;
@@ -265,6 +363,22 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
                       <Star sx={[styles.starIcon, hasGoldSpecials ? styles.goldStarIcon : styles.silverStarIcon]} />
                     </Box>
                   )}
+                  {/* Type Icon */}
+                  <Box sx={styles.equipmentTypeIconContainer}>
+                    <Box
+                      component="img"
+                      src={typeIcons[ItemUtils.getItemType(item.id) as keyof typeof typeIcons]}
+                      alt=""
+                      sx={{
+                        ...styles.equipmentTypeIcon,
+                        filter: `brightness(0) saturate(100%) ${ItemUtils.getItemTier(item.id) === 1 ? 'invert(83%) sepia(30%) saturate(638%) hue-rotate(358deg) brightness(103%) contrast(107%)' :
+                          ItemUtils.getItemTier(item.id) === 2 ? 'invert(43%) sepia(15%) saturate(1234%) hue-rotate(231deg) brightness(110%) contrast(87%)' :
+                            ItemUtils.getItemTier(item.id) === 3 ? 'invert(24%) sepia(98%) saturate(1823%) hue-rotate(209deg) brightness(96%) contrast(101%)' :
+                              ItemUtils.getItemTier(item.id) === 4 ? 'invert(48%) sepia(98%) saturate(1183%) hue-rotate(86deg) brightness(94%) contrast(101%)' :
+                                'invert(60%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(90%) contrast(90%)'}`,
+                      }}
+                    />
+                  </Box>
                 </Box>
               </Box>
             </Tooltip>
@@ -803,5 +917,21 @@ const styles = {
   emptySlotTooltipDamageText: {
     color: '#ff4444',
     fontSize: '0.85rem',
+  },
+  equipmentTypeIconContainer: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    zIndex: 10,
+    background: 'rgba(0, 0, 0, 0.8)',
+    borderRadius: '50%',
+    padding: '1px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  equipmentTypeIcon: {
+    width: 10,
+    height: 10,
   },
 };

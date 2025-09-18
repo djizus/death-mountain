@@ -13,9 +13,9 @@ import SkipNextIcon from '@mui/icons-material/SkipNext';
 import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, Typography, Slider } from '@mui/material';
 import { useSnackbar } from 'notistack';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import GamePage from './GamePage';
 
@@ -33,6 +33,14 @@ export default function WatchPage() {
   const [replayEvents, setReplayEvents] = useState<any[]>([]);
   const [replayIndex, setReplayIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPosition, setDragPosition] = useState<number | null>(null);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState(0);
+  const [tooltipStep, setTooltipStep] = useState(0);
+  
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const selectionTimeoutRef = useRef<number | null>(null);
 
   const [searchParams] = useSearchParams();
   const game_id = Number(searchParams.get('id'));
@@ -46,6 +54,64 @@ export default function WatchPage() {
       navigate('/survivor');
     }
   }, [game_id]);
+
+  const handleSliderChange = useCallback((newIndex: number, immediate: boolean = false) => {
+    if (newIndex < 0 || newIndex >= replayEvents.length) return;
+    
+    // Clear any existing timeout
+    if (selectionTimeoutRef.current) {
+      clearTimeout(selectionTimeoutRef.current);
+    }
+    
+    if (immediate) {
+      // Stop playing if we're scrubbing
+      if (isPlaying) {
+        setIsPlaying(false);
+      }
+      setReplayIndex(newIndex);
+      processEvent(replayEvents[newIndex], true);
+    } else {
+      // Set a timeout to update after user stops dragging
+      selectionTimeoutRef.current = window.setTimeout(() => {
+        setReplayIndex(newIndex);
+        processEvent(replayEvents[newIndex], true);
+      }, 100);
+    }
+  }, [replayEvents, isPlaying, processEvent]);
+
+  const handleSliderMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!sliderRef.current || !isDragging) return;
+    
+    const rect = sliderRef.current.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    const newIndex = Math.floor(percentage * (replayEvents.length - 1));
+    
+    setDragPosition(percentage * 100);
+    setTooltipPosition(x);
+    setTooltipStep(newIndex);
+    setShowTooltip(true);
+    
+    // Update data in real-time during dragging
+    if (newIndex !== replayIndex) {
+      handleSliderChange(newIndex, true);
+    }
+  }, [isDragging, replayEvents.length, replayIndex, handleSliderChange]);
+
+  const handleSliderMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    handleSliderMouseMove(event);
+  }, [handleSliderMouseMove]);
+
+  const handleSliderMouseUp = useCallback(() => {
+    if (isDragging && dragPosition !== null) {
+      const newIndex = Math.floor((dragPosition / 100) * (replayEvents.length - 1));
+      handleSliderChange(newIndex, true);
+    }
+    setIsDragging(false);
+    setDragPosition(null);
+    setShowTooltip(false);
+  }, [isDragging, dragPosition, replayEvents.length, handleSliderChange]);
 
   useEffect(() => {
     if (replayEvents.length > 0 && replayIndex === 0) {
@@ -185,6 +251,53 @@ export default function WatchPage() {
 
   return (
     <>
+      {/* Independent Floating Progress Bar */}
+      {!isLoading && replayEvents.length > 0 && (
+        <Box
+          ref={sliderRef}
+          sx={styles.floatingProgressBar}
+          onMouseDown={handleSliderMouseDown}
+          onMouseMove={handleSliderMouseMove}
+          onMouseUp={handleSliderMouseUp}
+          onMouseLeave={handleSliderMouseUp}
+        >
+          <Box sx={styles.floatingProgressTrack}>
+             <Box 
+               sx={{
+                 ...styles.floatingProgressFill,
+                 width: `${isDragging && dragPosition !== null ? dragPosition : (replayIndex / (replayEvents.length - 1)) * 100}%`
+               }}
+             />
+             {/* Always visible thumb */}
+             <Box 
+               sx={{
+                 ...styles.floatingProgressHandle,
+                 left: `${isDragging && dragPosition !== null ? dragPosition : (replayIndex / (replayEvents.length - 1)) * 100}%`
+               }}
+             />
+          </Box>
+          {/* Persistent Step Counter INSIDE the box */}
+          <Box sx={styles.stepCounter}>
+            <Typography sx={styles.stepCounterText}>
+              {replayIndex + 1} / {replayEvents.length}
+            </Typography>
+          </Box>
+          {showTooltip && (
+            <Box 
+              sx={{
+                ...styles.floatingTooltip,
+                left: `${tooltipPosition}px`
+              }}
+            >
+              <Typography sx={styles.floatingTooltipText}>
+                Step {tooltipStep + 1}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      )}
+
+      {/* Main Controls Overlay */}
       {!isLoading && <Box sx={styles.overlay}>
         {replayEvents.length === 0 ? (
           <>
@@ -281,5 +394,84 @@ const styles = {
   },
   theatersIcon: {
     color: '#EDCF33',
+  },
+  floatingProgressBar: {
+    position: 'absolute',
+    bottom: '60px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: '444px',
+    zIndex: 10,
+    padding: '16px 16px',
+    pointerEvents: 'auto',
+    cursor: 'pointer',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    border: '2px solid rgba(128, 255, 0, 0.4)',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    boxSizing: 'border-box',
+  },
+  floatingProgressTrack: {
+    width: '100%',
+    height: '6px',
+    backgroundColor: 'rgba(128, 255, 0, 0.2)',
+    borderRadius: '3px',
+    position: 'relative',
+    overflow: 'visible',
+  },
+  floatingProgressFill: {
+    height: '100%',
+    backgroundColor: '#80FF00',
+    borderRadius: '3px',
+    boxShadow: '0 0 8px rgba(128, 255, 0, 0.5)',
+  },
+  floatingProgressHandle: {
+    position: 'absolute',
+    top: '-4px',
+    width: '14px',
+    height: '14px',
+    backgroundColor: '#80FF00',
+    borderRadius: '50%',
+    border: '2px solid rgba(0, 0, 0, 0.8)',
+    transform: 'translateX(-50%)',
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.4), 0 0 8px rgba(128, 255, 0, 0.6)',
+  },
+  floatingTooltip: {
+    position: 'absolute',
+    bottom: '100%',
+    transform: 'translateX(-50%)',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    color: '#80FF00',
+    padding: '6px 12px',
+    borderRadius: '6px',
+    fontSize: '14px',
+    whiteSpace: 'nowrap',
+    zIndex: 1002,
+    border: '2px solid rgba(128, 255, 0, 0.4)',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.6)',
+    marginBottom: '8px',
+  },
+  floatingTooltipText: {
+    fontSize: '14px',
+    color: '#80FF00',
+    fontFamily: 'VT323, monospace',
+    fontWeight: 'bold',
+  },
+  stepCounter: {
+    backgroundColor: 'transparent',
+    padding: '0',
+    marginTop: '6px',
+  },
+  stepCounterText: {
+    fontSize: '14px',
+    color: '#80FF00',
+    fontFamily: 'VT323, monospace',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
   },
 };

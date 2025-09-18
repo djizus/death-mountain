@@ -257,10 +257,14 @@ export default function ItemInfoPopup({ item, itemSpecialsSeed, onClose, onItemE
             </Box>
 
             {(damage || damageTaken) && (
-              <Box sx={styles.damageContainer}>
-                <Box sx={[
-                  styles.damageValue,
-                ]}>
+              <Box sx={{
+                ...styles.damageContainer,
+                ...(damageTaken && {
+                  height: '31px',
+                  boxSizing: 'border-box',
+                }),
+              }}>
+                <Box sx={styles.damageValue}>
                   {damage && (
                     <Box>
                       <Box sx={styles.damageRow}>
@@ -585,23 +589,6 @@ const styles = {
     fontWeight: 'bold',
     lineHeight: '1',
   },
-  closeButton: {
-    backgroundColor: 'rgba(128, 255, 0, 0.1)',
-    border: '1px solid rgba(128, 255, 0, 0.2)',
-    borderRadius: '4px',
-    width: '28px',
-    height: '28px',
-    padding: '4px',
-    marginLeft: 'auto',
-    '&:hover': {
-      backgroundColor: 'rgba(128, 255, 0, 0.15)',
-      border: '1px solid rgba(128, 255, 0, 0.3)',
-    },
-  },
-  closeIcon: {
-    color: '#80FF00',
-    fontSize: '16px',
-  },
   divider: {
     height: '1px',
     backgroundColor: 'rgba(128, 255, 0, 0.1)',
@@ -741,16 +728,6 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  // statLabel: {
-  //   color: 'rgba(128, 255, 0, 0.7)',
-  //   fontFamily: 'VT323, monospace',
-  //   fontSize: '0.9rem',
-  // },
-  // statValue: {
-  //   color: '#80FF00',
-  //   fontFamily: 'VT323, monospace',
-  //   fontSize: '0.9rem',
-  // },
   xpContainer: {
     marginBottom: '4px',
   },

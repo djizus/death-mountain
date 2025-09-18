@@ -2,10 +2,10 @@ import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { streamIds } from '@/utils/cloudflare';
-import { getEventTitle } from '@/utils/events';
+import { getEventTitle, getEventIcon } from '@/utils/events';
 import { ItemUtils } from '@/utils/loot';
-import { Box, Button, Typography } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { Box, Button, Typography, IconButton } from '@mui/material';
+import { useEffect, useState, useRef } from 'react';
 import BeastCollectedPopup from '../../components/BeastCollectedPopup';
 import Adventurer from './Adventurer';
 import InventoryOverlay from './Inventory';
@@ -14,6 +14,8 @@ import TipsOverlay from './Tips';
 import SettingsOverlay from './Settings';
 import { useUIStore } from '@/stores/uiStore';
 import { useSnackbar } from 'notistack';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 export default function ExploreOverlay() {
   const { executeGameAction, actionFailed, setVideoQueue, spectating } = useGameDirector();
@@ -25,6 +27,8 @@ export default function ExploreOverlay() {
 
   const [isExploring, setIsExploring] = useState(false);
   const [isSelectingStats, setIsSelectingStats] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsExploring(false);
@@ -79,83 +83,156 @@ export default function ExploreOverlay() {
       {/* Middle Section for Event Log */}
       <Box sx={styles.middleSection}>
         <Box sx={styles.eventLogContainer}>
-          {event && <Box sx={styles.encounterDetails}>
-            <Typography variant="h6">
-              {getEventTitle(event)}
-            </Typography>
-
-            <Box sx={{ display: 'flex', gap: 2, textAlign: 'center', justifyContent: 'center' }}>
-              {typeof event.xp_reward === 'number' && event.xp_reward > 0 && (
-                <Typography color='secondary'>+{event.xp_reward} XP</Typography>
-              )}
-
-              {event.type === 'obstacle' && (
-                <Typography color='secondary'>
-                  {event.obstacle?.dodged ? '' : `-${event.obstacle?.damage} Health ${event.obstacle?.critical_hit ? 'critical hit!' : ''}`}
-                </Typography>
-              )}
-
-              {typeof event.gold_reward === 'number' && event.gold_reward > 0 && (
-                <Typography color='secondary'>
-                  +{event.gold_reward} Gold
-                </Typography>
-              )}
-
-              {event.type === 'discovery' && event.discovery?.type && (
-                <>
-                  {event.discovery.type === 'Gold' && (
-                    <Typography color='secondary'>
-                      +{event.discovery.amount} Gold
-                    </Typography>
-                  )}
-                  {event.discovery.type === 'Health' && (
-                    <Typography color='secondary'>
-                      +{event.discovery.amount} Health
-                    </Typography>
-                  )}
-                </>
-              )}
-
-              {event.type === 'stat_upgrade' && event.stats && (
-                <Typography color='secondary'>
-                  {Object.entries(event.stats)
-                    .filter(([_, value]) => typeof value === 'number' && value > 0)
-                    .map(([stat, value]) => `+${value} ${stat.slice(0, 3).toUpperCase()}`)
-                    .join(', ')}
-                </Typography>
-              )}
-
-              {event.type === 'level_up' && event.level && (
-                <Typography color='secondary'>
-                  Reached Level {event.level}
-                </Typography>
-              )}
-
-              {event.type === 'buy_items' && typeof event.potions === 'number' && event.potions > 0 && (
-                <Typography color='secondary'>
-                  {`+${event.potions} Potions`}
-                </Typography>
-              )}
-
-              {event.items_purchased && event.items_purchased.length > 0 && (
-                <Typography color='secondary'>
-                  +{event.items_purchased.length} Items
-                </Typography>
-              )}
-
-              {event.items && event.items.length > 0 && (
-                <Typography color='secondary'>
-                  {event.items.length} items
-                </Typography>
-              )}
-
-              {event.type === 'beast' && (
-                <Typography color='secondary'>
-                  Level {event.beast?.level} Power {event.beast?.tier! * event.beast?.level!}
-                </Typography>
+          {/* Log Content */}
+          <Box sx={styles.logContentContainer}>
+            {/* Fixed button that never moves */}
+            <Box sx={styles.fixedButtonContainer}>
+              {exploreLog && exploreLog.length > 0 && (
+                <IconButton
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  sx={styles.expandButton}
+                  size="small"
+                >
+                  {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                </IconButton>
               )}
             </Box>
-          </Box>}
+            
+            {/* Content area */}
+            <Box sx={styles.contentArea}>
+              {isExpanded ? (
+                <Box sx={styles.scrollableContent} ref={listRef}>
+                  {exploreLog && exploreLog.length > 0 ? exploreLog.map((event, index) => (
+                    <Box key={`${exploreLog.length - index}`} sx={styles.logEvent}>
+                      <Box sx={styles.eventIcon}>
+                        <img
+                          src={getEventIcon(event)}
+                          alt={'encounter'}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            filter: event.type === 'obstacle' ? 'drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.8))' : 'none'
+                          }}
+                        />
+                      </Box>
+                      <Box sx={styles.eventDetails}>
+                        <Typography sx={styles.eventTitle}>{getEventTitle(event)}</Typography>
+                        <Box sx={styles.eventRewards}>
+                          {typeof event.xp_reward === 'number' && event.xp_reward > 0 && (
+                            <Typography sx={styles.rewardText}>+{event.xp_reward} XP</Typography>
+                          )}
+                          {event.type === 'obstacle' && (
+                            <Typography sx={styles.rewardText}>
+                              {event.obstacle?.dodged ? '' : `-${event.obstacle?.damage} Health ${event.obstacle?.critical_hit ? 'critical hit!' : ''}`}
+                            </Typography>
+                          )}
+                          {typeof event.gold_reward === 'number' && event.gold_reward > 0 && (
+                            <Typography sx={styles.rewardText}>+{event.gold_reward} Gold</Typography>
+                          )}
+                          {event.type === 'discovery' && event.discovery?.type && (
+                            <>
+                              {event.discovery.type === 'Gold' && (
+                                <Typography sx={styles.rewardText}>+{event.discovery.amount} Gold</Typography>
+                              )}
+                              {event.discovery.type === 'Health' && (
+                                <Typography sx={styles.rewardText}>+{event.discovery.amount} Health</Typography>
+                              )}
+                            </>
+                          )}
+                          {event.type === 'stat_upgrade' && event.stats && (
+                            <Typography sx={styles.rewardText}>
+                              {Object.entries(event.stats)
+                                .filter(([_, value]) => typeof value === 'number' && value > 0)
+                                .map(([stat, value]) => `+${value} ${stat.slice(0, 3).toUpperCase()}`)
+                                .join(', ')}
+                            </Typography>
+                          )}
+                          {event.type === 'level_up' && event.level && (
+                            <Typography sx={styles.rewardText}>Reached Level {event.level}</Typography>
+                          )}
+                          {event.type === 'buy_items' && typeof event.potions === 'number' && event.potions > 0 && (
+                            <Typography sx={styles.rewardText}>{`+${event.potions} Potions`}</Typography>
+                          )}
+                          {event.items_purchased && event.items_purchased.length > 0 && (
+                            <Typography sx={styles.rewardText}>+{event.items_purchased.length} Items</Typography>
+                          )}
+                          {event.items && event.items.length > 0 && (
+                            <Typography sx={styles.rewardText}>{event.items.length} items</Typography>
+                          )}
+                          {event.type === 'beast' && (
+                            <Typography sx={styles.rewardText}>
+                              Level {event.beast?.level} Power {event.beast?.tier! * event.beast?.level!}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    </Box>
+                  )) : (
+                    <Typography sx={styles.eventTitle}>No events yet</Typography>
+                  )}
+                </Box>
+              ) : (
+                // Collapsed view - show only the latest event
+                event ? (
+                  <Box sx={styles.encounterDetails}>
+                    <Typography variant="h6">
+                      {getEventTitle(event)}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2, textAlign: 'center', justifyContent: 'center' }}>
+                    {typeof event.xp_reward === 'number' && event.xp_reward > 0 && (
+                      <Typography color='secondary'>+{event.xp_reward} XP</Typography>
+                    )}
+                    {event.type === 'obstacle' && (
+                      <Typography color='secondary'>
+                        {event.obstacle?.dodged ? '' : `-${event.obstacle?.damage} Health ${event.obstacle?.critical_hit ? 'critical hit!' : ''}`}
+                      </Typography>
+                    )}
+                    {typeof event.gold_reward === 'number' && event.gold_reward > 0 && (
+                      <Typography color='secondary'>+{event.gold_reward} Gold</Typography>
+                    )}
+                    {event.type === 'discovery' && event.discovery?.type && (
+                      <>
+                        {event.discovery.type === 'Gold' && (
+                          <Typography color='secondary'>+{event.discovery.amount} Gold</Typography>
+                        )}
+                        {event.discovery.type === 'Health' && (
+                          <Typography color='secondary'>+{event.discovery.amount} Health</Typography>
+                        )}
+                      </>
+                    )}
+                    {event.type === 'stat_upgrade' && event.stats && (
+                      <Typography color='secondary'>
+                        {Object.entries(event.stats)
+                          .filter(([_, value]) => typeof value === 'number' && value > 0)
+                          .map(([stat, value]) => `+${value} ${stat.slice(0, 3).toUpperCase()}`)
+                          .join(', ')}
+                      </Typography>
+                    )}
+                    {event.type === 'level_up' && event.level && (
+                      <Typography color='secondary'>Reached Level {event.level}</Typography>
+                    )}
+                    {event.type === 'buy_items' && typeof event.potions === 'number' && event.potions > 0 && (
+                      <Typography color='secondary'>{`+${event.potions} Potions`}</Typography>
+                    )}
+                    {event.items_purchased && event.items_purchased.length > 0 && (
+                      <Typography color='secondary'>+{event.items_purchased.length} Items</Typography>
+                    )}
+                    {event.items && event.items.length > 0 && (
+                      <Typography color='secondary'>{event.items.length} items</Typography>
+                    )}
+                    {event.type === 'beast' && (
+                      <Typography color='secondary'>
+                        Level {event.beast?.level} Power {event.beast?.tier! * event.beast?.level!}
+                      </Typography>
+                    )}
+                    </Box>
+                  </Box>
+                ) : (
+                  <Typography sx={styles.eventTitle}>No events yet</Typography>
+                )
+              )}
+            </Box>
+          </Box>
         </Box>
       </Box>
 
@@ -306,8 +383,93 @@ const styles = {
   eventLogContainer: {
     width: '100%',
     display: 'flex',
+    flexDirection: 'column',
+  },
+  expandButtonContainer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    marginBottom: '8px',
+  },
+  expandButton: {
+    color: '#d0c98d',
+    padding: '4px',
+    '&:hover': {
+      backgroundColor: 'rgba(208, 201, 141, 0.1)',
+    },
+  },
+  logContentContainer: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '8px',
+    width: '100%',
+  },
+  fixedButtonContainer: {
+    flexShrink: 0,
+    width: '32px',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: "6px",
+    order: 2, // Move to right side
+  },
+  contentArea: {
+    flex: 1,
+    minWidth: 0, // Allows content to shrink
+    order: 1, // Move to left side
+    display: 'flex',
+    justifyContent: 'center', // Center content when collapsed
+  },
+  scrollableContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    maxHeight: '210px',
+    overflowY: 'auto',
+    width: '100%', // Take full width when expanded
+    '&::-webkit-scrollbar': {
+      display: 'none', // Hide scrollbar
+    },
+    scrollbarWidth: 'none', // Firefox
+    msOverflowStyle: 'none', // IE/Edge
+  },
+  logEvent: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '8px',
+    borderRadius: '8px',
+    border: '1px solid rgba(208, 201, 141, 0.2)',
+    background: 'rgba(208, 201, 141, 0.05)',
+  },
+  eventIcon: {
+    width: '24px',
+    height: '24px',
+    display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+  },
+  eventDetails: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  eventTitle: {
+    color: '#d0c98d',
+    fontSize: '0.9rem',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontWeight: 500,
+  },
+  eventRewards: {
+    display: 'flex',
+    gap: '8px',
+    flexWrap: 'wrap',
+  },
+  rewardText: {
+    color: '#EDCF33',
+    fontSize: '0.8rem',
+    fontFamily: 'Cinzel, Georgia, serif',
   },
   eventLogText: {
     color: '#d0c98d',
