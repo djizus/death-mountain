@@ -166,7 +166,7 @@ export default function BeastScreen() {
     }
 
     if (isNameMatch) {
-      offset += 30;
+      offset += 48;
     }
 
     if (level >= 15 || (specialSeed !== 0)) {
@@ -174,7 +174,7 @@ export default function BeastScreen() {
     }
 
     if (isNecklaseOrRing) {
-      offset -= 46;
+      offset += 6;
     }
 
     return offset;

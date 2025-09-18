@@ -1,7 +1,7 @@
 import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
 import { calculateAttackDamage, calculateBeastDamage, calculateLevel, calculateNextLevelXP, calculateProgress, calculateCombatStats } from '@/utils/game';
-import { ItemUtils, Tier, typeIcons } from '@/utils/loot';
+import { ItemType, ItemUtils, Tier, typeIcons } from '@/utils/loot';
 import { Box, LinearProgress, Typography, Tooltip, keyframes } from '@mui/material';
 import ItemTooltip from './ItemTooltip';
 
@@ -113,7 +113,7 @@ export default function ItemInfoPopup({ item, itemSpecialsSeed, onClose, onItemE
     }
 
     if (isNameMatch) {
-      offset += 30;
+      offset += 48;
     }
 
     if (level >= 15 || (specialSeed !== 0)) {
@@ -121,7 +121,7 @@ export default function ItemInfoPopup({ item, itemSpecialsSeed, onClose, onItemE
     }
 
     if (isNecklaseOrRing) {
-      offset -= 46;
+      offset += 6;
     }
 
     return offset;
@@ -319,6 +319,17 @@ export default function ItemInfoPopup({ item, itemSpecialsSeed, onClose, onItemE
               </Box>
             </>
           )}
+
+          {(type === ItemType.Necklace || type === ItemType.Ring) &&
+            <>
+              <Box sx={styles.divider} />
+              <Box sx={styles.jewelryContainer}>
+                <Typography sx={styles.jewelryEffect}>
+                  {ItemUtils.getJewelryEffect(item.id)}
+                </Typography>
+              </Box>
+            </>
+          }
         </Box>
 
         {/* Right Column - Available Items */}
@@ -851,5 +862,22 @@ const styles = {
     width: '16px',
     height: '16px',
     filter: 'invert(1) sepia(1) saturate(3000%) hue-rotate(50deg) brightness(1.1)',
+  },
+  jewelryContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  jewelryLabel: {
+    color: 'rgba(128, 255, 0, 0.7)',
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.9rem',
+    fontWeight: 'bold',
+  },
+  jewelryEffect: {
+    color: '#80FF00',
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.8rem',
+    lineHeight: '1.4',
   },
 };
