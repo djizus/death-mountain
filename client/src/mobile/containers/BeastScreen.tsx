@@ -395,6 +395,9 @@ export default function BeastScreen() {
                   >
                     EQUIP
                   </Button>
+                  <Typography sx={styles.probabilityText}>
+                    
+                  </Typography>
                 </Box>
 
                 <Box sx={styles.actionButtonContainer}>
@@ -407,6 +410,9 @@ export default function BeastScreen() {
                   >
                     UNDO
                   </Button>
+                  <Typography sx={styles.probabilityText}>
+                    
+                  </Typography>
                 </Box>
               </Box>
             )}

@@ -136,59 +136,62 @@ export default function ItemInfoPopup({ item, itemSpecialsSeed, onClose, onItemE
 
   return (
     <Box sx={styles.popupContainer}>
-      {/* Header with close button */}
+      {/* Header */}
       <Box sx={styles.header}>
-        <Box sx={styles.titleSection}>
-          {specialName && (
-            <Typography sx={styles.specialName}>
-              {specialName}
-            </Typography>
+        <Box sx={styles.headerLeft}>
+          {(specials.special1 || futureSpecials) && (
+            <Box sx={styles.headerTopRow}>
+              {specialName && (
+                <Typography sx={styles.specialName}>
+                  {specialName}
+                </Typography>
+              )}
+            </Box>
           )}
-          <Typography sx={styles.itemName}>
-            {metadata.name}
-          </Typography>
-          {specials.special1 && (
-            <>
-              <Box sx={styles.divider} />
-              <Box sx={styles.specialContainer}>
+          <Box sx={styles.headerBottomRow}>
+            <Typography sx={styles.itemName}>
+              {metadata.name}
+            </Typography>
+          </Box>
+        </Box>
+        {(specials.special1 || futureSpecials) && (
+          <Box sx={styles.headerRight}>
+            <Box sx={styles.headerTopRow}>
+              {(futureSpecials && futureSpecials.special1) ? (
+                <>
+                  <Box sx={styles.futureSpecialContainer}>
+                    <Typography sx={styles.futureSpecialLabel}>
+                      Unlocks At 15
+                    </Typography>
+                  </Box>
+                </>
+              ) : specials.special1 && (
                 <Typography variant="caption" sx={styles.special}>
                   {specials.special1}
                 </Typography>
+              )}
+            </Box>
+            <Box sx={styles.headerBottomRow}>
+              {(futureSpecials && futureSpecials.special1) ? (
+                <>
+                  <Box sx={styles.futureSpecialContent}>
+                    <Typography sx={styles.futureSpecial}>
+                      {futureSpecials.special1}
+                    </Typography>
 
+                    <Typography sx={styles.futureSpecial}>
+                      {ItemUtils.getStatBonus(futureSpecials.special1)}
+                    </Typography>
+                  </Box>
+                </>
+              ) : specials.special1 && (
                 <Typography variant="caption" sx={styles.special}>
                   {ItemUtils.getStatBonus(specials.special1)}
                 </Typography>
-              </Box>
-            </>
-          )}
-
-          {futureSpecials && futureSpecials.special1 && (
-            <>
-              <Box sx={styles.divider} />
-              <Box sx={styles.futureSpecialContainer}>
-                <Typography sx={styles.futureSpecialLabel}>
-                  Unlocks At 15
-                </Typography>
-                <Box sx={styles.futureSpecialContent}>
-                  <Typography sx={styles.futureSpecial}>
-                    {futureSpecials.special1}
-                  </Typography>
-
-                  <Typography sx={styles.futureSpecial}>
-                    {ItemUtils.getStatBonus(futureSpecials.special1)}
-                  </Typography>
-                </Box>
-              </Box>
-            </>
-          )}
-        </Box>
-        {/* <IconButton
-          onClick={onClose}
-          sx={styles.closeButton}
-          size="small"
-        >
-          <CloseIcon sx={styles.closeIcon} />
-        </IconButton> */}        
+              )}
+            </Box>
+          </Box>
+        )}
       </Box>
 
       <Box sx={styles.divider} />
@@ -428,10 +431,37 @@ const styles = {
   },
   header: {
     display: 'flex',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    gap: '12px',
-    marginBottom: '8px',
+    // justifyContent: 'flex-start',
+    // alignItems: 'center',
+    // gap: '12px',
+    // marginBottom: '8px',
+  },
+  headerLeft: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    width: '50%',
+  },
+  headerRight: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    width: '50%',
+    alignItems: 'flex-end',
+  },
+  headerTopRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: '4px',
+    height: '14px',
+    alignItems: 'bottom',
+  },
+  headerBottomRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: '4px',
+    height: '14px',
+    alignItems: 'bottom',
   },
   titleSection: {
     display: 'flex',
@@ -441,16 +471,22 @@ const styles = {
   },
   specialName: {
     color: '#EDCF33',
-    fontSize: '0.9rem',
+    lineHeight: '1.0',
     fontFamily: 'VT323, monospace',
+    fontSize: '0.9rem',
     fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'flex-end',
   },
   itemName: {
     color: '#80FF00',
+    lineHeight: '1.0',
     fontFamily: 'VT323, monospace',
     fontSize: '1.0rem',
     fontWeight: 'bold',
     textShadow: '0 0 8px rgba(128, 255, 0, 0.3)',
+    display: 'flex',
+    alignItems: 'flex-end',
   },
   tier: {
     color: 'rgba(128, 255, 0, 0.7)',
@@ -596,7 +632,7 @@ const styles = {
   },
   itemsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, 30px)',
+    gridTemplateColumns: 'repeat(3, 36px)',
     gap: '4px',
     maxHeight: '300px',
     overflowY: 'visible',
@@ -613,7 +649,7 @@ const styles = {
     position: 'relative',
     cursor: 'pointer',
     border: '1px solid rgba(128, 255, 0, 0.2)',
-    minHeight: '30px',
+    minHeight: '36px',
     '&:hover': {
       transform: 'scale(1.05)',
     },
@@ -688,7 +724,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: '30px',
+    minHeight: '36px',
   },
   emptySlotIcon: {
     width: '20px',
@@ -753,8 +789,9 @@ const styles = {
     fontFamily: 'VT323, monospace',
     fontSize: '0.9rem',
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: '4px',
+    lineHeight: '1.0',
   },
   damageContainer: {
     display: 'flex',
@@ -806,15 +843,21 @@ const styles = {
     fontWeight: '500',
     lineHeight: '1.0',
     opacity: 0.9,
+    display: 'flex',
+    alignItems: 'flex-end',
   },
   futureSpecialContent: {
     display: 'flex',
     justifyContent: 'space-between',
+    gap: '8px',
   },
   futureSpecial: {
     color: '#80FF00',
+    lineHeight: '1.0',
     fontSize: '0.8rem',
     opacity: 0.8,
+    display: 'flex',
+    alignItems: 'flex-end',
   },
   typeContainer: {
     display: 'flex',
