@@ -2,9 +2,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
 import { calculateAttackDamage, calculateBeastDamage, calculateLevel, calculateNextLevelXP, calculateProgress, calculateCombatStats } from '@/utils/game';
 import { ItemUtils, Tier, typeIcons } from '@/utils/loot';
-import { getAttackType, getArmorType } from '@/utils/beast';
-import { Box, LinearProgress, Typography, IconButton, keyframes, Tooltip } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
+import { Box, LinearProgress, Typography, Tooltip, keyframes } from '@mui/material';
 import ItemTooltip from './ItemTooltip';
 
 interface ItemInfoPopupProps {
@@ -56,9 +54,9 @@ export default function ItemInfoPopup({ item, itemSpecialsSeed, onClose, onItemE
   const isNecklace = ItemUtils.isNecklace(item.id);
   const isRing = ItemUtils.isRing(item.id);
   
-  // Get the attack and armor types for this item
-  const attackType = getAttackType(item.id);
-  const armorType = getArmorType(item.id);
+  const itemType = ItemUtils.getItemType(item.id);
+  const attackType = isWeapon ? itemType : 'None';
+  const armorType = isArmor ? itemType : 'None';
 
   // Sorting function for inventory items (same as CharacterScreen)
   const sortInventoryItems = (items: Item[]): Item[] => {
@@ -315,9 +313,6 @@ export default function ItemInfoPopup({ item, itemSpecialsSeed, onClose, onItemE
             </>
           )}
         </Box>
-
-        {/* Vertical Divider */}
-        <Box sx={styles.verticalDivider} />
 
         {/* Right Column - Available Items */}
         <Box sx={styles.rightColumn}>
@@ -596,12 +591,12 @@ const styles = {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
-    marginTop: '16px',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
   },
   itemsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
+    gridTemplateColumns: 'repeat(3, 30px)',
     gap: '4px',
     maxHeight: '300px',
     overflowY: 'visible',
@@ -618,7 +613,7 @@ const styles = {
     position: 'relative',
     cursor: 'pointer',
     border: '1px solid rgba(128, 255, 0, 0.2)',
-    minHeight: '40px',
+    minHeight: '30px',
     '&:hover': {
       transform: 'scale(1.05)',
     },
@@ -693,7 +688,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: '40px',
+    minHeight: '30px',
   },
   emptySlotIcon: {
     width: '20px',
