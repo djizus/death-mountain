@@ -248,7 +248,7 @@ export default function ItemInfoPopup({ item, itemSpecialsSeed, onClose, onItemE
                 <Box sx={{
                   ...styles.tierBox,
                   backgroundColor: `${tierColor}0D`, // 0D = ~5% alpha
-                  border: `1px solid ${tierColor}`,
+                  border: `1px solid ${tierColor}0D`,
                 }}>
                   <Typography sx={{...styles.infoLabel, color: tierColor }}>Tier</Typography>
                   <Typography sx={{ ...styles.infoValue, color: tierColor }}>T{tier}</Typography>

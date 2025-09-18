@@ -38,7 +38,7 @@ export default function BeastInfoPopup({ beastType, beastId, beastLevel, onClose
           <Box sx={{
             ...styles.tierBox,
             backgroundColor: `${ItemUtils.getTierColor(beastTier as Tier)}0D`, // 0D = ~5% alpha
-            border: `1px solid ${ItemUtils.getTierColor(beastTier as Tier)}`,
+            border: `1px solid ${ItemUtils.getTierColor(beastTier as Tier)}0D`,
           }}>
             <Typography sx={{...styles.infoLabel, color: ItemUtils.getTierColor(beastTier as Tier) }}>Tier</Typography>
             <Typography sx={{ ...styles.infoValue, color: ItemUtils.getTierColor(beastTier as Tier) }}>T{beastTier}</Typography>
@@ -349,7 +349,7 @@ const styles = {
     fontWeight: 'bold',
     marginLeft: 'auto',
     borderLeft: '1px solid rgba(128, 255, 0, 0.2)',
-    minWidth: '50px',
+    minWidth: '46px',
     textAlign: 'right',
   },
 };

@@ -177,9 +177,20 @@ export default function StatSelectionScreen() {
                     </Typography>
                   )}
 
-                  <Typography sx={styles.currentValue}>
-                    {adventurer!.stats[stat as keyof Stats] + selectedStats[stat as keyof Stats]}
-                  </Typography>
+                  <Box sx={styles.statValueContainer}>
+                    <Typography sx={{ ...styles.currentValue, color: '#80FF00' }}>
+                      {adventurer!.stats[stat as keyof Stats] + selectedStats[stat as keyof Stats]}
+                    </Typography>
+                    <Typography sx={{ ...styles.currentValue, color: '#EDCF33', whiteSpace: 'pre' }}>
+                      {' ('}
+                    </Typography>
+                    <Typography sx={{ ...styles.currentValue, color: '#FFFFFF' }}>
+                      {Math.max(0, adventurer!.stats[stat as keyof Stats] - equippedItemStats[stat as keyof Stats])}
+                    </Typography>
+                    <Typography sx={{ ...styles.currentValue, color: '#EDCF33' }}>
+                      +{equippedItemStats[stat as keyof Stats]}{')'}
+                    </Typography>
+                  </Box>
                 </Box>
               </Box>
 
@@ -318,6 +329,11 @@ const styles = {
     color: 'rgba(128, 255, 0, 0.9)',
     fontSize: '0.95rem',
     fontFamily: 'VT323, monospace',
+  },
+  statValueContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0px',
     background: 'rgba(128, 255, 0, 0.15)',
     padding: '2px 8px',
     borderRadius: '4px',
