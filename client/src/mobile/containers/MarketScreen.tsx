@@ -6,6 +6,7 @@ import { calculateLevel } from '@/utils/game';
 import { ItemUtils, slotIcons, typeIcons, Tier } from '@/utils/loot';
 import { MarketItem, generateMarketItems, potionPrice } from '@/utils/market';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import { Box, Button, IconButton, Modal, Paper, Slider, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useCallback, useMemo, useState } from 'react';
 import JewelryTooltip from '@/components/JewelryTooltip';
@@ -182,6 +183,17 @@ export default function MarketScreen() {
   const maxPotions = Math.min(maxPotionsByHealth, maxPotionsByGold);
   const inventoryFull = bag.length + cart.items.length === MAX_BAG_SIZE;
 
+  // Calculate health percentage for color determination (including potions in cart)
+  const currentHealth = Math.min(adventurer?.health! + (cart.potions * 10), maxHealth);
+  const healthPercentage = currentHealth / maxHealth * 100;
+  
+  // Function to get health color based on percentage
+  const getHealthColor = (percentage: number, returnRGB: boolean = false, opacityRGBA: number = 0.05) => {
+    if (percentage >= 66) return returnRGB ? `rgba(128, 255, 0, ${opacityRGBA})` : '#80FF00';
+    if (percentage >= 33) return returnRGB ? `rgba(237, 207, 51, ${opacityRGBA})` : '#EDCF33';
+    return returnRGB ? `rgba(248, 27, 27, ${opacityRGBA})` : 'rgb(248, 27, 27)';
+  };
+
   const filteredItems = marketItems.filter(item => {
     if (slotFilter && item.slot !== slotFilter) return false;
     if (typeFilter && item.type !== typeFilter) return false;
@@ -193,9 +205,21 @@ export default function MarketScreen() {
     <Box sx={styles.container}>
       {/* Top Bar */}
       <Box sx={styles.topBar}>
-        <Box sx={styles.healthDisplay}>
-          <Typography sx={styles.healthLabel}>Health</Typography>
-          <Typography sx={styles.healthValue}>
+        <Box sx={{
+          ...styles.healthDisplay,
+          border: `1px solid ${getHealthColor(healthPercentage)}`,
+          background: `${getHealthColor(healthPercentage, true, 0.05)}`,
+        }}>
+          <Typography sx={{
+            ...styles.healthLabel, 
+            color: getHealthColor(healthPercentage)
+          }}>
+            Health
+          </Typography>
+          <Typography sx={{
+            ...styles.healthValue,
+            color: getHealthColor(healthPercentage),
+          }}>
             {Math.min(adventurer?.health! + (cart.potions * 10), maxHealth)}/{maxHealth}
           </Typography>
         </Box>
@@ -383,15 +407,30 @@ export default function MarketScreen() {
             </Box>
           </Box>
 
-          <IconButton
-            onClick={() => setShowFilters(!showFilters)}
-            sx={{
-              ...styles.filterToggleButton,
-              ...(showFilters ? styles.filterToggleButtonActive : {})
-            }}
-          >
-            <FilterListAltIcon sx={{ fontSize: 20 }} />
-          </IconButton>
+          {/* Control Buttons Stack */}
+          <Box sx={styles.controlButtonsStack}>
+            <IconButton
+              onClick={() => setShowCart(true)}
+              sx={{
+                ...styles.cartToggleButton,
+                ...(showCart ? styles.cartToggleButtonActive : {}),
+                opacity: (cart.potions === 0 && cart.items.length === 0) ? 0.3 : 1,
+              }}
+              disabled={(cart.potions === 0 && cart.items.length === 0)}
+            >
+              <ShoppingCartIcon />
+            </IconButton>
+            <IconButton
+              onClick={() => setShowFilters(!showFilters)}
+              sx={{
+                ...styles.filterToggleButton,
+                ...(showFilters ? styles.filterToggleButtonActive : {}),
+                ...((slotFilter || typeFilter) ? styles.filterToggleButtonWithActiveFilters : {})
+              }}
+            >
+              <FilterListAltIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Box>
         </Box>
 
         {/* Filters */}
@@ -614,6 +653,41 @@ const styles = {
       color: 'rgba(128, 255, 0, 0.5)',
     },
   },
+  controlButtonsStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    alignItems: 'center',
+  },
+  cartToggleButton: {
+    width: 36,
+    height: 36,
+    minWidth: 36,
+    padding: 0,
+    background: 'rgba(0, 0, 0, 0.2)',
+    border: '1px solid rgba(255, 165, 0, 0.3)',
+    color: 'rgba(255, 165, 0, 0.8)',
+    transition: 'all 0.2s ease',
+    borderRadius: '6px',
+    '&:hover': {
+      background: 'rgba(255, 165, 0, 0.1)',
+      borderColor: 'rgba(255, 165, 0, 0.3)',
+      color: 'rgba(255, 165, 0, 0.8)',
+    },
+    '&:disabled': {
+      background: 'rgba(0, 0, 0, 0.1)',
+      borderColor: 'rgba(255, 165, 0, 0.1)',
+      color: 'rgba(255, 165, 0, 0.3)',
+    },
+  },
+  cartToggleButtonActive: {
+    background: 'rgba(255, 165, 0, 0.15)',
+    borderColor: 'rgba(255, 165, 0, 0.4)',
+    color: '#FFA500',
+    '&:hover': {
+      background: 'rgba(255, 165, 0, 0.2)',
+    },
+  },
   mainContent: {
     flex: 1,
     display: 'flex',
@@ -625,14 +699,16 @@ const styles = {
   },
   potionsSection: {
     flex: 1,
+    height: '80px',
   },
   potionSliderContainer: {
     display: 'flex',
     justifyContent: 'space-between',
-    padding: '8px',
+    padding: ' 0 8px',
     background: 'rgba(0, 0, 0, 0.2)',
     borderRadius: '8px',
     border: '1px solid rgba(128, 255, 0, 0.1)',
+    height: '80px',
   },
   potionLeftSection: {
     display: 'flex',
@@ -642,7 +718,8 @@ const styles = {
   potionRightSection: {
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    alignItems: 'center',
     flex: 1,
     ml: '16px',
   },
@@ -973,6 +1050,16 @@ const styles = {
     color: '#FFA500',
     '&:hover': {
       background: 'rgba(255, 165, 0, 0.2)',
+    },
+  },
+  filterToggleButtonWithActiveFilters: {
+    background: 'rgba(255, 255, 0, 0.2)',
+    borderColor: '#EDCF33',
+    color: '#EDCF33',
+    boxShadow: '0 0 8px rgba(237, 207, 51, 0.4)',
+    '&:hover': {
+      background: 'rgba(255, 255, 0, 0.3)',
+      boxShadow: '0 0 12px rgba(237, 207, 51, 0.6)',
     },
   },
   itemUnaffordable: {

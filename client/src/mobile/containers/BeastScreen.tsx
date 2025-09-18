@@ -4,9 +4,9 @@ import { useGameDirector } from '@/mobile/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
 import { screenVariants } from '@/utils/animations';
-import { getBeastImageById, getCollectableTraits } from '@/utils/beast';
+import { getBeastImageById, getCollectableTraits, getArmorType, getAttackType } from '@/utils/beast';
 import { ability_based_percentage, calculateAttackDamage, calculateCombatStats, calculateLevel, getNewItemsEquipped } from '@/utils/game';
-import { ItemUtils, slotIcons } from '@/utils/loot';
+import { ItemUtils, slotIcons, typeIcons } from '@/utils/loot';
 import { Box, Button, Checkbox, LinearProgress, Menu, Tooltip, Typography, keyframes } from '@mui/material';
 import { motion } from 'framer-motion';
 import { useLottie } from 'lottie-react';
@@ -15,6 +15,8 @@ import { isMobile } from 'react-device-detect';
 import strikeAnim from "../assets/animations/strike.json";
 import AnimatedText from '../components/AnimatedText';
 import BeastTooltip from '../components/BeastTooltip';
+import BeastInfoPopup from '../components/BeastInfoPopup';
+import ItemInfoPopup from '../components/ItemInfoPopup';
 import ItemTooltip from '../components/ItemTooltip';
 import { JACKPOT_AMOUNT, useStatistics } from '@/contexts/Statistics';
 import { JACKPOT_BEASTS } from '@/constants/beast';
@@ -26,15 +28,15 @@ const equipMessage = "Equipping items";
 export default function BeastScreen() {
   const { currentNetworkConfig } = useDynamicConnector();
   const { executeGameAction, actionFailed } = useGameDirector();
-  const { adventurer, adventurerState, beast, battleEvent, bag,
-    equipItem, undoEquipment, setShowBeastRewards } = useGameStore();
+  const { adventurer, adventurerState, beast, battleEvent, bag, undoEquipment, setShowBeastRewards } = useGameStore();
   const { strkPrice } = useStatistics();
   const [untilDeath, setUntilDeath] = useState(false);
   const [attackInProgress, setAttackInProgress] = useState(false);
   const [fleeInProgress, setFleeInProgress] = useState(false);
   const [equipInProgress, setEquipInProgress] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [showBeastInfoPopup, setShowBeastInfoPopup] = useState(false);
+  const [showItemInfoPopup, setShowItemInfoPopup] = useState(false);
+  const [selectedItemForInfo, setSelectedItemForInfo] = useState<Item | null>(null);
 
   const [combatLog, setCombatLog] = useState("");
   const [health, setHealth] = useState(adventurer!.health);
@@ -130,11 +132,37 @@ export default function BeastScreen() {
     executeGameAction({ type: 'equip' });
   };
 
-  const getOffsetY = (isWeapon: boolean, isNameMatch: boolean, level: number, specialSeed: number) => {
-    let offset = 230;
+  const handleBeastHeaderClick = () => {
+    setShowBeastInfoPopup(!showBeastInfoPopup);
+    setShowItemInfoPopup(false);
+  };
+
+  const handleCloseBeastInfoPopup = () => {
+    setShowBeastInfoPopup(false);
+  };
+
+  const handleItemClick = (item: Item) => {
+    const isTheSameItem = item.id === selectedItemForInfo?.id;
+    setSelectedItemForInfo(isTheSameItem ? null : item);
+    setShowItemInfoPopup(true && !isTheSameItem);
+    setShowBeastInfoPopup(false);
+  };
+
+  const handleCloseItemInfoPopup = () => {
+    setShowItemInfoPopup(false);
+    setSelectedItemForInfo(null);
+  };
+
+  const handleItemEquipped = (newItem: Item) => {
+    // Update the selected item to the newly equipped item
+    setSelectedItemForInfo(newItem);
+  };
+
+  const getOffsetY = (isWeapon: boolean, isNecklaseOrRing: boolean, isNameMatch: boolean, level: number, specialSeed: number) => {
+    let offset = 240;
 
     if (isWeapon) {
-      offset += 17;
+      offset += 40;
     }
 
     if (isNameMatch) {
@@ -145,6 +173,10 @@ export default function BeastScreen() {
       offset += 30;
     }
 
+    if (isNecklaseOrRing) {
+      offset -= 46;
+    }
+
     return offset;
   }
 
@@ -152,6 +184,13 @@ export default function BeastScreen() {
   const beastPower = Number(beast!.level) * (6 - Number(beast!.tier));
   const maxHealth = STARTING_HEALTH + (adventurer!.stats.vitality * 15);
   const collectable = beast ? beast!.isCollectable : false;
+  
+  // Function to get health bar color based on percentage
+  const getHealthBarColor = (percentage: number) => {
+    if (percentage >= 66) return '#80FF00'; // Green
+    if (percentage >= 33) return '#EDCF33'; // Yellow
+    return 'rgb(248, 27, 27)'; // Red
+  };
   const collectableTraits = collectable ? getCollectableTraits(beast!.seed) : null;
   const isJackpot = currentNetworkConfig.beasts && JACKPOT_BEASTS.includes(beast?.name!);
 
@@ -160,8 +199,14 @@ export default function BeastScreen() {
     return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
   }, [adventurer?.equipment]);
 
+  // Calculate combat stats for attack and defense bars
   const combatStats = beast ? calculateCombatStats(adventurer!, bag, beast) : null;
-  const bestItemIds = combatStats?.bestItems.map((item: Item) => item.id) || [];
+  
+  // Calculate preview values for potential max stats
+  const previewAttack = combatStats?.bestDamage || 0;
+  const previewAttackPercent = Math.min(100, Math.floor(previewAttack / beast!.health * 100));
+  const previewProtection = combatStats?.bestProtection || 0;
+  const previewProtectionPercent = Math.min(100, previewProtection);
 
   return (
     <motion.div
@@ -175,7 +220,7 @@ export default function BeastScreen() {
         {/* Top Section - Beast */}
         <Box sx={styles.topSection}>
           <Box sx={styles.beastInfo}>
-            <Box sx={styles.beastHeader}>
+            <Box sx={styles.beastHeader} onClick={handleBeastHeaderClick}>
               <Typography
                 variant={beast!.name.length > 28 ? "h5" : "h4"}
                 sx={[
@@ -211,7 +256,12 @@ export default function BeastScreen() {
               <LinearProgress
                 variant="determinate"
                 value={(beastHealth / beast!.health) * 100}
-                sx={styles.healthBar}
+                sx={{
+                  ...styles.healthBar,
+                  '& .MuiLinearProgress-bar': {
+                    backgroundColor: getHealthBarColor((beastHealth / beast!.health) * 100),
+                  },
+                }}
               />
               {beast!.isCollectable && (
                 <>
@@ -286,9 +336,51 @@ export default function BeastScreen() {
                 <LinearProgress
                   variant="determinate"
                   value={(health / maxHealth) * 100}
-                  sx={styles.healthBar}
+                  sx={{
+                    ...styles.healthBar,
+                    '& .MuiLinearProgress-bar': {
+                      backgroundColor: getHealthBarColor((health / maxHealth) * 100),
+                    },
+                  }}
                 />
               </Box>
+
+              {/* Attack and Defense Bars */}
+              {combatStats && (
+                <Box sx={styles.combatStatsContainer}>
+                  {/* Attack Bar */}
+                  <Box sx={styles.combatBarContainer}>
+                    <LinearProgress
+                      variant="determinate"
+                      value={Math.min(100, Math.floor(combatStats.baseDamage / beast!.health * 100))}
+                      sx={styles.attackBar}
+                    />
+                    {previewAttack > combatStats.baseDamage && (
+                      <LinearProgress
+                        variant="determinate"
+                        value={previewAttackPercent}
+                        sx={styles.previewAttackBar}
+                      />
+                    )}
+                  </Box>
+
+                  {/* Defense Bar */}
+                  <Box sx={styles.combatBarContainer}>
+                    <LinearProgress
+                      variant="determinate"
+                      value={combatStats.protection}
+                      sx={styles.defenseBar}
+                    />
+                    {previewProtection > combatStats.protection && (
+                      <LinearProgress
+                        variant="determinate"
+                        value={previewProtectionPercent}
+                        sx={styles.previewDefenseBar}
+                      />
+                    )}
+                  </Box>
+                </Box>
+              )}
             </Box>
 
             {hasNewItemsEquipped && (
@@ -379,10 +471,11 @@ export default function BeastScreen() {
               const isNameMatch = ItemUtils.isNameMatch(equippedItem!.id, level, adventurer!.item_specials_seed, beast!);
               const isArmorSlot = ['Head', 'Chest', 'Legs', 'Hands', 'Waist'].includes(slot);
               const isWeaponSlot = slot === 'Weapon';
+              const isNecklaseOrRing = slot === 'Neck' || slot === 'Ring';
               const isNameMatchDanger = isNameMatch && isArmorSlot;
               const isNameMatchPower = isNameMatch && isWeaponSlot;
 
-              const offsetY = getOffsetY(isWeaponSlot, (isNameMatchDanger || isNameMatchPower), level, adventurer!.item_specials_seed);
+              const offsetY = getOffsetY(isWeaponSlot, isNecklaseOrRing, (isNameMatchDanger || isNameMatchPower), level, adventurer!.item_specials_seed);
 
               return (
                 <Tooltip
@@ -416,13 +509,15 @@ export default function BeastScreen() {
                 >
                   <Box
                     onClick={(e) => {
-                      setSelectedSlot(slot);
-                      setMenuAnchor(e.currentTarget);
+                      if (equippedItem && equippedItem.id !== 0) {
+                        handleItemClick(equippedItem);
+                      }
                     }}
                     sx={{
                       ...styles.equippedItemSlot,
                       ...(isNameMatchDanger && styles.nameMatchDangerSlot),
-                      ...(isNameMatchPower && styles.nameMatchPowerSlot)
+                      ...(isNameMatchPower && styles.nameMatchPowerSlot),
+                      cursor: 'pointer',
                     }}
                   >
                     {equippedItem && equippedItem.id !== 0 ? (
@@ -464,116 +559,31 @@ export default function BeastScreen() {
             })}
           </Box>
 
-          {/* Swap Menu */}
-          <Menu
-            anchorEl={menuAnchor}
-            open={Boolean(menuAnchor)}
-            onClose={() => {
-              setMenuAnchor(null);
-            }}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'center',
-            }}
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'center',
-            }}
-            slotProps={{
-              paper: {
-                elevation: 0,
-                sx: {
-                  backgroundColor: 'rgba(17, 17, 17, 1)',
-                  border: '1px solid rgba(128, 255, 0, 0.1)',
-                  borderRadius: '6px',
-                  px: 1,
-                  mt: 1,
-                  minWidth: '40px',
-                  minHeight: '40px',
-                }
-              }
-            }}
-          >
-            <Box sx={styles.swapMenuGrid}>
-              {bag
-                .filter(item => ItemUtils.getItemSlot(item.id).toLowerCase() === selectedSlot?.toLowerCase())
-                .map((item, index) => {
-                  const level = calculateLevel(item.xp);
-                  const isNameMatch = ItemUtils.isNameMatch(item.id, level, adventurer!.item_specials_seed, beast!);
-                  const isArmorSlot = ['Head', 'Chest', 'Legs', 'Hands', 'Waist'].includes(ItemUtils.getItemSlot(item.id));
-                  const isWeaponSlot = ItemUtils.getItemSlot(item.id) === 'Weapon';
-                  const isDefenseItem = bestItemIds.includes(item.id);
-                  const isNameMatchDanger = isNameMatch && isArmorSlot;
-                  const isNameMatchPower = isNameMatch && isWeaponSlot;
-                  const offsetY = getOffsetY(isWeaponSlot, (isNameMatchDanger || isNameMatchPower), level, adventurer!.item_specials_seed);
-
-                  return (
-                    <Tooltip
-                      key={item.id}
-                      title={<ItemTooltip itemSpecialsSeed={adventurer!.item_specials_seed} item={item} />}
-                      placement="top"
-                      slotProps={{
-                        popper: {
-                          disablePortal: isMobile,
-                          modifiers: [
-                            {
-                              name: 'preventOverflow',
-                              enabled: true,
-                              options: { rootBoundary: 'viewport' },
-                            },
-                            {
-                              name: 'offset',
-                              options: {
-                                offset: [-(index * 30), offsetY], // [x, y] offset in pixels
-                              },
-                            },
-                          ],
-                        },
-                        tooltip: {
-                          sx: {
-                            bgcolor: 'transparent',
-                            border: 'none',
-                          },
-                        },
-                      }}
-                    >
-                      <Box
-                        onClick={() => {
-                          equipItem(item);
-                          setMenuAnchor(null);
-                          setSelectedSlot(null);
-                        }}
-                        sx={{
-                          ...styles.swapMenuItem,
-                          ...(isDefenseItem && styles.strongSwapMenuItem),
-                          ...(isNameMatch && isArmorSlot && styles.nameMatchDangerSwapMenuItem),
-                          ...(isNameMatch && isWeaponSlot && styles.nameMatchPowerSwapMenuItem)
-                        }}
-                      >
-                        <Box sx={styles.swapMenuItemImageContainer}>
-                          <Box
-                            sx={[
-                              styles.swapMenuItemGlow,
-                              { backgroundColor: ItemUtils.getTierColor(ItemUtils.getItemTier(item.id)) }
-                            ]}
-                          />
-                          <Box
-                            component="img"
-                            src={ItemUtils.getItemImage(item.id)}
-                            alt={ItemUtils.getItemName(item.id)}
-                            sx={styles.swapMenuItemImage}
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        </Box>
-                      </Box>
-                    </Tooltip>
-                  );
-                })}
-            </Box>
-          </Menu>
         </Box>
+
+        {/* Beast Info Popup */}
+        {showBeastInfoPopup && (
+          <Box sx={styles.popupWrapper}>
+            <BeastInfoPopup
+              beastType={beast!.type}
+              beastId={beast!.id}
+              beastLevel={beast!.level}
+              onClose={handleCloseBeastInfoPopup}
+            />
+          </Box>
+        )}
+
+        {/* Item Info Popup */}
+        {showItemInfoPopup && selectedItemForInfo && (
+          <Box sx={styles.popupWrapper}>
+            <ItemInfoPopup
+              item={selectedItemForInfo}
+              itemSpecialsSeed={adventurer!.item_specials_seed}
+              onClose={handleCloseItemInfoPopup}
+              onItemEquipped={handleItemEquipped}
+            />
+          </Box>
+        )}
       </Box>
     </motion.div>
   );
@@ -628,6 +638,7 @@ const pulseGold = keyframes`
 `;
 
 const styles = {
+  // Combat stats styles added
   container: {
     width: '100%',
     height: '100dvh',
@@ -689,6 +700,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
+    cursor: 'pointer',
   },
   beastName: {
     color: '#80FF00',
@@ -736,6 +748,34 @@ const styles = {
     border: '1px solid rgba(237, 207, 51, 0.2)',
     minWidth: '50px',
     gap: '1px'
+  },
+  typeBox: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    p: '2px 6px',
+    background: 'rgba(128, 255, 0, 0.1)',
+    borderRadius: '4px',
+    border: '1px solid rgba(128, 255, 0, 0.2)',
+    minWidth: '60px',
+  },
+  typeRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    color: '#80FF00',
+    fontSize: '14px',
+  },
+  typeIcon: {
+    width: '14px',
+    height: '14px',
+    filter: 'invert(1) sepia(1) saturate(3000%) hue-rotate(50deg) brightness(1.1)',
+  },
+  typeText: {
+    color: '#80FF00',
+    fontSize: '14px',
+    fontFamily: 'VT323, monospace',
   },
   statBox: {
     display: 'flex',
@@ -927,7 +967,6 @@ const styles = {
   adventurerHeader: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
   },
   playerName: {
     color: '#80FF00',
@@ -966,7 +1005,6 @@ const styles = {
   statsRow: {
     display: 'flex',
     gap: '4px',
-    marginBottom: '8px',
   },
   healthRow: {
     display: 'flex',
@@ -1121,190 +1159,69 @@ const styles = {
     alignItems: 'center',
     gap: '4px',
   },
-  typeIcon: {
-    width: '18px',
-    height: '18px',
-    filter: 'invert(1) sepia(1) saturate(3000%) hue-rotate(50deg) brightness(1.1)',
-  },
-  tooltipContainer: {
-    padding: '8px',
-    minWidth: '240px',
-    background: 'rgba(0, 0, 0, 0.95)',
-    border: '1px solid rgba(128, 255, 0, 0.3)',
-    borderRadius: '6px',
-    boxShadow: '0 0 20px rgba(128, 255, 0, 0.2)',
-  },
-  tooltipHeader: {
-    borderBottom: '1px solid rgba(128, 255, 0, 0.3)',
-    paddingBottom: '4px',
-    marginBottom: '8px',
-  },
-  tooltipTitle: {
-    color: '#80FF00',
-    fontSize: '1rem',
-    fontFamily: 'VT323, monospace',
-    textAlign: 'center',
-    textShadow: '0 0 10px rgba(128, 255, 0, 0.3)',
-  },
-  tooltipSection: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-    padding: '6px',
-    background: 'rgba(128, 255, 0, 0.05)',
-    borderRadius: '4px',
-    marginBottom: '8px',
-    '&:last-child': {
-      marginBottom: 0,
-    },
-  },
-  tooltipSectionTitle: {
-    color: 'rgba(128, 255, 0, 0.9)',
-    fontSize: '0.8rem',
-    fontFamily: 'VT323, monospace',
-    textTransform: 'uppercase',
-    letterSpacing: '1px',
-    borderBottom: '1px solid rgba(128, 255, 0, 0.2)',
-    paddingBottom: '2px',
-  },
-  tooltipTypeRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '2px 6px',
-    background: 'rgba(128, 255, 0, 0.1)',
-    borderRadius: '3px',
-    border: '1px solid rgba(128, 255, 0, 0.2)',
-  },
-  tooltipTypeIcon: {
-    width: '16px',
-    height: '16px',
-    filter: 'invert(1) sepia(1) saturate(3000%) hue-rotate(50deg) brightness(1.1)',
-  },
-  tooltipTypeText: {
-    color: '#80FF00',
-    fontSize: '0.8rem',
-    fontFamily: 'VT323, monospace',
-  },
-  tooltipStrengths: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-  },
-  tooltipWeaknesses: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-  },
-  tooltipLabel: {
-    color: 'rgba(128, 255, 0, 0.7)',
-    fontSize: '0.7rem',
-    fontFamily: 'VT323, monospace',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-  },
-  swapMenu: {
-    position: 'absolute',
-    top: '100%',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    border: '1px solid rgba(128, 255, 0, 0.3)',
-    borderRadius: '8px',
-    padding: '12px',
-    marginTop: '8px',
-    zIndex: 1000,
-  },
-  swapMenuTitle: {
-    color: '#80FF00',
-    fontSize: '0.9rem',
-    fontFamily: 'VT323, monospace',
-    textAlign: 'center',
-    marginBottom: '8px',
-    textTransform: 'uppercase',
-  },
-  swapMenuGrid: {
-    display: 'flex',
-    gap: '5px',
-    alignItems: 'center',
-  },
-  swapMenuItem: {
-    aspectRatio: '1',
-    backgroundColor: 'rgba(128, 255, 0, 0.05)',
-    borderRadius: '4px',
-    padding: '2px',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    height: '40px',
-    width: '40px',
-    '&:hover': {
-      backgroundColor: 'rgba(128, 255, 0, 0.1)',
-    },
-  },
-  strongSwapMenuItem: {
-    border: '1px solid #80FF00',
-    boxShadow: '0 0 8px rgba(128, 255, 0, 0.3)',
-  },
-  weakSwapMenuItem: {
-    border: '1px solid rgb(248, 27, 27)',
-    boxShadow: '0 0 8px rgba(255, 68, 68, 0.3)',
-  },
-  nameMatchDangerSwapMenuItem: {
-    animation: `${pulseRed} 1.5s infinite`,
-    border: '2px solid rgb(248, 27, 27)',
-    boxShadow: '0 0 12px rgba(248, 27, 27, 0.6)',
-    '&::before': {
-      content: '""',
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(248, 27, 27, 0.1)',
-      borderRadius: '4px',
-      zIndex: 1,
-    }
-  },
-  nameMatchPowerSwapMenuItem: {
-    animation: `${pulseGreen} 1.5s infinite`,
-    border: '2px solid #80FF00',
-    boxShadow: '0 0 12px rgba(128, 255, 0, 0.6)',
-    '&::before': {
-      content: '""',
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(128, 255, 0, 0.1)',
-      borderRadius: '4px',
-      zIndex: 1,
-    }
-  },
-  swapMenuItemImageContainer: {
+  popupWrapper: {
     position: 'relative',
     width: '100%',
-    height: '100%',
     display: 'flex',
     justifyContent: 'center',
-    alignItems: 'center',
+    marginTop: '8px',
   },
-  swapMenuItemGlow: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: '100%',
-    height: '100%',
-    filter: 'blur(4px)',
-    opacity: 0.4,
-    zIndex: 1,
+  combatStatsContainer: {
+    marginTop: '4px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
   },
-  swapMenuItemImage: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain',
+  combatBarContainer: {
     position: 'relative',
+    width: '100%',
+  },
+  attackBar: {
+    height: '4px',
+    borderRadius: '2px',
+    backgroundColor: 'rgba(255, 165, 0, 0.1)',
+    position: 'relative',
+    zIndex: 1,
+    '& .MuiLinearProgress-bar': {
+      backgroundColor: '#FFA500', // Orange color
+      boxShadow: '0 0 4px rgba(255, 165, 0, 0.5)',
+    },
+  },
+  previewAttackBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: '4px',
+    width: '100%',
+    borderRadius: '2px',
+    backgroundColor: 'transparent',
     zIndex: 2,
+    '& .MuiLinearProgress-bar': {
+      backgroundColor: 'rgba(255, 165, 0, 0.2)', 
+    },
+  },
+  defenseBar: {
+    height: '4px',
+    borderRadius: '2px',
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
+    position: 'relative',
+    zIndex: 1,
+    '& .MuiLinearProgress-bar': {
+      backgroundColor: '#808080', // Gray color
+      boxShadow: '0 0 4px rgba(128, 128, 128, 0.5)',
+    },
+  },
+  previewDefenseBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: '4px',
+    width: '100%',
+    borderRadius: '2px',
+    backgroundColor: 'transparent',
+    zIndex: 2,
+    '& .MuiLinearProgress-bar': {
+      backgroundColor: 'rgba(128, 128, 128, 0.2)', // Ghost gray color - made more visible
+    },
   },
 };

@@ -136,6 +136,86 @@ export default function CharacterScreen() {
   const { adventurer, beast, bag, newInventoryItems, setNewInventoryItems, equipItem } = useGameStore();
   const { inProgress } = useMarketStore();
 
+  // Sorting function for inventory items
+  const sortInventoryItems = (items: Item[]): Item[] => {
+    return [...items].sort((a, b) => {
+      const slotA = ItemUtils.getItemSlot(a.id);
+      const slotB = ItemUtils.getItemSlot(b.id);
+      
+      // First sort by type priority: armors first, then weapons, then necklaces, then rings
+      const getTypePriority = (itemId: number): number => {
+        const slot = ItemUtils.getItemSlot(itemId);
+        switch (slot) {
+          case 'Head':
+          case 'Chest':
+          case 'Hand':
+          case 'Waist':
+          case 'Foot':
+            return 1; // Armors
+          case 'Weapon':
+            return 2; // Weapons
+          case 'Ring':
+            return 3; // Necklaces
+          case 'Neck':
+            return 4; // Rings
+          default:
+            return 5; // Unknown
+        }
+      };
+      
+      const priorityA = getTypePriority(a.id);
+      const priorityB = getTypePriority(b.id);
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      // Within armors, sort by material type first: Cloth, Hide, Metal
+      if (priorityA === 1) {
+        const getMaterialPriority = (itemId: number): number => {
+          const itemType = ItemUtils.getItemType(itemId);
+          switch (itemType) {
+            case 'Cloth':
+              return 1;
+            case 'Hide':
+              return 2;
+            case 'Metal':
+              return 3;
+            default:
+              return 4;
+          }
+        };
+        
+        const materialA = getMaterialPriority(a.id);
+        const materialB = getMaterialPriority(b.id);
+        
+        if (materialA !== materialB) {
+          return materialA - materialB;
+        }
+        
+        // Then sort by armor slot: Head, Chest, Hand, Waist, Foot
+        const armorOrder = ['Head', 'Chest', 'Hand', 'Waist', 'Foot'];
+        const indexA = armorOrder.indexOf(slotA);
+        const indexB = armorOrder.indexOf(slotB);
+        
+        if (indexA !== indexB) {
+          return indexA - indexB;
+        }
+      }
+      
+      // Then sort by tier (1-5)
+      const tierA = ItemUtils.getItemTier(a.id);
+      const tierB = ItemUtils.getItemTier(b.id);
+      
+      if (tierA !== tierB) {
+        return tierA - tierB;
+      }
+      
+      // Finally sort by item ID for consistent ordering
+      return a.id - b.id;
+    });
+  };
+
   const [dropInProgress, setDropInProgress] = useState(false);
   const [isDropMode, setIsDropMode] = useState(false);
   const [itemsToDrop, setItemsToDrop] = useState<number[]>([]);
@@ -237,7 +317,7 @@ export default function CharacterScreen() {
               <Typography variant="h6" sx={styles.sectionTitle}>Bag ({bag?.length || 0}/15)</Typography>
             </Box>
             <Box sx={styles.itemGrid}>
-              {bag?.map((item, index) => {
+              {sortInventoryItems(bag || []).map((item, index) => {
                 const isNew = newItems.includes(item.id);
                 const isSelected = itemsToDrop.includes(item.id);
                 const highlight = isDropMode && itemsToDrop.length === 0;

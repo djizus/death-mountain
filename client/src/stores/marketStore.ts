@@ -65,9 +65,10 @@ export const useMarketStore = create<MarketState>((set) => ({
       potions: 0,
       items: [],
     },
-    slotFilter: null,
-    typeFilter: null,
-    tierFilter: null,
+    // Keep filters persistent - don't reset them
+    // slotFilter: null,
+    // typeFilter: null,
+    // tierFilter: null,
   }),
   setInProgress: (inProgress) => set({ inProgress }),
   setShowFilters: (show) => set({ showFilters: show }),

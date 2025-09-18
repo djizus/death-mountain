@@ -92,12 +92,21 @@ export default function ItemTooltip({ itemSpecialsSeed, item, style }: ItemToolt
           <Box sx={styles.damageContainer}>
             <Box sx={[
               styles.damageValue,
-              styles.damageText
             ]}>
               {damage && (
                 <Box>
-                  <Box fontSize="13px">Deals {damage.baseDamage} damage (base)</Box>
-                  <Box fontSize="13px">Deals {damage.criticalDamage} damage (critical)</Box>
+                  <Box sx={styles.damageRow}>
+                    <Typography sx={styles.damageLabel}>ATTACK DMG:</Typography>
+                    <Typography sx={styles.damageValue}>{damage.baseDamage}</Typography>
+                  </Box>
+                  <Box sx={styles.damageRow}>
+                    <Typography sx={styles.damageLabel}>CRIT DMG:</Typography>
+                    <Typography sx={styles.damageValue}>{damage.criticalDamage}</Typography>
+                  </Box>
+                  <Box sx={styles.damageRow}>
+                    <Typography sx={styles.damageLabel}>CRIT CHANCE:</Typography>
+                    <Typography sx={styles.damageValue}>{adventurer!.stats.luck}%</Typography>
+                  </Box>
                 </Box>
               )}
               {damageTaken && `-${damageTaken} health when hit`}
@@ -290,11 +299,20 @@ const styles = {
     fontWeight: '500',
     opacity: 0.8
   },
+  damageRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  damageLabel: {
+    color: 'rgba(128, 255, 0, 0.7)',
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.9rem',
+  },
   damageValue: {
     color: '#80FF00',
-  },
-  damageText: {
-    color: '#80FF00',
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.9rem',
   },
   nameMatchContainer: {
     display: 'flex',

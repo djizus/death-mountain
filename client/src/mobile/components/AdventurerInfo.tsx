@@ -1,20 +1,82 @@
 import { useController } from "@/contexts/controller";
 import { useGameStore } from "@/stores/gameStore";
 import { calculateLevel, calculateNextLevelXP, calculateProgress } from "@/utils/game";
+import { ItemUtils } from "@/utils/loot";
 import { LinearProgress, Typography } from "@mui/material";
+import { useState, useMemo } from "react";
 
 import { STARTING_HEALTH } from "@/constants/game";
 import { Box } from "@mui/material";
 
 export default function AdventurerInfo() {
   const { openProfile, playerName } = useController();
-  const { adventurer, metadata } = useGameStore();
+  const { adventurer, metadata, bag } = useGameStore();
+  const [showDetailedStats, setShowDetailedStats] = useState(false);
+  
   // Calculate level using the proper function
   const level = calculateLevel(adventurer?.xp || 1);
   const progress = calculateProgress(adventurer?.xp || 1);
   const nextLevelXP = calculateNextLevelXP(level);
   const xpToNextLevel = nextLevelXP - (adventurer?.xp || 0);
   const maxHealth = STARTING_HEALTH + (adventurer!.stats.vitality * 15);
+  
+  // Calculate item bonuses
+  const itemBonuses = useMemo(() => {
+    if (!adventurer || !bag) return { strength: 0, dexterity: 0, vitality: 0, intelligence: 0, wisdom: 0, charisma: 0, luck: 0 };
+    return ItemUtils.getEquippedItemStats(adventurer, bag);
+  }, [adventurer, bag]);
+  
+  // Calculate base stats (total - item bonuses)
+  const baseStats = useMemo(() => {
+    if (!adventurer) return { strength: 0, dexterity: 0, vitality: 0, intelligence: 0, wisdom: 0, charisma: 0, luck: 0 };
+    return {
+      strength: Math.max(0, adventurer.stats.strength - itemBonuses.strength),
+      dexterity: Math.max(0, adventurer.stats.dexterity - itemBonuses.dexterity),
+      vitality: Math.max(0, adventurer.stats.vitality - itemBonuses.vitality),
+      intelligence: Math.max(0, adventurer.stats.intelligence - itemBonuses.intelligence),
+      wisdom: Math.max(0, adventurer.stats.wisdom - itemBonuses.wisdom),
+      charisma: Math.max(0, adventurer.stats.charisma - itemBonuses.charisma),
+      luck: Math.max(0, adventurer.stats.luck - itemBonuses.luck),
+    };
+  }, [adventurer, itemBonuses]);
+  
+  // Calculate health percentage for color determination
+  const healthPercentage = (adventurer?.health || 0) / maxHealth * 100;
+  
+  // Function to get health bar color based on percentage
+  const getHealthBarColor = (percentage: number) => {
+    if (percentage >= 66) return '#80FF00'; // Green
+    if (percentage >= 33) return '#EDCF33'; // Yellow
+    return 'rgb(248, 27, 27)';
+  };
+  
+  // Function to handle stat card click
+  const handleStatClick = () => {
+    setShowDetailedStats(!showDetailedStats);
+  };
+  
+  // Function to render stat value
+  const renderStatValue = (statName: keyof typeof baseStats) => {
+    const baseValue = baseStats[statName];
+    const bonusValue = itemBonuses[statName];
+    
+    if (showDetailedStats) {
+      return (
+        <Box sx={styles.statsItemContainer}>
+          <Typography sx={{ ...styles.statValue, color: '#80FF00' }}>
+            {baseValue}
+          </Typography>
+          <Typography sx={{ ...styles.statValue, color: '#EDCF33' }}>
+            (+{bonusValue})
+          </Typography>
+        </Box>
+      );
+    }
+    
+    return (
+      <Typography sx={styles.statValue}>{adventurer?.stats?.[statName] || 0}</Typography>
+    );
+  };
 
   return (
     <>
@@ -45,7 +107,12 @@ export default function AdventurerInfo() {
           <LinearProgress
             variant="determinate"
             value={(adventurer?.health || 0) / maxHealth * 100}
-            sx={styles.healthBar}
+            sx={{
+              ...styles.healthBar,
+              '& .MuiLinearProgress-bar': {
+                backgroundColor: getHealthBarColor(healthPercentage),
+              },
+            }}
           />
           <Typography variant="body2" sx={styles.statValue}>
             {adventurer?.health || 0}/{maxHealth}
@@ -70,34 +137,34 @@ export default function AdventurerInfo() {
       </Box>
 
       {/* Stats Grid */}
-      <Box sx={styles.statsGrid}>
+      <Box sx={styles.statsGrid} onClick={handleStatClick}>
         <Box sx={styles.statCard}>
           <Typography sx={styles.statLabel}>STR</Typography>
-          <Typography sx={styles.statValue}>{adventurer?.stats?.strength || 0}</Typography>
+          {renderStatValue('strength')}
         </Box>
         <Box sx={styles.statCard}>
           <Typography sx={styles.statLabel}>DEX</Typography>
-          <Typography sx={styles.statValue}>{adventurer?.stats?.dexterity || 0}</Typography>
+          {renderStatValue('dexterity')}
         </Box>
         <Box sx={styles.statCard}>
           <Typography sx={styles.statLabel}>VIT</Typography>
-          <Typography sx={styles.statValue}>{adventurer?.stats?.vitality || 0}</Typography>
+          {renderStatValue('vitality')}
         </Box>
         <Box sx={styles.statCard}>
           <Typography sx={styles.statLabel}>INT</Typography>
-          <Typography sx={styles.statValue}>{adventurer?.stats?.intelligence || 0}</Typography>
+          {renderStatValue('intelligence')}
         </Box>
         <Box sx={styles.statCard}>
           <Typography sx={styles.statLabel}>WIS</Typography>
-          <Typography sx={styles.statValue}>{adventurer?.stats?.wisdom || 0}</Typography>
+          {renderStatValue('wisdom')}
         </Box>
         <Box sx={styles.statCard}>
           <Typography sx={styles.statLabel}>CHA</Typography>
-          <Typography sx={styles.statValue}>{adventurer?.stats?.charisma || 0}</Typography>
+          {renderStatValue('charisma')}
         </Box>
         <Box sx={styles.statCard}>
           <Typography sx={styles.statLabel}>LUCK</Typography>
-          <Typography sx={styles.statValue}>{adventurer?.stats?.luck || 0}</Typography>
+          {renderStatValue('luck')}
         </Box>
       </Box>
     </>
@@ -123,6 +190,11 @@ const styles = {
     display: 'flex',
     gap: 2,
   },
+  statsItemContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1px',
+  },
   statItem: {
     flex: 1,
     display: 'flex',
@@ -146,9 +218,6 @@ const styles = {
     height: '6px',
     borderRadius: '3px',
     backgroundColor: 'rgba(128, 255, 0, 0.1)',
-    '& .MuiLinearProgress-bar': {
-      backgroundColor: '#80FF00',
-    },
   },
   xpBar: {
     height: '6px',
