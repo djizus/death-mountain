@@ -67,7 +67,7 @@ export default function BeastInfoPopup({ beastType, beastId, beastLevel, onClose
                 alt={attackType}
                 sx={styles.typeIcon}
               />
-              <Typography sx={styles.typeText}>{attackType} Attack</Typography>
+              <Typography sx={styles.typeText}>{attackType} Attacks</Typography>
             </Box>
           </Box>
 
@@ -82,7 +82,7 @@ export default function BeastInfoPopup({ beastType, beastId, beastLevel, onClose
                   sx={styles.typeIcon}
                 />
                 <Typography sx={styles.typeText}>
-                  {getWeaponTypeStrength(attackType)} Armor
+                  {getWeaponTypeStrength(attackType)}
                 </Typography>
                 <Typography sx={styles.percentage}>150% DMG</Typography>
               </Box>
@@ -98,7 +98,7 @@ export default function BeastInfoPopup({ beastType, beastId, beastLevel, onClose
                   sx={styles.typeIcon}
                 />
                 <Typography sx={styles.typeText}>
-                  {getWeaponTypeWeakness(attackType)} Armor
+                  {getWeaponTypeWeakness(attackType)}
                 </Typography>
                 <Typography sx={styles.percentage}>50% DMG</Typography>
               </Box>
@@ -131,7 +131,7 @@ export default function BeastInfoPopup({ beastType, beastId, beastLevel, onClose
                   sx={styles.typeIcon}
                 />
                 <Typography sx={styles.typeText}>
-                  {getArmorTypeStrength(armorType)} Weapons
+                  {getArmorTypeStrength(armorType)}
                 </Typography>
                 <Typography sx={styles.percentage}>50% DMG</Typography>
               </Box>
@@ -147,7 +147,7 @@ export default function BeastInfoPopup({ beastType, beastId, beastLevel, onClose
                   sx={styles.typeIcon}
                 />
                 <Typography sx={styles.typeText}>
-                  {getArmorTypeWeakness(armorType)} Weapons
+                  {getArmorTypeWeakness(armorType)}
                 </Typography>
                 <Typography sx={styles.percentage}>150% DMG</Typography>
               </Box>
@@ -307,7 +307,7 @@ const styles = {
   typeRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
+    gap: '12px',
     padding: '2px 6px',
     background: 'rgba(128, 255, 0, 0.1)',
     borderRadius: '4px',
@@ -349,7 +349,7 @@ const styles = {
     fontWeight: 'bold',
     marginLeft: 'auto',
     borderLeft: '1px solid rgba(128, 255, 0, 0.2)',
-    minWidth: '46px',
+    minWidth: '50px',
     textAlign: 'right',
   },
 };
