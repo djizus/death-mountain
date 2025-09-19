@@ -4,7 +4,7 @@ import ItemTooltip from '@/desktop/components/ItemTooltip';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
-import { calculateAttackDamage, calculateBeastDamage, calculateCombatStats, calculateLevel } from '@/utils/game';
+import { calculateAttackDamage, calculateBeastDamage, calculateBeastDamageDetails, calculateCombatStats, calculateLevel } from '@/utils/game';
 import { ItemUtils, Tier } from '@/utils/loot';
 import { keyframes } from '@emotion/react';
 import { DeleteOutline, Star } from '@mui/icons-material';
@@ -13,15 +13,15 @@ import { useCallback, useEffect, useState } from 'react';
 
 type EquipmentSlot = 'weapon' | 'chest' | 'head' | 'waist' | 'foot' | 'hand' | 'neck' | 'ring';
 
-const equipmentSlots = [
-  { key: 'head' as EquipmentSlot, label: 'Head', style: { top: '8px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/head.svg' },
-  { key: 'chest' as EquipmentSlot, label: 'Chest', style: { top: '60px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/chest.svg' },
-  { key: 'waist' as EquipmentSlot, label: 'Waist', style: { top: '112px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/waist.svg' },
-  { key: 'foot' as EquipmentSlot, label: 'Feet', style: { top: '164px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/foot.svg' },
-  { key: 'hand' as EquipmentSlot, label: 'Hands', style: { top: '86px', left: '8px' }, icon: '/images/types/hand.svg' },
-  { key: 'ring' as EquipmentSlot, label: 'Ring', style: { top: '86px', right: '8px' }, icon: '/images/types/ring.svg' },
-  { key: 'weapon' as EquipmentSlot, label: 'Weapon', style: { top: '140px', left: '8px' }, icon: '/images/types/weapon.svg' },
-  { key: 'neck' as EquipmentSlot, label: 'Neck', style: { top: '30px', right: '8px' }, icon: '/images/types/neck.svg' },
+const equipmentSlots: Array<{ key: EquipmentSlot; label: string; icon: string; position: { row: number; col: number } }> = [
+  { key: 'head', label: 'Head', position: { row: 1, col: 2 }, icon: '/images/types/head.svg' },
+  { key: 'hand', label: 'Hands', position: { row: 2, col: 1 }, icon: '/images/types/hand.svg' },
+  { key: 'chest', label: 'Chest', position: { row: 2, col: 2 }, icon: '/images/types/chest.svg' },
+  { key: 'neck', label: 'Neck', position: { row: 2, col: 3 }, icon: '/images/types/neck.svg' },
+  { key: 'weapon', label: 'Weapon', position: { row: 3, col: 1 }, icon: '/images/types/weapon.svg' },
+  { key: 'waist', label: 'Waist', position: { row: 3, col: 2 }, icon: '/images/types/waist.svg' },
+  { key: 'ring', label: 'Ring', position: { row: 3, col: 3 }, icon: '/images/types/ring.svg' },
+  { key: 'foot', label: 'Feet', position: { row: 4, col: 2 }, icon: '/images/types/foot.svg' },
 ];
 
 interface InventoryOverlayProps {
@@ -40,7 +40,21 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
   return (
     <Box sx={styles.equipmentPanel}>
       <Box sx={styles.characterPortraitWrapper}>
-        <img src={'/images/adventurer.png'} alt="adventurer" style={{ ...styles.characterPortrait, objectFit: 'contain', position: 'absolute', left: '50%', top: '30%', transform: 'translate(-50%, -30%)', zIndex: 1, filter: 'drop-shadow(0 0 8px #000a)' }} />
+        <img
+          src={'/images/adventurer.png'}
+          alt="adventurer"
+          style={{
+            ...styles.characterPortrait,
+            objectFit: 'contain',
+            position: 'absolute',
+            left: '50%',
+            top: '45%',
+            transform: 'translate(-50%, -45%)',
+            zIndex: 0,
+            pointerEvents: 'none',
+            filter: 'drop-shadow(0 0 10px #000a)'
+          }}
+        />
         {equipmentSlots.map(slot => {
           const item = adventurer?.equipment[slot.key];
           const metadata = item ? ItemUtils.getMetadata(item.id) : null;
@@ -57,27 +71,39 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
           const isNameMatchPower = isNameMatch && isWeaponSlot;
           const hasSpecials = level >= 15;
           const hasGoldSpecials = level >= 20;
+          const { row, col } = slot.position;
 
           // Calculate damage values
           let damage = 0;
+          let critDamage = 0;
           let damageTaken = 0;
+          let critDamageTaken = 0;
           if (beast) {
             const beastPower = beast.level * (6 - beast.tier);
             if (isArmorSlot && beast.health > 4) {
               // For armor slots, show damage taken (always negative)
               if (item && item.id !== 0) {
-                damageTaken = calculateBeastDamage(beast, adventurer!, item);
+                const damageSummary = calculateBeastDamageDetails(beast, adventurer!, item);
+                damageTaken = damageSummary.baseDamage;
+                critDamageTaken = damageSummary.criticalDamage;
               } else {
                 // For empty armor slots, show beast power * 1.5
                 damageTaken = Math.max(BEAST_MIN_DAMAGE, Math.floor(beastPower * 1.5));
+                critDamageTaken = Math.max(BEAST_MIN_DAMAGE, damageTaken * 2);
               }
             } else if (isWeaponSlot) {
               // For weapon slots, show damage dealt (always positive)
               if (item && item.id !== 0) {
-                damage = calculateAttackDamage(item, adventurer!, beast).baseDamage;
+                const attackSummary = calculateAttackDamage(item, adventurer!, beast);
+                damage = attackSummary.baseDamage;
+                critDamage = attackSummary.criticalDamage;
               }
             }
           }
+
+          const hasDamageOverlay = (damage > 0 || damageTaken > 0) && !!beast;
+          const baseOverlayValue = isArmorSlot ? damageTaken : damage;
+          const critOverlayValue = isArmorSlot ? critDamageTaken : critDamage;
 
           return (
             <Tooltip
@@ -130,6 +156,7 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
             >
               <Box
                 sx={[
+                  styles.gridSlot,
                   styles.equipmentSlot,
                   ...(isSelected ? [styles.selectedItem] : []),
                   ...(highlight ? [styles.highlight] : []),
@@ -138,7 +165,7 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
                   ...(isNameMatchDanger ? [styles.nameMatchDangerSlot] : []),
                   ...(isNameMatchPower ? [styles.nameMatchPowerSlot] : [])
                 ]}
-                style={{ ...slot.style, position: 'absolute' }}
+                style={{ gridColumn: col, gridRow: row }}
                 onClick={() => isDropMode && item?.id && onItemClick(item)}
                 onMouseEnter={() => item?.id && onItemHover(item.id)}
               >
@@ -150,6 +177,9 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
                         { backgroundColor: tierColor }
                       ]}
                     />
+                    <Box sx={styles.itemLevelBadge}>
+                      <Typography sx={styles.itemLevelText}>Lv {level}</Typography>
+                    </Box>
                     {(isNameMatchDanger || isNameMatchPower) && (
                       <Box
                         sx={[
@@ -169,36 +199,70 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
                       </Box>
                     )}
                     {/* Damage Indicator Overlay */}
-                    {(damage > 0 || damageTaken > 0) && (
-                      <Box sx={[
-                        styles.damageIndicator,
-                        isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
-                      ]}>
-                        <Typography sx={[
-                          styles.damageIndicatorText,
-                          isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                    {hasDamageOverlay && (
+                      <>
+                        <Box sx={[
+                          styles.damageIndicator,
+                          styles.damageIndicatorTop,
+                          isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
                         ]}>
-                          {isArmorSlot ? `-${damageTaken}` : `+${damage}`}
-                        </Typography>
-                      </Box>
+                          <Typography sx={[
+                            styles.damageIndicatorText,
+                            isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                          ]}>
+                            {isArmorSlot ? `-${baseOverlayValue}` : `+${baseOverlayValue}`}
+                          </Typography>
+                        </Box>
+                        {critOverlayValue > 0 && (
+                          <Box sx={[
+                            styles.damageIndicator,
+                            styles.damageIndicatorBottom,
+                            isArmorSlot ? styles.damageIndicatorCritRed : styles.damageIndicatorCritGreen
+                          ]}>
+                            <Typography sx={[
+                              styles.damageIndicatorText,
+                              isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                            ]}>
+                              {isArmorSlot ? `-${critOverlayValue}` : `+${critOverlayValue}`}
+                            </Typography>
+                          </Box>
+                        )}
+                      </>
                     )}
                   </Box>
                 ) : (
                   <Box sx={styles.emptySlot} title={slot.label}>
-                    <img src={slot.icon} alt={slot.label} style={{ width: 26, height: 26, opacity: 0.5 }} />
+                    <img src={slot.icon} alt={slot.label} style={{ width: '70%', height: '70%', opacity: 0.5 }} />
                     {/* Damage Indicator Overlay for Empty Slots */}
-                    {(damage > 0 || damageTaken > 0) && (
-                      <Box sx={[
-                        styles.damageIndicator,
-                        isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
-                      ]}>
-                        <Typography sx={[
-                          styles.damageIndicatorText,
-                          isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                    {hasDamageOverlay && (
+                      <>
+                        <Box sx={[
+                          styles.damageIndicator,
+                          styles.damageIndicatorTop,
+                          isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
                         ]}>
-                          {isArmorSlot ? `-${damageTaken}` : `+${damage}`}
-                        </Typography>
-                      </Box>
+                          <Typography sx={[
+                            styles.damageIndicatorText,
+                            isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                          ]}>
+                            {isArmorSlot ? `-${baseOverlayValue}` : `+${baseOverlayValue}`}
+                          </Typography>
+                        </Box>
+                        {critOverlayValue > 0 && (
+                          <Box sx={[
+                            styles.damageIndicator,
+                            styles.damageIndicatorBottom,
+                            isArmorSlot ? styles.damageIndicatorCritRed : styles.damageIndicatorCritGreen
+                          ]}>
+                            <Typography sx={[
+                              styles.damageIndicatorText,
+                              isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                            ]}>
+                              {isArmorSlot ? `-${critOverlayValue}` : `+${critOverlayValue}`}
+                            </Typography>
+                          </Box>
+                        )}
+                      </>
                     )}
                   </Box>
                 )}
@@ -252,18 +316,28 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
 
           // Calculate damage values for bag items
           let damage = 0;
+          let critDamage = 0;
           let damageTaken = 0;
+          let critDamageTaken = 0;
           if (beast) {
             if (isArmorSlot) {
-              damageTaken = calculateBeastDamage(beast, adventurer!, item);
+              const damageSummary = calculateBeastDamageDetails(beast, adventurer!, item);
+              damageTaken = damageSummary.baseDamage;
+              critDamageTaken = damageSummary.criticalDamage;
             } else if (isWeaponSlot) {
-              damage = calculateAttackDamage(item, adventurer!, beast).baseDamage;
+              const attackSummary = calculateAttackDamage(item, adventurer!, beast);
+              damage = attackSummary.baseDamage;
+              critDamage = attackSummary.criticalDamage;
             }
           }
 
           if (isNew && isWeaponSlot && [Tier.T1, Tier.T2, Tier.T3].includes(tier) && ItemUtils.getItemTier(adventurer?.equipment.weapon.id!) === Tier.T5) {
             onItemClick(item);
           }
+
+          const hasDamageOverlay = (damage > 0 || damageTaken > 0) && !!beast;
+          const baseOverlayValue = isArmorSlot ? damageTaken : damage;
+          const critOverlayValue = isArmorSlot ? critDamageTaken : critDamage;
 
           return (
             <Tooltip
@@ -327,18 +401,35 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
                     </Box>
                   )}
                   {/* Damage Indicator Overlay for Bag Items */}
-                  {(damage > 0 || damageTaken > 0) && (
-                    <Box sx={[
-                      styles.damageIndicator,
-                      isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
-                    ]}>
-                      <Typography sx={[
-                        styles.damageIndicatorText,
-                        isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                  {hasDamageOverlay && (
+                    <>
+                      <Box sx={[
+                        styles.damageIndicator,
+                        styles.damageIndicatorTop,
+                        isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
                       ]}>
-                        {isArmorSlot ? `-${damageTaken}` : `+${damage}`}
-                      </Typography>
-                    </Box>
+                        <Typography sx={[
+                          styles.damageIndicatorText,
+                          isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                        ]}>
+                          {isArmorSlot ? `-${baseOverlayValue}` : `+${baseOverlayValue}`}
+                        </Typography>
+                      </Box>
+                      {critOverlayValue > 0 && (
+                        <Box sx={[
+                          styles.damageIndicator,
+                          styles.damageIndicatorBottom,
+                          isArmorSlot ? styles.damageIndicatorCritRed : styles.damageIndicatorCritGreen
+                        ]}>
+                          <Typography sx={[
+                            styles.damageIndicatorText,
+                            isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                          ]}>
+                            {isArmorSlot ? `-${critOverlayValue}` : `+${critOverlayValue}`}
+                          </Typography>
+                        </Box>
+                      )}
+                    </>
                   )}
                 </Box>
               </Box>
@@ -428,7 +519,17 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
 
   return (
     <>
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'absolute', bottom: 24, left: 24, zIndex: 100 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          position: 'absolute',
+          bottom: 24,
+          right: 100,
+          zIndex: 120,
+        }}
+      >
         <Box sx={styles.buttonWrapper} onClick={() => setShowInventory(!showInventory)}>
           <img src={'/images/inventory.png'} alt="Inventory" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', filter: 'hue-rotate(40deg) saturate(1.5) brightness(1.15) contrast(1.2)' }} />
         </Box>
@@ -448,7 +549,11 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
                 onItemHover={handleItemHover}
               />
               {/* Right: Stats */}
-              <AdventurerStats />
+              <AdventurerStats variant="combat" />
+            </Box>
+
+            <Box sx={styles.statsSection}>
+              <AdventurerStats variant="stats" />
             </Box>
 
             {/* Bottom: Bag */}
@@ -560,7 +665,7 @@ const styles = {
     position: 'absolute',
     top: '120px',
     left: '24px',
-    width: '388px',
+    width: '450px',
     maxHeight: '90vh',
     background: 'rgba(24, 40, 24, 0.55)',
     border: '2px solid #083e22',
@@ -579,10 +684,16 @@ const styles = {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+    gap: 1,
     mb: 1
   },
+  statsSection: {
+    width: '100%',
+    mb: 1,
+  },
   equipmentPanel: {
-    height: '220px',
+    height: '280px',
+    width: '250px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -592,23 +703,38 @@ const styles = {
     border: '2px solid #083e22',
     borderRadius: '8px',
     boxShadow: '0 0 8px #000a',
-    padding: 1,
+    padding: 1.5,
   },
   characterPortraitWrapper: {
     position: 'relative',
-    width: 175,
-    height: 220,
+    width: 240,
+    height: 260,
     margin: '0 auto',
     background: 'rgba(20, 20, 20, 0.7)',
     borderRadius: '8px',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gridTemplateRows: 'repeat(4, 1fr)',
+    gap: 1,
+    padding: 1,
+    justifyItems: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  gridSlot: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+    padding: '1%',
   },
   characterPortrait: {
-    width: 100,
-    height: 140,
+    width: 110,
+    height: 160,
   },
   equipmentSlot: {
-    width: 42,
-    height: 42,
     background: 'rgba(24, 40, 24, 0.95)',
     border: '2px solid #083e22',
     borderRadius: 0,
@@ -619,7 +745,10 @@ const styles = {
     zIndex: 2,
     cursor: 'pointer',
     overflow: 'hidden',
-    position: 'absolute',
+    width: '85%',
+    height: '85%',
+    minWidth: 54,
+    minHeight: 54,
   },
   itemImageContainer: {
     position: 'relative',
@@ -641,13 +770,13 @@ const styles = {
     zIndex: 1,
   },
   equipmentIcon: {
-    width: 36,
-    height: 36,
+    width: '80%',
+    height: '80%',
     zIndex: 2,
   },
   emptySlot: {
-    width: 34,
-    height: 34,
+    width: '80%',
+    height: '80%',
     border: '1.5px dashed #666',
     borderRadius: 0,
     background: 'rgba(80,80,80,0.2)',
@@ -806,7 +935,7 @@ const styles = {
   starOverlay: {
     position: 'absolute',
     top: -2,
-    right: -2,
+    left: -2,
     zIndex: 10,
     background: 'rgba(0, 0, 0, 0.8)',
     borderRadius: '50%',
@@ -881,39 +1010,77 @@ const styles = {
   },
   damageIndicator: {
     position: 'absolute',
-    top: '1px',
-    right: '1px',
-    minWidth: '18px',
-    height: '12px',
-    borderRadius: '3px',
+    right: '2px',
+    minWidth: '15px',
+    minHeight: '15px',
+    borderRadius: '4px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 15,
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.4), 0 0 8px rgba(0, 0, 0, 0.2)',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.35)',
     backdropFilter: 'blur(2px)',
+    padding: '0 1px',
+  },
+  damageIndicatorTop: {
+    top: '2px',
+  },
+  damageIndicatorBottom: {
+    bottom: '2px',
   },
   damageIndicatorRed: {
-    background: 'linear-gradient(135deg, rgba(255, 68, 68, 0.95) 0%, rgba(220, 38, 38, 0.95) 100%)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.4), 0 0 8px rgba(255, 68, 68, 0.3)',
+    background: 'rgba(200, 60, 60, 0.55)',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    boxShadow: '0 0 4px rgba(200, 60, 60, 0.25)',
   },
   damageIndicatorGreen: {
-    background: 'linear-gradient(135deg, rgba(68, 255, 68, 0.95) 0%, rgba(38, 220, 38, 0.95) 100%)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.4), 0 0 8px rgba(68, 255, 68, 0.3)',
+    background: 'rgba(70, 200, 110, 0.55)',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    boxShadow: '0 0 4px rgba(70, 200, 110, 0.25)',
+  },
+  damageIndicatorCritRed: {
+    background: 'rgba(220, 40, 40, 0.7)',
+    border: '1px solid rgba(255, 210, 210, 0.16)',
+    boxShadow: '0 0 6px rgba(220, 40, 40, 0.35)',
+  },
+  damageIndicatorCritGreen: {
+    background: 'rgba(60, 190, 130, 0.7)',
+    border: '1px solid rgba(210, 255, 225, 0.16)',
+    boxShadow: '0 0 6px rgba(60, 190, 130, 0.35)',
   },
   damageIndicatorText: {
-    fontSize: '0.65rem',
-    fontWeight: 'bold',
-    fontFamily: 'VT323, monospace',
+    fontSize: '0.68rem',
+    fontWeight: 600,
+    fontFamily: 'Cinzel, Georgia, serif',
     textShadow: '0 1px 2px rgba(0, 0, 0, 0.9)',
     lineHeight: 1,
-    letterSpacing: '0.5px',
+    letterSpacing: '0.4px',
   },
   damageIndicatorTextRed: {
     color: '#FFFFFF',
     textShadow: '0 1px 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(255, 255, 255, 0.3)',
+  },
+  itemLevelBadge: {
+    position: 'absolute',
+    bottom: -2,
+    left: -2,
+    padding: '1px 4px',
+    borderRadius: '4px',
+    background: 'rgba(0, 0, 0, 0.75)',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+    zIndex: 12,
+    minWidth: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  itemLevelText: {
+    fontSize: '0.65rem',
+    fontWeight: 700,
+    color: '#f3f3f3',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    textShadow: '0 1px 2px rgba(0,0,0,0.8)',
   },
   damageIndicatorTextGreen: {
     color: '#FFFFFF',

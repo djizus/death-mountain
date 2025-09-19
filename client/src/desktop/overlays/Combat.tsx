@@ -1,7 +1,7 @@
 import AnimatedText from '@/desktop/components/AnimatedText';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
-import { ability_based_percentage, calculateAttackDamage, calculateCombatStats, getNewItemsEquipped } from '@/utils/game';
+import { ability_based_percentage, calculateAttackDamage, calculateCombatStats, calculateLevel, getNewItemsEquipped } from '@/utils/game';
 import { Box, Button, Checkbox, Typography } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import Adventurer from './Adventurer';
@@ -9,7 +9,7 @@ import Beast from './Beast';
 import InventoryOverlay from './Inventory';
 import SettingsOverlay from './Settings';
 import TipsOverlay from './Tips';
-import { JACKPOT_BEASTS } from '@/constants/beast';
+import { JACKPOT_BEASTS, GOLD_MULTIPLIER, GOLD_REWARD_DIVISOR, MINIMUM_XP_REWARD } from '@/constants/beast';
 import { useDynamicConnector } from '@/contexts/starknet';
 
 const attackMessage = "Attacking";
@@ -102,6 +102,38 @@ export default function CombatOverlay() {
     return currentNetworkConfig.beasts && JACKPOT_BEASTS.includes(beast?.name!);
   }, [beast]);
 
+  const beastCombatSummary = useMemo(() => {
+    if (!adventurer || !beast) {
+      return null;
+    }
+
+    const beastTier = Math.min(5, Math.max(1, Number(beast.tier)));
+
+    const adventurerLevel = calculateLevel(adventurer.xp);
+    const critChance = Math.min(100, adventurerLevel);
+
+    const tierKey = `T${beastTier}` as keyof typeof GOLD_MULTIPLIER;
+    const goldMultiplier = GOLD_MULTIPLIER[tierKey] ?? 1;
+    const goldReward = Math.max(
+      0,
+      Math.floor((beast.level * goldMultiplier) / GOLD_REWARD_DIVISOR)
+    );
+
+    const rawXp = Math.floor(((6 - beastTier) * beast.level) / 2);
+    const adjustedXp = Math.floor(
+      rawXp * (100 - Math.min(adventurerLevel * 2, 95)) / 100
+    );
+    const xpReward = Math.max(MINIMUM_XP_REWARD, adjustedXp);
+
+    return {
+      critChance,
+      goldReward,
+      xpReward,
+    };
+  }, [adventurer?.xp, beast]);
+
+  const formatNumber = (value: number) => value.toLocaleString();
+
   return (
     <Box sx={[styles.container, spectating && styles.spectating]}>
       <Box sx={[styles.imageContainer, { backgroundImage: `url('/images/battle_scenes/${isJackpot ? `jackpot_${beast!.baseName.toLowerCase()}` : beast!.baseName.toLowerCase()}.png')` }]} />
@@ -111,6 +143,26 @@ export default function CombatOverlay() {
 
       {/* Beast */}
       <Beast />
+
+      {beast && beastCombatSummary && (
+        <Box sx={styles.beastStatsPanel}>
+          <Typography sx={styles.beastStatsTitle}>Beast Insights</Typography>
+          <Box sx={styles.beastStatsList}>
+            <Box sx={styles.beastStatRow}>
+              <Typography sx={styles.beastStatLabel}>Crit Chance</Typography>
+              <Typography sx={styles.beastStatValue}>{formatNumber(beastCombatSummary.critChance)}%</Typography>
+            </Box>
+            <Box sx={styles.beastStatRow}>
+              <Typography sx={styles.beastStatLabel}>Gold Reward</Typography>
+              <Typography sx={styles.beastStatValue}>+{formatNumber(beastCombatSummary.goldReward)}</Typography>
+            </Box>
+            <Box sx={styles.beastStatRow}>
+              <Typography sx={styles.beastStatLabel}>XP Reward</Typography>
+              <Typography sx={styles.beastStatValue}>+{formatNumber(beastCombatSummary.xpReward)}</Typography>
+            </Box>
+          </Box>
+        </Box>
+      )}
 
       {/* Combat Log */}
       <Box sx={styles.middleSection}>
@@ -351,5 +403,50 @@ const styles = {
     '&.Mui-checked': {
       color: '#d0c98d',
     },
+  },
+  beastStatsPanel: {
+    position: 'absolute',
+    top: 120,
+    right: 40,
+    width: 300,
+    padding: '10px 12px',
+    border: '2px solid #083e22',
+    borderRadius: '12px',
+    background: 'rgba(24, 40, 24, 0.6)',
+    boxShadow: '0 0 10px rgba(0, 0, 0, 0.45)',
+    backdropFilter: 'blur(8px)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0.75,
+    zIndex: 80,
+  },
+  beastStatsTitle: {
+    color: '#d0c98d',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.9rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.6px',
+    textAlign: 'center',
+  },
+  beastStatsList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0.5,
+  },
+  beastStatRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  beastStatLabel: {
+    color: 'rgba(208, 201, 141, 0.85)',
+    fontSize: '0.82rem',
+  },
+  beastStatValue: {
+    color: '#ffffff',
+    fontSize: '0.8rem',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontWeight: 500,
   },
 };

@@ -4,6 +4,9 @@ import { Adventurer, Beast, CombatStats, Equipment, Item } from "@/types/game";
 import { getArmorType, getAttackType } from "./beast";
 import { ItemType, ItemUtils } from "./loot";
 
+const SPECIAL2_DAMAGE_MULTIPLIER = 8;
+const SPECIAL3_DAMAGE_MULTIPLIER = 2;
+
 export const calculateLevel = (xp: number) => {
   if (xp === 0) return 1;
   return Math.floor(Math.sqrt(xp));
@@ -169,43 +172,66 @@ export const ability_based_damage_reduction = (adventurer_xp: number, relevant_s
   return Math.floor((100 * smooth / SCALE));
 }
 
-export const calculateBeastDamage = (beast: Beast, adventurer: Adventurer, armor: Item) => {
+export interface BeastDamageSummary {
+  baseDamage: number;
+  criticalDamage: number;
+}
+
+export const calculateBeastDamageDetails = (
+  beast: Beast,
+  adventurer: Adventurer,
+  armor: Item,
+): BeastDamageSummary => {
   const baseAttack = beast.level * (6 - Number(beast.tier));
-  let damage = baseAttack;
+  const hasArmorEquipped = !!armor && armor.id !== 0;
 
-  if (armor) {
-    const armorLevel = calculateLevel(armor.xp);
-    const armorValue = armorLevel * (6 - ItemUtils.getItemTier(armor.id));
+  if (!hasArmorEquipped) {
+    const elementalDamage = Math.floor(baseAttack * 1.5);
+    const baseDamage = Math.max(BEAST_MIN_DAMAGE, elementalDamage);
+    const criticalDamage = Math.max(BEAST_MIN_DAMAGE, baseDamage + elementalDamage);
+    return { baseDamage, criticalDamage };
+  }
 
-    // Apply elemental adjustment
-    const beastAttackType = getAttackType(beast.id);
-    const armorType = ItemUtils.getItemType(armor.id);
-    damage = elementalAdjustedDamage(damage, beastAttackType, armorType);
+  const armorLevel = calculateLevel(armor.xp);
+  const armorTier = ItemUtils.getItemTier(armor.id);
+  const armorValue = armorLevel * (6 - armorTier);
 
-    // Apply name match bonus
-    if (beast.specialPrefix && beast.specialSuffix) {
-      const itemSpecials = ItemUtils.getSpecials(armor.id, armorLevel, adventurer.item_specials_seed);
-      if (itemSpecials.suffix === beast.specialSuffix) {
-        damage *= 2; // Suffix match
-      }
-      if (itemSpecials.prefix === beast.specialPrefix) {
-        damage *= 8; // Prefix match
-      }
-    }
+  const beastAttackType = getAttackType(beast.id);
+  const armorType = ItemUtils.getItemType(armor.id);
+  const elementalDamage = elementalAdjustedDamage(baseAttack, beastAttackType, armorType);
 
-    damage = Math.max(BEAST_MIN_DAMAGE, damage - armorValue);
+  const armorSpecials = ItemUtils.getSpecials(armor.id, armorLevel, adventurer.item_specials_seed);
 
-    // Check for neck armor reduction
+  let specialBonus = 0;
+  if (beast.specialSuffix && armorSpecials.suffix && armorSpecials.suffix === beast.specialSuffix) {
+    specialBonus += elementalDamage * SPECIAL3_DAMAGE_MULTIPLIER;
+  }
+  if (beast.specialPrefix && armorSpecials.prefix && armorSpecials.prefix === beast.specialPrefix) {
+    specialBonus += elementalDamage * SPECIAL2_DAMAGE_MULTIPLIER;
+  }
+
+  const totalAttack = elementalDamage + specialBonus;
+
+  const reduceWithNeck = (damageValue: number) => {
     const neck = adventurer.equipment.neck;
     if (neck_reduction(armor, neck)) {
       const neckLevel = calculateLevel(neck.xp);
-      damage -= Math.floor((armorLevel * (6 - ItemUtils.getItemTier(armor.id)) * neckLevel * 3) / 100);
+      const neckReduction = Math.floor((armorLevel * (6 - armorTier) * neckLevel * 3) / 100);
+      return Math.max(BEAST_MIN_DAMAGE, damageValue - neckReduction);
     }
-  } else {
-    damage = Math.floor(damage * 1.5);
-  }
 
-  return Math.max(BEAST_MIN_DAMAGE, damage);
+    return Math.max(BEAST_MIN_DAMAGE, damageValue);
+  };
+
+  const baseDamage = reduceWithNeck(Math.max(BEAST_MIN_DAMAGE, totalAttack - armorValue));
+  const criticalAttack = totalAttack + elementalDamage;
+  const criticalDamage = reduceWithNeck(Math.max(BEAST_MIN_DAMAGE, criticalAttack - armorValue));
+
+  return { baseDamage, criticalDamage };
+};
+
+export const calculateBeastDamage = (beast: Beast, adventurer: Adventurer, armor: Item) => {
+  return calculateBeastDamageDetails(beast, adventurer, armor).baseDamage;
 };
 
 // Check if neck item provides bonus armor reduction

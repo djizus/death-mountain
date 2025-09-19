@@ -33,7 +33,7 @@ export default function SettingsOverlay() {
 
   return (
     <>
-      <Box sx={{ position: 'absolute', bottom: 32, right: 120, zIndex: 100 }}>
+      <Box sx={{ position: 'absolute', bottom: 55, right: 210, zIndex: 120 }}>
         <Box sx={styles.buttonWrapper} onClick={() => setShowSettings(!showSettings)}>
           <SettingsIcon sx={{ fontSize: 26, color: '#d0c98d' }} />
         </Box>
@@ -228,7 +228,7 @@ const styles = {
   },
   popup: {
     position: 'absolute',
-    bottom: '95px',
+    bottom: '120px',
     right: '5px',
     width: '300px',
     background: 'rgba(24, 40, 24, 1)',

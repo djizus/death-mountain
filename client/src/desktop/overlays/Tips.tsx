@@ -60,64 +60,22 @@ export default function TipsOverlay({ combatStats }: { combatStats?: CombatStats
     setCurrentTip(tip);
   }, [adventurer]);
 
-  return (
-    <>
-      {/* Tips Toggle Button - positioned next to inventory */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'absolute', bottom: 20, left: 120, zIndex: 100 }}>
-        <Box sx={styles.toggleWrapper} onClick={() => setShowTips(!showTips)}>
-          <Checkbox
-            checked={showTips}
-            onChange={(e) => setShowTips(e.target.checked)}
-            size="large"
-            sx={styles.tipsCheckbox}
-          />
-          <Typography sx={styles.tipsLabel}>
-            tips
-          </Typography>
-        </Box>
-      </Box>
-
-      {/* Tips Display Box */}
-      {showTips && currentTip && (
-        <Box sx={styles.tipsBox}>
-          <Typography sx={styles.tipsText}>
-            {currentTip}
-          </Typography>
-        </Box>
-      )}
-    </>
-  );
+  return showTips && currentTip ? (
+    <Box sx={styles.tipsBox}>
+      <Typography sx={styles.tipsText}>
+        {currentTip}
+      </Typography>
+    </Box>
+  ) : null;
 }
 
 const styles = {
-  toggleWrapper: {
-    width: 64,
-    height: 64,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-  },
-  tipsCheckbox: {
-    color: 'rgba(208, 201, 141, 0.7)',
-    padding: '0',
-    '&.Mui-checked': {
-      color: '#d0c98d',
-    },
-  },
-  tipsLabel: {
-    fontFamily: 'Cinzel, Georgia, serif',
-    lineHeight: '0.9',
-    textAlign: 'center',
-    marginTop: '2px',
-  },
   tipsBox: {
     position: 'absolute',
-    bottom: 85,
-    left: 135,
-    width: '300px',
-    maxWidth: '300px',
+    bottom: 130,
+    right: 120,
+    width: '320px',
+    maxWidth: '320px',
     background: 'rgba(24, 40, 24, 0.95)',
     border: '2px solid #083e22',
     borderRadius: '8px',

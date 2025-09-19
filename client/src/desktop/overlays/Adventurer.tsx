@@ -3,7 +3,7 @@ import { useController } from '@/contexts/controller';
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { CombatStats } from '@/types/game';
-import { calculateLevel, calculateProgress } from '@/utils/game';
+import { calculateLevel, calculateNextLevelXP, calculateProgress } from '@/utils/game';
 import { Box, LinearProgress, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 
@@ -35,6 +35,12 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
   const previewProtectionPercent = Math.min(100, previewProtection);
   const previewAttack = combatStats?.bestDamage || 0;
   const previewAttackPercent = Math.min(100, Math.floor(previewAttack / (beast?.health || 1) * 100));
+  const currentLevel = calculateLevel(adventurer?.xp || 0);
+  const nextLevelXp = calculateNextLevelXP(currentLevel);
+  const currentLevelFloor = currentLevel ** 2;
+  const currentXpIntoLevel = (adventurer?.xp || 0) - currentLevelFloor;
+  const xpRequiredForNext = nextLevelXp - currentLevelFloor;
+  const xpProgress = xpRequiredForNext > 0 ? (currentXpIntoLevel / xpRequiredForNext) * 100 : 100;
 
   return (
     <>
@@ -86,8 +92,26 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
             </Typography>
           </Box>
           {/* XP Bar */}
-          <Box sx={{ mt: 1, position: 'relative' }}>
-            {beast && combatStats ? (
+          <Box sx={{ mt: 1 }}>
+            <Box sx={{ position: 'relative', mb: beast && combatStats ? 0.75 : 0 }}>
+              {beast && (
+                <Box sx={styles.iconContainer}>
+                  <span style={styles.bookIcon}>📘</span>
+                </Box>
+              )}
+              <LinearProgress
+                variant="determinate"
+                value={adventurer?.stat_upgrades_available! > 0 ? 100 : xpProgress}
+                sx={styles.xpBar}
+              />
+              <Typography variant="body2" sx={styles.xpOverlayText}>
+                {adventurer?.stat_upgrades_available! > 0
+                  ? 'LEVEL UP'
+                  : `${currentXpIntoLevel}/${xpRequiredForNext}`}
+              </Typography>
+            </Box>
+
+            {beast && combatStats && (
               <>
                 {/* Attack Bar */}
                 <Box sx={{ position: 'relative', mb: 0.5 }}>
@@ -126,20 +150,6 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
                   )}
                 </Box>
               </>
-            ) : (
-              <>
-                <LinearProgress
-                  variant="determinate"
-                  value={adventurer?.stat_upgrades_available! > 0 ? 100 : calculateProgress(adventurer?.xp || 1)}
-                  sx={styles.xpBar}
-                />
-                <Typography
-                  variant="body2"
-                  sx={styles.xpOverlayText}
-                >
-                  {adventurer?.stat_upgrades_available! > 0 ? 'LEVEL UP' : 'XP'}
-                </Typography>
-              </>
             )}
           </Box>
         </Box>
@@ -166,8 +176,8 @@ const styles = {
     top: 30,
     left: '80px',
     width: '300px',
-    height: '72px',
-    padding: '4px 8px',
+    height: '86px',
+    padding: '6px 10px',
     background: 'rgba(24, 40, 24, 0.55)',
     border: '2px solid #083e22',
     borderRadius: '12px',
@@ -211,8 +221,8 @@ const styles = {
     pointerEvents: 'none',
   },
   xpBar: {
-    height: '8px',
-    borderRadius: '4px',
+    height: '14px',
+    borderRadius: '6px',
     backgroundColor: 'rgba(0,0,0,0.3)',
     '& .MuiLinearProgress-bar': {
       backgroundColor: '#9C27B0',
@@ -221,7 +231,7 @@ const styles = {
   },
   xpOverlayText: {
     position: 'absolute',
-    top: 0,
+    top: 1,
     left: 0,
     width: '100%',
     height: '100%',
@@ -232,7 +242,7 @@ const styles = {
     fontWeight: 'bold',
     textShadow: '0 0 4px #000',
     pointerEvents: 'none',
-    fontSize: '0.75rem',
+    fontSize: '0.82rem',
   },
   levelCircle: {
     position: 'absolute',
@@ -286,6 +296,9 @@ const styles = {
     fontSize: '12px',
   },
   shieldIcon: {
+    fontSize: '12px',
+  },
+  bookIcon: {
     fontSize: '12px',
   },
   healthIconContainer: {
