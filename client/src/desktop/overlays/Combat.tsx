@@ -406,7 +406,7 @@ const styles = {
   },
   beastStatsPanel: {
     position: 'absolute',
-    top: 120,
+    top: 150,
     right: 40,
     width: 300,
     padding: '10px 12px',

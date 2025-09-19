@@ -140,6 +140,10 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
                 popper: {
                   modifiers: [
                     {
+                      name: 'offset',
+                      options: { offset: [0, -40] },
+                    },
+                    {
                       name: 'preventOverflow',
                       enabled: true,
                       options: { rootBoundary: 'viewport' },
@@ -347,6 +351,10 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
               slotProps={{
                 popper: {
                   modifiers: [
+                    {
+                      name: 'offset',
+                      options: { offset: [0, -40] },
+                    },
                     {
                       name: 'preventOverflow',
                       enabled: true,

@@ -106,7 +106,7 @@ export default function AdventurerStats({ variant }: AdventurerStatsProps) {
   const renderStatsView = () => (
     <>
       <Box sx={styles.statGrid}>
-        {Object.entries(STAT_DESCRIPTIONS).map(([stat]) => {
+        {['strength', 'dexterity', 'vitality', 'intelligence', 'charisma', 'wisdom'].map((stat) => {
           const totalStatValue = adventurer?.stats?.[stat as keyof typeof STAT_DESCRIPTIONS]! + selectedStats[stat as keyof typeof STAT_DESCRIPTIONS]!;
           const effectText = STAT_HELPER_TEXT(stat, totalStatValue);
 
