@@ -465,7 +465,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
 
 export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProps) {
   const { executeGameAction, actionFailed } = useGameDirector();
-  const { adventurer, bag, showInventory, setShowInventory } = useGameStore();
+  const { adventurer, bag, showInventory } = useGameStore();
   const { equipItem, newInventoryItems, setNewInventoryItems } = useGameStore();
   const [isDropMode, setIsDropMode] = useState(false);
   const [itemsToDrop, setItemsToDrop] = useState<number[]>([]);
@@ -525,28 +525,14 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
     }
   }, [newItems]);
 
+  if (!showInventory) {
+    return null;
+  }
+
   return (
     <>
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          position: 'absolute',
-          bottom: 24,
-          right: 100,
-          zIndex: 120,
-        }}
-      >
-        <Box sx={styles.buttonWrapper} onClick={() => setShowInventory(!showInventory)}>
-          <img src={'/images/inventory.png'} alt="Inventory" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', filter: 'hue-rotate(40deg) saturate(1.5) brightness(1.15) contrast(1.2)' }} />
-        </Box>
-        <Typography sx={styles.inventoryLabel}>Inventory</Typography>
-      </Box>
-      {showInventory && (
-        <>
-          {/* Inventory popup */}
-          <Box sx={styles.popup}>
+      {/* Inventory popup */}
+      <Box sx={styles.popup}>
             <Box sx={styles.inventoryRoot}>
               {/* Left: Equipment */}
               <CharacterEquipment
@@ -607,8 +593,6 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
               </Box>
             )}
           </Box>
-        </>
-      )}
     </>
   );
 }
@@ -645,30 +629,6 @@ const pulseGreen = keyframes`
 
 
 const styles = {
-  buttonWrapper: {
-    width: 64,
-    height: 64,
-    background: 'rgba(24, 40, 24, 1)',
-    border: '2px solid rgb(49 96 60)',
-    boxShadow: '0 0 8px #000a',
-    borderRadius: '12px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    transition: 'background 0.2s',
-    '&:hover': {
-      background: 'rgba(34, 50, 34, 0.85)',
-    },
-  },
-  inventoryLabel: {
-    color: '#e6d28a',
-    textShadow: '0 2px 4px #000, 0 0 8px #3a5a2a',
-    letterSpacing: 1,
-    marginTop: 0.5,
-    userSelect: 'none',
-    textAlign: 'center',
-  },
   popup: {
     position: 'absolute',
     top: '120px',

@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 
 export default function Adventurer({ combatStats }: { combatStats?: CombatStats }) {
   const { playerName } = useController();
-  const { adventurer, metadata, battleEvent, setShowInventory, showInventory, beast } = useGameStore();
+  const { adventurer, metadata, battleEvent, beast } = useGameStore();
   const { cart } = useMarketStore();
 
   const [health, setHealth] = useState(adventurer!.health);
@@ -45,10 +45,7 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
   return (
     <>
       {/* Portrait */}
-      <Box
-        sx={{ ...styles.portraitWrapper, cursor: 'pointer' }}
-        onClick={() => setShowInventory(!showInventory)}
-      >
+      <Box sx={styles.portraitWrapper}>
         <img src="/images/adventurer.png" alt="Adventurer" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
         <Box sx={styles.levelCircle}>
           <Typography variant="body2" sx={styles.levelText}>

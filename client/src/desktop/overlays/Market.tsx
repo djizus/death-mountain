@@ -66,7 +66,6 @@ export default function MarketOverlay() {
   const { executeGameAction, actionFailed } = useGameDirector();
   const {
     isOpen,
-    setIsOpen,
     cart,
     slotFilter,
     typeFilter,
@@ -88,18 +87,6 @@ export default function MarketOverlay() {
 
   const [showCart, setShowCart] = useState(false);
 
-  const handleOpen = () => {
-    setIsOpen(!isOpen);
-
-    if (!isOpen) {
-      setShowInventory(true);
-    }
-
-    if (newMarket) {
-      setNewMarket(false);
-    }
-  };
-
   useEffect(() => {
     if (inProgress) {
       if (cart.items.length > 0) {
@@ -107,7 +94,6 @@ export default function MarketOverlay() {
         setShowInventory(true);
       }
 
-      setIsOpen(false);
       setShowCart(false);
       setInProgress(false);
     }
@@ -118,6 +104,12 @@ export default function MarketOverlay() {
   useEffect(() => {
     setInProgress(false);
   }, [actionFailed]);
+
+  useEffect(() => {
+    if (isOpen && newMarket) {
+      setNewMarket(false);
+    }
+  }, [isOpen, newMarket, setNewMarket]);
 
   // Function to check if an item is already owned (in equipment or bag)
   const isItemOwned = useCallback((itemId: number) => {
@@ -234,22 +226,12 @@ export default function MarketOverlay() {
     return true;
   });
 
+  if (!isOpen) {
+    return null;
+  }
+
   return (
     <>
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'absolute', bottom: 24, right: 24, zIndex: 100 }}>
-        <Box sx={{
-          ...styles.buttonWrapper,
-          ...(newMarket && styles.buttonWrapperHighlighted)
-        }} onClick={handleOpen}>
-          <img src={'/images/market.png'} alt="Market" style={{ width: '90%', height: '90%', objectFit: 'contain', display: 'block', filter: 'hue-rotate(50deg) brightness(0.93) saturate(1.05)' }} />
-          {newMarket && (
-            <Box sx={styles.newIndicator}>!</Box>
-          )}
-        </Box>
-        <Typography sx={styles.marketLabel}>Market</Typography>
-      </Box>
-      {isOpen && (
-        <>
           {/* Market popup */}
           <Box sx={styles.popup}>
             {/* Top Bar */}
@@ -574,58 +556,11 @@ export default function MarketOverlay() {
               </Box>
             </Box>
           </Box>
-        </>
-      )}
     </>
   );
 }
 
 const styles = {
-  buttonWrapper: {
-    width: 64,
-    height: 64,
-    background: 'rgba(24, 40, 24, 1)',
-    border: '2px solid rgb(49 96 60)',
-    boxShadow: '0 0 8px #000a',
-    borderRadius: '12px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    transition: 'all 0.3s ease-in-out',
-    '&:hover': {
-      background: 'rgba(34, 50, 34, 0.85)',
-    },
-  },
-  buttonWrapperHighlighted: {
-    border: '2px solid #d7c529',
-    boxShadow: '0 0 12px rgba(215, 197, 41, 0.4), 0 0 8px #000a',
-    animation: 'marketPulse 2s ease-in-out infinite',
-    '@keyframes marketPulse': {
-      '0%': {
-        boxShadow: '0 0 12px rgba(215, 197, 41, 0.4), 0 0 8px #000a',
-      },
-      '50%': {
-        boxShadow: '0 0 20px rgba(215, 197, 41, 0.6), 0 0 8px #000a',
-      },
-      '100%': {
-        boxShadow: '0 0 12px rgba(215, 197, 41, 0.4), 0 0 8px #000a',
-      },
-    },
-  },
-  marketLabel: {
-    color: '#e6d28a',
-    textShadow: '0 2px 4px #000, 0 0 8px #3a5a2a',
-    letterSpacing: 1,
-    marginTop: 0.5,
-    userSelect: 'none',
-    textAlign: 'center',
-  },
-  icon: {
-    width: 32,
-    height: 32,
-    display: 'block',
-  },
   popup: {
     position: 'absolute',
     top: '24px',

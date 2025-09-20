@@ -152,6 +152,17 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
   }, [gameSettings, adventurer]);
 
   useEffect(() => {
+    if (!adventurer) return;
+
+    setShowInventory(true);
+
+    if (spectating) return;
+
+    const inCombat = adventurer.beast_health > 0;
+    setIsOpen(!inCombat);
+  }, [adventurer?.beast_health, spectating, setIsOpen, setShowInventory]);
+
+  useEffect(() => {
     const processNextEvent = async () => {
       if (eventQueue.length > 0 && !isProcessing) {
         setIsProcessing(true);
