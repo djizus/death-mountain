@@ -8,7 +8,6 @@ import Adventurer from './Adventurer';
 import Beast from './Beast';
 import InventoryOverlay from './Inventory';
 import SettingsOverlay from './Settings';
-import TipsOverlay from './Tips';
 import { JACKPOT_BEASTS, GOLD_MULTIPLIER, GOLD_REWARD_DIVISOR, MINIMUM_XP_REWARD } from '@/constants/beast';
 import { useDynamicConnector } from '@/contexts/starknet';
 
@@ -174,7 +173,6 @@ export default function CombatOverlay() {
       </Box>
 
       <InventoryOverlay disabledEquip={attackInProgress || fleeInProgress || equipInProgress} />
-      <TipsOverlay combatStats={combatStats} />
       <SettingsOverlay />
 
       {/* Combat Buttons */}

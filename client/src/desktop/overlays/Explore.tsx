@@ -10,7 +10,6 @@ import BeastCollectedPopup from '../../components/BeastCollectedPopup';
 import Adventurer from './Adventurer';
 import InventoryOverlay from './Inventory';
 import MarketOverlay from './Market';
-import TipsOverlay from './Tips';
 import SettingsOverlay from './Settings';
 import { useUIStore } from '@/stores/uiStore';
 import { useSnackbar } from 'notistack';
@@ -160,7 +159,6 @@ export default function ExploreOverlay() {
       </Box>
 
       <InventoryOverlay disabledEquip={isExploring || isSelectingStats || inProgress} />
-      <TipsOverlay />
       <SettingsOverlay />
 
       {adventurer?.stat_upgrades_available! === 0 && <MarketOverlay />}

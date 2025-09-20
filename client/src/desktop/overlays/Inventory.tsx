@@ -141,7 +141,7 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
                   modifiers: [
                     {
                       name: 'offset',
-                      options: { offset: [0, -40] },
+                      options: { offset: [0, 0] },
                     },
                     {
                       name: 'preventOverflow',
@@ -353,7 +353,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
                   modifiers: [
                     {
                       name: 'offset',
-                      options: { offset: [0, -40] },
+                      options: { offset: [0, 0] },
                     },
                     {
                       name: 'preventOverflow',
