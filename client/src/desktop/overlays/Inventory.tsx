@@ -346,14 +346,14 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
           return (
             <Tooltip
               key={item.id}
-              title={<ItemTooltip item={item} itemSpecialsSeed={adventurer?.item_specials_seed || 0} style={styles.tooltipContainer} />}
+              title={<ItemTooltip item={item} itemSpecialsSeed={adventurer?.item_specials_seed || 0} style={styles.bagTooltipContainer} />}
               placement="auto-end"
               slotProps={{
                 popper: {
                   modifiers: [
                     {
                       name: 'offset',
-                      options: { offset: [0, 0] },
+                      options: { offset: [0, -20] },
                     },
                     {
                       name: 'preventOverflow',
@@ -868,6 +868,17 @@ const styles = {
     zIndex: 1000,
     minWidth: '220px',
     boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+  },
+  bagTooltipContainer: {
+    position: 'absolute' as const,
+    backgroundColor: 'rgba(17, 17, 17, 1)',
+    border: '2px solid #083e22',
+    borderRadius: '8px',
+    padding: '10px',
+    zIndex: 1000,
+    minWidth: '220px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+    transform: 'translate(2%, -30%)',
   },
   newItem: {
     border: '2px solid #80FF00',

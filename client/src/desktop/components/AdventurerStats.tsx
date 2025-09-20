@@ -288,7 +288,9 @@ const styles = {
   statLabel: {
     fontSize: '13px',
     fontWeight: '500',
-    pt: '1px'
+    pt: '1px',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
   },
   statEffect: {
     fontSize: '11px',
