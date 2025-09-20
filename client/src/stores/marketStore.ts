@@ -11,6 +11,7 @@ interface MarketState {
   slotFilter: string | null;
   typeFilter: string | null;
   tierFilter: Tier | null;
+  statFilter: string | null;
   inProgress: boolean;
   showFilters: boolean;
 
@@ -18,6 +19,7 @@ interface MarketState {
   setSlotFilter: (filter: string | null) => void;
   setTypeFilter: (filter: string | null) => void;
   setTierFilter: (filter: Tier | null) => void;
+  setStatFilter: (filter: string | null) => void;
   addToCart: (item: MarketItem) => void;
   removeFromCart: (item: MarketItem) => void;
   setPotions: (count: number) => void;
@@ -35,6 +37,7 @@ export const useMarketStore = create<MarketState>((set) => ({
   slotFilter: null,
   typeFilter: null,
   tierFilter: null,
+  statFilter: null,
   inProgress: false,
   showFilters: false,
 
@@ -42,6 +45,7 @@ export const useMarketStore = create<MarketState>((set) => ({
   setSlotFilter: (filter) => set({ slotFilter: filter }),
   setTypeFilter: (filter) => set({ typeFilter: filter }),
   setTierFilter: (filter) => set({ tierFilter: filter }),
+  setStatFilter: (filter) => set({ statFilter: filter }),
   addToCart: (item) => set((state) => ({
     cart: {
       ...state.cart,
@@ -68,6 +72,7 @@ export const useMarketStore = create<MarketState>((set) => ({
     slotFilter: null,
     typeFilter: null,
     tierFilter: null,
+    statFilter: null,
   }),
   setInProgress: (inProgress) => set({ inProgress }),
   setShowFilters: (show) => set({ showFilters: show }),

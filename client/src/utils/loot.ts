@@ -338,6 +338,44 @@ export const ItemUtils = {
     }
   },
 
+  getStatBonusStats: (special1: string): string[] => {
+    if (special1 === "of Power") {
+      return ["Strength"];
+    } else if (special1 === "of Giant") {
+      return ["Vitality"];
+    } else if (special1 === "of Titans") {
+      return ["Strength", "Charisma"];
+    } else if (special1 === "of Skill") {
+      return ["Dexterity"];
+    } else if (special1 === "of Perfection") {
+      return ["Strength", "Dexterity", "Vitality"];
+    } else if (special1 === "of Brilliance") {
+      return ["Intelligence"];
+    } else if (special1 === "of Enlightenment") {
+      return ["Wisdom"];
+    } else if (special1 === "of Protection") {
+      return ["Vitality", "Dexterity"];
+    } else if (special1 === "of Anger") {
+      return ["Strength", "Dexterity"];
+    } else if (special1 === "of Rage") {
+      return ["Strength", "Charisma", "Wisdom"];
+    } else if (special1 === "of Fury") {
+      return ["Vitality", "Charisma", "Intelligence"];
+    } else if (special1 === "of Vitriol") {
+      return ["Intelligence", "Wisdom"];
+    } else if (special1 === "of the Fox") {
+      return ["Dexterity", "Charisma"];
+    } else if (special1 === "of Detection") {
+      return ["Wisdom", "Dexterity"];
+    } else if (special1 === "of Reflection") {
+      return ["Intelligence", "Wisdom"];
+    } else if (special1 === "of the Twins") {
+      return ["Charisma"];
+    }
+
+    return [];
+  },
+
   removeItemBoosts: (item: Item, item_specials_seed: number, stats: Stats): Stats => {
     const level = calculateLevel(item.xp);
     const specials = ItemUtils.getSpecials(item.id, level, item_specials_seed);

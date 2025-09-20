@@ -59,6 +59,8 @@ const renderTierToggleButton = (tier: Tier) => (
   </ToggleButton>
 );
 
+const STAT_FILTER_OPTIONS = ['Strength', 'Vitality', 'Charisma', 'Dexterity', 'Intelligence', 'Wisdom'];
+
 export default function MarketScreen() {
   const { adventurer, bag, marketItemIds } = useGameStore();
   const { executeGameAction } = useGameDirector();
@@ -67,9 +69,11 @@ export default function MarketScreen() {
     slotFilter,
     typeFilter,
     tierFilter,
+    statFilter,
     setSlotFilter,
     setTypeFilter,
     setTierFilter,
+    setStatFilter,
     addToCart,
     removeFromCart,
     setPotions,
@@ -99,7 +103,11 @@ export default function MarketScreen() {
   const marketItems = useMemo(() => {
     if (!marketItemIds) return [];
 
-    const items = generateMarketItems(marketItemIds, adventurer?.stats?.charisma || 0);
+    const items = generateMarketItems(
+      marketItemIds,
+      adventurer?.stats?.charisma || 0,
+      adventurer?.item_specials_seed || 0
+    );
 
     // Sort items by price and ownership status
     return items.sort((a, b) => {
@@ -126,7 +134,7 @@ export default function MarketScreen() {
         return b.price - a.price; // Both unaffordable, sort by price
       }
     });
-  }, [marketItemIds, adventurer?.gold]);
+  }, [marketItemIds, adventurer?.gold, adventurer?.stats?.charisma, adventurer?.item_specials_seed, isItemOwned]);
 
   const handleBuyItem = (item: MarketItem) => {
     addToCart(item);
@@ -173,6 +181,10 @@ export default function MarketScreen() {
     setTierFilter(newTier);
   };
 
+  const handleStatFilter = (_: React.MouseEvent<HTMLElement>, newStat: string | null) => {
+    setStatFilter(newStat);
+  };
+
   const potionCost = potionPrice(calculateLevel(adventurer?.xp || 0), adventurer?.stats?.charisma || 0);
   const totalCost = cart.items.reduce((sum, item) => sum + item.price, 0) + (cart.potions * potionCost);
   const remainingGold = (adventurer?.gold || 0) - totalCost;
@@ -186,6 +198,7 @@ export default function MarketScreen() {
     if (slotFilter && item.slot !== slotFilter) return false;
     if (typeFilter && item.type !== typeFilter) return false;
     if (tierFilter && item.tier !== tierFilter) return false;
+    if (statFilter && (!item.futureStatTags.length || !item.futureStatTags.includes(statFilter))) return false;
     return true;
   });
 
@@ -432,6 +445,22 @@ export default function MarketScreen() {
                   .map((tier) => renderTierToggleButton(tier as Tier))}
               </ToggleButtonGroup>
             </Box>
+
+            <Box sx={styles.filterGroup}>
+              <ToggleButtonGroup
+                value={statFilter}
+                exclusive
+                onChange={handleStatFilter}
+                aria-label="item stat"
+                sx={styles.filterButtons}
+              >
+                {STAT_FILTER_OPTIONS.map((stat) => (
+                  <ToggleButton key={stat} value={stat} aria-label={stat}>
+                    <Typography sx={styles.statFilterLabel}>{stat.slice(0, 3).toUpperCase()}</Typography>
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+            </Box>
           </Box>
         )}
 
@@ -497,6 +526,17 @@ export default function MarketScreen() {
                       </Typography>
                     </Box>
                   </Box>
+
+                  {item.futureStatBonus && (
+                    <Box sx={styles.itemBonusRow}>
+                      <Typography sx={styles.itemBonusLabel}>
+                        Unlocks at 15
+                      </Typography>
+                      <Typography sx={styles.itemBonusValue}>
+                        {item.futureStatBonus}
+                      </Typography>
+                    </Box>
+                  )}
 
                   <Box sx={styles.itemFooter}>
                     <Typography sx={styles.itemPrice}>
@@ -776,6 +816,33 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',
+  },
+  itemBonusRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    background: 'rgba(128, 255, 0, 0.05)',
+    border: '1px solid rgba(128, 255, 0, 0.08)',
+    borderRadius: '4px',
+    padding: '4px',
+    gap: '2px',
+  },
+  itemBonusLabel: {
+    color: 'rgba(128, 255, 0, 0.7)',
+    fontSize: '0.7rem',
+    fontFamily: 'VT323, monospace',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+  },
+  itemBonusValue: {
+    color: '#80FF00',
+    fontSize: '0.7rem',
+    fontFamily: 'VT323, monospace',
+    fontWeight: 'bold',
+  },
+  statFilterLabel: {
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.75rem',
+    color: 'rgba(128, 255, 0, 0.8)',
   },
   itemHeader: {
     display: 'flex',
