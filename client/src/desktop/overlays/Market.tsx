@@ -5,9 +5,10 @@ import { useMarketStore } from '@/stores/marketStore';
 import { calculateLevel } from '@/utils/game';
 import { ItemUtils, slotIcons, typeIcons, Tier } from '@/utils/loot';
 import { MarketItem, generateMarketItems, potionPrice } from '@/utils/market';
+import { getEventIcon, getEventTitle } from '@/utils/events';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
-import { Box, Button, IconButton, Modal, Slider, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Box, Button, IconButton, Modal, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import JewelryTooltip from '@/components/JewelryTooltip';
 
 const renderSlotToggleButton = (slot: keyof typeof slotIcons) => (
@@ -52,8 +53,7 @@ const renderTierToggleButton = (tier: Tier) => (
         lineHeight: '1.5rem',
         width: '24px',
         height: '24px',
-      }}
-    >
+      }}>
       T{tier}
     </Box>
   </ToggleButton>
@@ -62,7 +62,7 @@ const renderTierToggleButton = (tier: Tier) => (
 const STAT_FILTER_OPTIONS = ['Strength', 'Vitality', 'Charisma', 'Dexterity', 'Intelligence', 'Wisdom'];
 
 export default function MarketOverlay() {
-  const { adventurer, bag, marketItemIds, setShowInventory, setNewInventoryItems, newMarket, setNewMarket } = useGameStore();
+  const { adventurer, bag, marketItemIds, setShowInventory, setNewInventoryItems, newMarket, setNewMarket, exploreLog } = useGameStore();
   const { executeGameAction, actionFailed } = useGameDirector();
   const {
     isOpen,
@@ -86,6 +86,17 @@ export default function MarketOverlay() {
   } = useMarketStore();
 
   const [showCart, setShowCart] = useState(false);
+  const [activeTab, setActiveTab] = useState<'market' | 'events'>('market');
+
+  const handleTabChange = (_: SyntheticEvent, newValue: 'market' | 'events') => {
+    setActiveTab(newValue);
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'market') {
+      setShowCart(false);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (inProgress) {
@@ -226,341 +237,456 @@ export default function MarketOverlay() {
     return true;
   });
 
+  const eventLogSection = useMemo(() => (
+    <Box sx={styles.eventLogContainer}>
+      <Box sx={styles.eventLogHeader}>
+        <Typography sx={styles.eventLogTitle}>Explorer Log</Typography>
+      </Box>
+      <Box sx={styles.eventLogList}>
+        {exploreLog.length === 0 ? (
+          <Typography sx={styles.eventLogEmpty}>No events recorded yet.</Typography>
+        ) : (
+          exploreLog.map((event, index) => (
+            <Box key={`${exploreLog.length - index}`} sx={styles.eventItem}>
+              <Box sx={styles.eventIcon}>
+                <Box
+                  component="img"
+                  src={getEventIcon(event)}
+                  alt={'event'}
+                  sx={styles.eventIconImage}
+                />
+              </Box>
+              <Box sx={styles.eventDetails}>
+                <Typography sx={styles.eventTitle}>{getEventTitle(event)}</Typography>
+                <Box sx={styles.eventMeta}>
+                  {typeof event.xp_reward === 'number' && event.xp_reward > 0 && (
+                    <Typography sx={styles.eventMetaValue}>+{event.xp_reward} XP</Typography>
+                  )}
+
+                  {event.type === 'obstacle' && (
+                    <Typography sx={styles.eventMetaValue}>
+                      {event.obstacle?.dodged
+                        ? 'Dodged'
+                        : `-${event.obstacle?.damage} Health${event.obstacle?.critical_hit ? ' critical hit!' : ''}`}
+                    </Typography>
+                  )}
+
+                  {typeof event.gold_reward === 'number' && event.gold_reward > 0 && (
+                    <Typography sx={styles.eventMetaValue}>+{event.gold_reward} Gold</Typography>
+                  )}
+
+                  {event.type === 'discovery' && event.discovery?.type === 'Gold' && (
+                    <Typography sx={styles.eventMetaValue}>+{event.discovery.amount} Gold</Typography>
+                  )}
+
+                  {event.type === 'discovery' && event.discovery?.type === 'Health' && (
+                    <Typography sx={styles.eventMetaValue}>+{event.discovery.amount} Health</Typography>
+                  )}
+
+                  {event.type === 'stat_upgrade' && event.stats && (
+                    <Typography sx={styles.eventMetaValue}>
+                      {Object.entries(event.stats)
+                        .filter(([_, value]) => typeof value === 'number' && value > 0)
+                        .map(([stat, value]) => `+${value} ${stat.slice(0, 3).toUpperCase()}`)
+                        .join(', ')}
+                    </Typography>
+                  )}
+
+                  {event.type === 'level_up' && event.level && (
+                    <Typography sx={styles.eventMetaValue}>Reached Level {event.level}</Typography>
+                  )}
+
+                  {event.type === 'buy_items' && typeof event.potions === 'number' && event.potions > 0 && (
+                    <Typography sx={styles.eventMetaValue}>+{event.potions} Potions</Typography>
+                  )}
+
+                  {event.items_purchased && event.items_purchased.length > 0 && (
+                    <Typography sx={styles.eventMetaValue}>+{event.items_purchased.length} Items</Typography>
+                  )}
+
+                  {event.items && event.items.length > 0 && (
+                    <Typography sx={styles.eventMetaValue}>
+                      {event.items.length} items
+                    </Typography>
+                  )}
+
+                  {event.type === 'beast' && (
+                    <Typography sx={styles.eventMetaValue}>
+                      Level {event.beast?.level} Power {event.beast?.tier! * event.beast?.level!}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            </Box>
+          ))
+        )}
+      </Box>
+    </Box>
+  ), [exploreLog]);
+
+  if (!isOpen) {
+    return null;
+  }
+
   if (!isOpen) {
     return null;
   }
 
   return (
-    <>
-          {/* Market popup */}
-          <Box sx={styles.popup}>
-            {/* Top Bar */}
-            <Box sx={styles.topBar}>
-              <Box sx={styles.goldDisplay}>
-                <Typography sx={styles.goldLabel} variant='h6'>Gold left:</Typography>
-                <Typography sx={styles.goldValue} variant='h6'>{remainingGold}</Typography>
-              </Box>
-              <Button
-                variant="outlined"
-                onClick={handleCheckout}
-                disabled={inProgress || cart.potions === 0 && cart.items.length === 0 || remainingGold < 0}
-                sx={{ height: '34px', width: '170px', justifyContent: 'center' }}
-              >
-                {inProgress
-                  ? <Box display={'flex'} alignItems={'baseline'}>
-                    <Typography>
-                      Processing
-                    </Typography>
-                    <div className='dotLoader yellow' />
-                  </Box>
-                  : <Typography>
-                    Purchase ({cart.potions + cart.items.length})
-                  </Typography>
-                }
-              </Button>
+    <Box sx={styles.popup}>
+      <Box sx={styles.tabBar}>
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          aria-label="market sections"
+          sx={styles.tabs}>
+          <Tab value="market" label="Market" sx={styles.tab} />
+          <Tab value="events" label="Event Log" sx={styles.tab} />
+        </Tabs>
+      </Box>
+
+      {activeTab === 'market' && (
+        <Box sx={styles.marketContent}>
+          <Box sx={styles.topBar}>
+            <Box sx={styles.goldDisplay}>
+              <Typography sx={styles.goldLabel} variant='h6'>Gold left:</Typography>
+              <Typography sx={styles.goldValue} variant='h6'>{remainingGold}</Typography>
             </Box>
-
-            {/* Cart Modal */}
-            <Modal
-              open={showCart}
-              onClose={() => {
-                setShowCart(false);
-                setInProgress(false);
-              }}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Box sx={styles.cartModal}>
-                <Button
-                  onClick={() => {
-                    setShowCart(false);
-                    setInProgress(false);
-                  }}
-                  sx={styles.closeButton}
-                >
-                  x
-                </Button>
-                <Typography sx={styles.cartTitle}>Market Cart</Typography>
-                <Box sx={styles.cartItems}>
-                  {cart.potions > 0 && (
-                    <Box sx={styles.cartItem}>
-                      <Typography sx={styles.cartItemName}>Health Potion x{cart.potions}</Typography>
-                      <Typography sx={styles.cartItemPrice}>{potionCost * cart.potions} Gold</Typography>
-                      <Button
-                        onClick={handleRemovePotion}
-                        sx={styles.removeButton}
-                      >
-                        x
-                      </Button>
-                    </Box>
-                  )}
-                  {cart.items.map((item, index) => (
-                    <Box key={index} sx={styles.cartItem}>
-                      <Typography sx={styles.cartItemName}>{item.name}</Typography>
-                      <Typography sx={styles.cartItemPrice}>{item.price} Gold</Typography>
-                      <Button
-                        onClick={() => handleRemoveItem(item)}
-                        sx={styles.removeButton}
-                      >
-                        x
-                      </Button>
-                    </Box>
-                  ))}
-                </Box>
-
-                {(adventurer?.stats?.charisma || 0) > 0 && <Box sx={styles.charismaDiscount}>
-                  <Typography sx={styles.charismaLabel}>
-                    Gold Saved from Charisma
+            <Button
+              variant="outlined"
+              onClick={handleCheckout}
+              disabled={inProgress || cart.potions === 0 && cart.items.length === 0 || remainingGold < 0}
+              sx={{ height: '34px', width: '170px', justifyContent: 'center' }}>
+              {inProgress
+                ? <Box display={'flex'} alignItems={'baseline'}>
+                  <Typography>
+                    Processing
                   </Typography>
-                  <Typography sx={styles.charismaValue}>
-                    {Math.round(
-                      (potionPrice(calculateLevel(adventurer?.xp || 0), 0) * cart.potions) - (potionCost * cart.potions) +
-                      cart.items.reduce((total, item) => {
-                        const maxDiscount = (6 - item.tier) * 4;
-                        const charismaDiscount = Math.min(adventurer?.stats?.charisma || 0, maxDiscount);
-                        return total + charismaDiscount;
-                      }, 0)
-                    )} Gold
-                  </Typography>
-                </Box>}
-
-                <Box sx={styles.cartTotal}>
-                  <Typography sx={styles.totalLabel}>Total</Typography>
-                  <Typography sx={styles.totalValue}>{totalCost} Gold</Typography>
+                  <div className='dotLoader yellow' />
                 </Box>
+                : <Typography>
+                  Purchase ({cart.potions + cart.items.length})
+                </Typography>
+              }
+            </Button>
+          </Box>
 
-                <Box sx={styles.cartActions}>
-                  <Button
-                    variant="contained"
-                    onClick={handleCheckout}
-                    disabled={inProgress || cart.potions === 0 && cart.items.length === 0 || remainingGold < 0}
-                    sx={styles.checkoutButton}
-                  >
-                    {inProgress
-                      ? <Box display={'flex'} alignItems={'baseline'}>
-                        <Typography variant='h5'>
-                          Processing
-                        </Typography>
-                        <div className='dotLoader yellow' />
-                      </Box>
-                      : <Typography variant='h5'>
-                        Checkout
-                      </Typography>
-                    }
-                  </Button>
-                </Box>
-              </Box>
-            </Modal>
-
-            {/* Main Content */}
-            <Box sx={styles.mainContent}>
-              {/* Potions Section */}
-              <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'flex-end', mb: '6px' }}>
-                <Box sx={styles.potionsSection}>
-                  <Box sx={styles.potionSliderContainer}>
-                    <Box sx={styles.potionLeftSection}>
-                      <Box component="img" src={'/images/health.png'} alt="Health Icon" sx={styles.potionImage} />
-                      <Box sx={styles.potionInfo}>
-                        <Typography>Potions</Typography>
-                        <Typography sx={styles.potionHelperText}>+10 Health</Typography>
-                      </Box>
-                    </Box>
-                    <Box sx={styles.potionRightSection}>
-                      <Box sx={styles.potionControls}>
-                        <Typography sx={styles.potionCost}>Cost: {potionCost} Gold</Typography>
-                      </Box>
-                      <Slider
-                        value={cart.potions}
-                        onChange={(_, value) => handleBuyPotion(value as number)}
-                        min={0}
-                        max={maxPotions}
-                        sx={styles.potionSlider}
-                      />
-                    </Box>
-                  </Box>
-                </Box>
-
-                <IconButton
-                  onClick={() => setShowFilters(!showFilters)}
-                  sx={{
-                    ...styles.filterToggleButton,
-                    ...(showFilters ? styles.filterToggleButtonActive : {})
-                  }}
-                >
-                  <FilterListAltIcon sx={{ fontSize: 20 }} />
-                </IconButton>
-              </Box>
-
-              {/* Filters */}
-                {showFilters && (
-                  <Box sx={styles.filtersContainer}>
-                    <Box sx={styles.filterGroup}>
-                      <ToggleButtonGroup
-                        value={slotFilter}
-                      exclusive
-                      onChange={handleSlotFilter}
-                      aria-label="item slot"
-                      sx={styles.filterButtons}
-                    >
-                      {Object.keys(slotIcons).map((slot) => renderSlotToggleButton(slot as keyof typeof slotIcons))}
-                    </ToggleButtonGroup>
-                  </Box>
-
-                  <Box sx={styles.filterGroup}>
-                    <ToggleButtonGroup
-                      value={typeFilter}
-                      exclusive
-                      onChange={handleTypeFilter}
-                      aria-label="item type"
-                      sx={styles.filterButtons}
-                    >
-                      {Object.keys(typeIcons).filter(type => ['Cloth', 'Hide', 'Metal']
-                        .includes(type)).map((type) => renderTypeToggleButton(type as keyof typeof typeIcons))}
-                    </ToggleButtonGroup>
-
-                    <ToggleButtonGroup
-                      value={tierFilter}
-                      exclusive
-                      onChange={handleTierFilter}
-                      aria-label="item tier"
-                      sx={[styles.filterButtons, { fontSize: '1rem' }]}
-                    >
-                      {Object.values(Tier)
-                        .filter(tier => typeof tier === 'number' && tier > 0)
-                        .map((tier) => renderTierToggleButton(tier as Tier))}
-                      </ToggleButtonGroup>
-                    </Box>
-
-                    <Box sx={styles.filterGroup}>
-                      <ToggleButtonGroup
-                        value={statFilter}
-                        exclusive
-                        onChange={handleStatFilter}
-                        aria-label="item stat"
-                        sx={styles.filterButtons}
-                      >
-                        {STAT_FILTER_OPTIONS.map((stat) => (
-                          <ToggleButton key={stat} value={stat} aria-label={stat}>
-                            <Typography sx={styles.statFilterLabel}>{stat.slice(0, 3).toUpperCase()}</Typography>
-                          </ToggleButton>
-                        ))}
-                      </ToggleButtonGroup>
-                    </Box>
+          <Modal
+            open={showCart}
+            onClose={() => {
+              setShowCart(false);
+              setInProgress(false);
+            }}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <Box sx={styles.cartModal}>
+              <Button
+                onClick={() => {
+                  setShowCart(false);
+                  setInProgress(false);
+                }}
+                sx={styles.closeButton}>
+                x
+              </Button>
+              <Typography sx={styles.cartTitle}>Market Cart</Typography>
+              <Box sx={styles.cartItems}>
+                {cart.potions > 0 && (
+                  <Box sx={styles.cartItem}>
+                    <Typography sx={styles.cartItemName}>Health Potion x{cart.potions}</Typography>
+                    <Typography sx={styles.cartItemPrice}>{potionCost * cart.potions} Gold</Typography>
+                    <Button
+                      onClick={handleRemovePotion}
+                      sx={styles.removeButton}>
+                      x
+                    </Button>
                   </Box>
                 )}
+                {cart.items.map((item, index) => (
+                  <Box key={index} sx={styles.cartItem}>
+                    <Typography sx={styles.cartItemName}>{item.name}</Typography>
+                    <Typography sx={styles.cartItemPrice}>{item.price} Gold</Typography>
+                    <Button
+                      onClick={() => handleRemoveItem(item)}
+                      sx={styles.removeButton}>
+                      x
+                    </Button>
+                  </Box>
+                ))}
+              </Box>
 
-              {/* Items Grid */}
-              <Box sx={styles.itemsGrid}>
-                {filteredItems.map((item) => {
-                  const canAfford = remainingGold >= item.price;
-                  const inCart = cart.items.some(cartItem => cartItem.id === item.id);
-                  const isOwned = isItemOwned(item.id);
-                  const shouldGrayOut = (!canAfford && !isOwned && !inCart) || isOwned;
-                  return (
-                    <Box
-                      key={item.id}
-                      sx={[
-                        styles.itemCard,
-                        shouldGrayOut && styles.itemUnaffordable
-                      ]}
-                    >
-                      <Box sx={styles.itemImageContainer}>
-                        <Box
-                          sx={[
-                            styles.itemGlow,
-                            { backgroundColor: ItemUtils.getTierColor(item.tier) }
-                          ]}
-                        />
-                        <Box
-                          component="img"
-                          src={item.imageUrl}
-                          alt={item.name}
-                          sx={styles.itemImage}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                        <Box sx={styles.itemTierBadge} style={{ backgroundColor: ItemUtils.getTierColor(item.tier) }}>
-                          <Typography sx={styles.itemTierText}>T{item.tier}</Typography>
+              {(adventurer?.stats?.charisma || 0) > 0 && <Box sx={styles.charismaDiscount}>
+                <Typography sx={styles.charismaLabel}>
+                  Gold Saved from Charisma
+                </Typography>
+                <Typography sx={styles.charismaValue}>
+                  {Math.round(
+                    (potionPrice(calculateLevel(adventurer?.xp || 0), 0) * cart.potions) - (potionCost * cart.potions) +
+                    cart.items.reduce((total, item) => {
+                      const maxDiscount = (6 - item.tier) * 4;
+                      const charismaDiscount = Math.min(adventurer?.stats?.charisma || 0, maxDiscount);
+                      return total + charismaDiscount;
+                    }, 0)
+                  )} Gold
+                </Typography>
+              </Box>}
+
+              <Box sx={styles.cartTotal}>
+                <Typography sx={styles.totalLabel}>Total</Typography>
+                <Typography sx={styles.totalValue}>{totalCost} Gold</Typography>
+              </Box>
+
+              <Box sx={styles.cartActions}>
+                <Button
+                  variant="contained"
+                  onClick={handleCheckout}
+                  disabled={inProgress || cart.potions === 0 && cart.items.length === 0 || remainingGold < 0}
+                  sx={styles.checkoutButton}>
+                  {inProgress
+                    ? <Box display={'flex'} alignItems={'baseline'}>
+                      <Typography variant='h5'>
+                        Processing
+                      </Typography>
+                      <div className='dotLoader yellow' />
+                    </Box>
+                    : <Typography variant='h5'>
+                      Checkout
+                    </Typography>
+                  }
+                </Button>
+              </Box>
+            </Box>
+          </Modal>
+
+          <Box sx={styles.mainContent}>
+            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'flex-end', mb: '6px' }}>
+              <Box sx={styles.potionsSection}>
+                <Box sx={styles.potionSliderContainer}>
+                  <Box sx={styles.potionLeftSection}>
+                    <Box component="img" src={'/images/health.png'} alt="Health Icon" sx={styles.potionImage} />
+                    <Box sx={styles.potionInfo}>
+                      <Typography>Potions</Typography>
+                      <Typography sx={styles.potionHelperText}>+10 Health</Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={styles.potionRightSection}>
+                    <Box sx={styles.potionControls}>
+                      <Typography sx={styles.potionCost}>Cost: {potionCost} Gold</Typography>
+                    </Box>
+                    <Slider
+                      value={cart.potions}
+                      onChange={(_, value) => handleBuyPotion(value as number)}
+                      min={0}
+                      max={maxPotions}
+                      sx={styles.potionSlider}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+
+              <IconButton
+                onClick={() => setShowFilters(!showFilters)}
+                sx={{
+                  ...styles.filterToggleButton,
+                  ...(showFilters ? styles.filterToggleButtonActive : {}),
+                }}>
+                <FilterListAltIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            </Box>
+
+            {showFilters && (
+              <Box sx={styles.filtersContainer}>
+                <Box sx={styles.filterGroup}>
+                  <ToggleButtonGroup
+                    value={slotFilter}
+                    exclusive
+                    onChange={handleSlotFilter}
+                    aria-label="item slot"
+                    sx={styles.filterButtons}>
+                    {Object.keys(slotIcons).map((slot) => renderSlotToggleButton(slot as keyof typeof slotIcons))}
+                  </ToggleButtonGroup>
+                </Box>
+
+                <Box sx={styles.filterGroup}>
+                  <ToggleButtonGroup
+                    value={typeFilter}
+                    exclusive
+                    onChange={handleTypeFilter}
+                    aria-label="item type"
+                    sx={styles.filterButtons}>
+                    {Object.keys(typeIcons)
+                      .filter(type => ['Cloth', 'Hide', 'Metal'].includes(type))
+                      .map((type) => renderTypeToggleButton(type as keyof typeof typeIcons))}
+                  </ToggleButtonGroup>
+
+                  <ToggleButtonGroup
+                    value={tierFilter}
+                    exclusive
+                    onChange={handleTierFilter}
+                    aria-label="item tier"
+                    sx={[styles.filterButtons, { fontSize: '1rem' }]}>
+                    {Object.values(Tier)
+                      .filter(tier => typeof tier === 'number' && tier > 0)
+                      .map((tier) => renderTierToggleButton(tier as Tier))}
+                  </ToggleButtonGroup>
+                </Box>
+
+                <Box sx={styles.filterGroup}>
+                  <ToggleButtonGroup
+                    value={statFilter}
+                    exclusive
+                    onChange={handleStatFilter}
+                    aria-label="item stat"
+                    sx={styles.filterButtons}>
+                    {STAT_FILTER_OPTIONS.map((stat) => (
+                      <ToggleButton key={stat} value={stat} aria-label={stat}>
+                        <Typography sx={styles.statFilterLabel}>{stat.slice(0, 3).toUpperCase()}</Typography>
+                      </ToggleButton>
+                    ))}
+                  </ToggleButtonGroup>
+                </Box>
+              </Box>
+            )}
+
+            <Box sx={styles.itemsGrid}>
+              {filteredItems.map((item) => {
+                const canAfford = remainingGold >= item.price;
+                const inCart = cart.items.some(cartItem => cartItem.id === item.id);
+                const isOwned = isItemOwned(item.id);
+                const shouldGrayOut = (!canAfford && !isOwned && !inCart) || isOwned;
+
+                return (
+                  <Box
+                    key={item.id}
+                    sx={[
+                      styles.itemCard,
+                      shouldGrayOut && styles.itemUnaffordable,
+                    ]}>
+                    <Box sx={styles.itemImageContainer}>
+                      <Box
+                        sx={[
+                          styles.itemGlow,
+                          { backgroundColor: ItemUtils.getTierColor(item.tier) },
+                        ]}
+                      />
+                      <Box
+                        component="img"
+                        src={item.imageUrl}
+                        alt={item.name}
+                        sx={styles.itemImage}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                      <Box sx={styles.itemTierBadge} style={{ backgroundColor: ItemUtils.getTierColor(item.tier) }}>
+                        <Typography sx={styles.itemTierText}>T{item.tier}</Typography>
+                      </Box>
+                    </Box>
+
+                    <Box sx={styles.itemInfo}>
+                      <Box sx={styles.itemHeader}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Typography sx={styles.itemName}>{item.name}</Typography>
+                          <JewelryTooltip itemId={item.id} />
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {item.type in typeIcons && (
+                            <Box
+                              component="img"
+                              src={typeIcons[item.type as keyof typeof typeIcons]}
+                              alt={item.type}
+                              sx={styles.typeIcon}
+                            />
+                          )}
+                          <Typography sx={styles.itemType}>
+                            {item.type}
+                          </Typography>
                         </Box>
                       </Box>
 
-                      <Box sx={styles.itemInfo}>
-                        <Box sx={styles.itemHeader}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Typography sx={styles.itemName}>{item.name}</Typography>
-                            <JewelryTooltip itemId={item.id} />
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            {item.type in typeIcons && (
-                              <Box
-                                component="img"
-                                src={typeIcons[item.type as keyof typeof typeIcons]}
-                                alt={item.type}
-                                sx={styles.typeIcon}
-                              />
-                            )}
-                            <Typography sx={styles.itemType}>
-                              {item.type}
-                            </Typography>
-                          </Box>
-                        </Box>
-
-                        {item.futureStatBonus && (
-                          <Box sx={styles.itemBonusRow}>
-                            <Typography sx={styles.itemBonusLabel}>
-                              Unlocks at 15
-                            </Typography>
-                            <Typography sx={styles.itemBonusValue}>
-                              {item.futureStatBonus}
-                            </Typography>
-                          </Box>
-                        )}
-
-                        <Box sx={styles.itemFooter}>
-                          <Typography sx={styles.itemPrice}>
-                            {item.price} Gold
+                      {item.futureStatBonus && (
+                        <Box sx={styles.itemBonusRow}>
+                          <Typography sx={styles.itemBonusLabel}>
+                            Unlocks at 15
                           </Typography>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                            {inCart && (
-                              <Typography sx={styles.inCartText}>
-                                In Cart
-                              </Typography>
-                            )}
-                            <Button
-                              variant="outlined"
-                              onClick={() => inCart ? handleRemoveItem(item) : handleBuyItem(item)}
-                              disabled={!inCart && (remainingGold < item.price || isItemOwned(item.id) || inventoryFull)}
-                              sx={{
-                                height: '32px',
-                                ...(inCart && {
-                                  background: 'rgba(215, 197, 41, 0.2)',
-                                  color: 'rgba(215, 197, 41, 0.8)',
-                                })
-                              }}
-                              size="small"
-                            >
-                              <Typography textTransform={'none'}>
-                                {inCart ? 'Undo' : isItemOwned(item.id) ? 'Owned' : inventoryFull ? 'Bag Full' : 'Buy'}
-                              </Typography>
-                            </Button>
-                          </Box>
+                          <Typography sx={styles.itemBonusValue}>
+                            {item.futureStatBonus}
+                          </Typography>
+                        </Box>
+                      )}
+
+                      <Box sx={styles.itemFooter}>
+                        <Typography sx={styles.itemPrice}>
+                          {item.price} Gold
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                          {inCart && (
+                            <Typography sx={styles.inCartText}>
+                              In Cart
+                            </Typography>
+                          )}
+                          <Button
+                            variant="outlined"
+                            onClick={() => (inCart ? handleRemoveItem(item) : handleBuyItem(item))}
+                            disabled={!inCart && (remainingGold < item.price || isItemOwned(item.id) || inventoryFull)}
+                            sx={{
+                              height: '32px',
+                              ...(inCart && {
+                                background: 'rgba(215, 197, 41, 0.2)',
+                                color: 'rgba(215, 197, 41, 0.8)',
+                              }),
+                            }}
+                            size="small">
+                            <Typography textTransform={'none'}>
+                              {inCart ? 'Undo' : isItemOwned(item.id) ? 'Owned' : inventoryFull ? 'Bag Full' : 'Buy'}
+                            </Typography>
+                          </Button>
                         </Box>
                       </Box>
                     </Box>
-                  );
-                })}
-              </Box>
+                  </Box>
+                );
+              })}
             </Box>
           </Box>
-    </>
+        </Box>
+      )}
+
+      {activeTab === 'events' && eventLogSection}
+    </Box>
   );
 }
 
 const styles = {
+  tabBar: {
+    borderBottom: '1px solid rgba(215, 198, 41, 0.2)',
+    mb: 1,
+  },
+  tabs: {
+    minHeight: 0,
+    '& .MuiTabs-flexContainer': {
+      gap: '8px',
+    },
+    '& .MuiTabs-indicator': {
+      backgroundColor: '#d7c529',
+      height: '2px',
+    },
+  },
+  tab: {
+    minHeight: 0,
+    minWidth: 0,
+    flex: 1,
+    color: 'rgba(215, 198, 41, 0.6)',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.78rem',
+    letterSpacing: '0.6px',
+    padding: '6px 0',
+    '&.Mui-selected': {
+      color: '#d7c529',
+    },
+  },
   popup: {
     position: 'absolute',
     top: '24px',
@@ -579,6 +705,95 @@ const styles = {
     padding: 1,
     overflow: 'hidden',
     boxShadow: '0 0 8px #000a',
+  },
+  marketContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: 1,
+  },
+  eventLogContainer: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    paddingTop: '6px',
+  },
+  eventLogHeader: {
+    padding: '0 4px',
+  },
+  eventLogTitle: {
+    color: '#d0c98d',
+    fontSize: '0.82rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    fontFamily: 'Cinzel, Georgia, serif',
+  },
+  eventLogList: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    overflowY: 'auto',
+    paddingRight: '4px',
+    '&::-webkit-scrollbar': {
+      width: '6px',
+    },
+    '&::-webkit-scrollbar-thumb': {
+      background: 'rgba(215, 198, 41, 0.3)',
+      borderRadius: '3px',
+    },
+    '&::-webkit-scrollbar-track': {
+      background: 'rgba(24, 40, 24, 0.6)',
+      borderRadius: '3px',
+    },
+  },
+  eventLogEmpty: {
+    color: '#d0c98d',
+    fontSize: '0.78rem',
+    textAlign: 'center',
+    padding: '16px 0',
+  },
+  eventItem: {
+    display: 'flex',
+    gap: '12px',
+    padding: '8px 10px',
+    borderRadius: '8px',
+    border: '1px solid rgba(215, 198, 41, 0.2)',
+    background: 'rgba(24, 40, 24, 0.65)',
+  },
+  eventIcon: {
+    width: '36px',
+    height: '36px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventIconImage: {
+    width: '32px',
+    height: '32px',
+    objectFit: 'contain',
+    filter: 'drop-shadow(0 0 4px rgba(0, 0, 0, 0.6))',
+  },
+  eventDetails: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  eventTitle: {
+    color: '#d0c98d',
+    fontSize: '0.8rem',
+    fontWeight: 600,
+    letterSpacing: '0.4px',
+  },
+  eventMeta: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px 12px',
+  },
+  eventMetaValue: {
+    color: '#d7c529',
+    fontSize: '0.72rem',
   },
   topBar: {
     display: 'flex',
