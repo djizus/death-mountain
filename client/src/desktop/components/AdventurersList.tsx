@@ -36,6 +36,7 @@ export default function AdventurersList({ onBack }: AdventurersListProps) {
         ? GAME_TOKEN_ADDRESS
         : addAddressPadding(currentNetworkConfig.dungeon),
     owner: address,
+    limit: 10000,
   });
   const [gameTokens, setGameTokens] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -197,7 +198,12 @@ export default function AdventurersList({ onBack }: AdventurersListProps) {
                     </Typography>
                   </Box>
                 ) : (
-                  <Typography fontSize="13px" color="secondary" flex={1} sx={{ minWidth: "55px" }}>
+                  <Typography
+                    fontSize="13px"
+                    color="secondary"
+                    flex={1}
+                    sx={{ minWidth: "55px" }}
+                  >
                     New
                   </Typography>
                 )}

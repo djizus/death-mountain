@@ -32,8 +32,12 @@ export default function GameTokensList() {
   )?.address;
 
   const { games: gamesData } = useMetagameTokens({
-    mintedByAddress: currentNetworkConfig.chainId === ChainId.WP_PG_SLOT ? GAME_TOKEN_ADDRESS : addAddressPadding(currentNetworkConfig.dungeon),
+    mintedByAddress:
+      currentNetworkConfig.chainId === ChainId.WP_PG_SLOT
+        ? GAME_TOKEN_ADDRESS
+        : addAddressPadding(currentNetworkConfig.dungeon),
     owner: account?.address,
+    limit: 10000,
   });
 
   useEffect(() => {
@@ -94,9 +98,9 @@ export default function GameTokensList() {
   };
 
   if (loading) {
-    return <Typography sx={{ textAlign: "center", py: 2 }}>
-      Loading...
-    </Typography>
+    return (
+      <Typography sx={{ textAlign: "center", py: 2 }}>Loading...</Typography>
+    );
   }
 
   return (
