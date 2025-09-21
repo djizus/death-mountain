@@ -13,6 +13,7 @@ export interface CombatSimulationResult {
   averageRounds: number;
   averageDamageDealt: number;
   averageDamageTaken: number;
+  medianDamageTaken: number;
   minDamageDealt: number;
   maxDamageDealt: number;
   minDamageTaken: number;
@@ -28,6 +29,7 @@ export const defaultSimulationResult: CombatSimulationResult = {
   averageRounds: 0,
   averageDamageDealt: 0,
   averageDamageTaken: 0,
+  medianDamageTaken: 0,
   minDamageDealt: 0,
   maxDamageDealt: 0,
   minDamageTaken: 0,
@@ -83,6 +85,7 @@ export const simulateCombatOutcomes = (
   let maxDamageDealt = 0;
   let minDamageTaken = Number.POSITIVE_INFINITY;
   let maxDamageTaken = 0;
+  const damageTakenValues: number[] = [];
 
   const runFight = (): Accumulator => {
     let heroHp = adventurer.health;
@@ -125,6 +128,7 @@ export const simulateCombatOutcomes = (
     maxDamageDealt = Math.max(maxDamageDealt, damageDealt);
     minDamageTaken = Math.min(minDamageTaken, damageTaken);
     maxDamageTaken = Math.max(maxDamageTaken, damageTaken);
+    damageTakenValues.push(damageTaken);
 
     if (heroHp > 0 && beastHp <= 0) {
       wins += 1;
@@ -136,6 +140,15 @@ export const simulateCombatOutcomes = (
   }
 
   const losses = fightsSimulated - wins;
+  const medianDamageTaken = (() => {
+    if (damageTakenValues.length === 0) return 0;
+    const sorted = [...damageTakenValues].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 0) {
+      return (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+    return sorted[mid];
+  })();
 
   return {
     totalFights: fightsSimulated,
@@ -146,6 +159,7 @@ export const simulateCombatOutcomes = (
     averageRounds: Number((totalRounds / fightsSimulated).toFixed(1)),
     averageDamageDealt: Number((totalDamageDealt / fightsSimulated).toFixed(1)),
     averageDamageTaken: Number((totalDamageTaken / fightsSimulated).toFixed(1)),
+    medianDamageTaken: Number(medianDamageTaken.toFixed(1)),
     minDamageDealt: Number.isFinite(minDamageDealt) ? Math.round(minDamageDealt) : 0,
     maxDamageDealt: Math.round(maxDamageDealt),
     minDamageTaken: Number.isFinite(minDamageTaken) ? Math.round(minDamageTaken) : 0,
