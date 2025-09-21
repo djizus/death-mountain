@@ -56,6 +56,7 @@ export const useUIStore = create<UIState>()(
         useMobileClient: state.useMobileClient,
         skipIntroOutro: state.skipIntroOutro,
         skipAllAnimations: state.skipAllAnimations,
+        skipCombatDelays: state.skipCombatDelays,
       }),
     }
   )

@@ -704,12 +704,14 @@ const styles = {
     alignItems: 'stretch',
     padding: 1,
     overflow: 'hidden',
+    minHeight: 0,
     boxShadow: '0 0 8px #000a',
   },
   marketContent: {
     display: 'flex',
     flexDirection: 'column',
     flex: 1,
+    minHeight: 0,
   },
   eventLogContainer: {
     flex: 1,
@@ -717,6 +719,8 @@ const styles = {
     flexDirection: 'column',
     gap: '6px',
     paddingTop: '6px',
+    minHeight: 0,
+    overflow: 'hidden',
   },
   eventLogHeader: {
     padding: '0 4px',
@@ -735,6 +739,7 @@ const styles = {
     gap: '8px',
     overflowY: 'auto',
     paddingRight: '4px',
+    minHeight: 0,
     '&::-webkit-scrollbar': {
       width: '6px',
     },
