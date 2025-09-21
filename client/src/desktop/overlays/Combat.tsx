@@ -146,7 +146,7 @@ export default function CombatOverlay() {
       return defaultSimulationResult;
     }
 
-    return simulateCombatOutcomes(adventurer, beast, 100, beastCombatSummary.goldReward);
+    return simulateCombatOutcomes(adventurer, beast, 10000, beastCombatSummary.goldReward);
   }, [
     adventurer?.health,
     adventurer?.xp,
@@ -169,6 +169,7 @@ export default function CombatOverlay() {
     adventurer?.equipment.neck.xp,
     adventurer?.equipment.ring.id,
     adventurer?.equipment.ring.xp,
+    adventurer?.beast_health,
     beast?.health,
     beast?.level,
     beast?.tier,

@@ -76,6 +76,12 @@ export const simulateCombatOutcomes = (
   const weaponDamage = calculateAttackDamage(adventurer.equipment.weapon, adventurer, beast);
   const playerCritChance = clamp(adventurer.stats.luck ?? 0, 0, 100);
   const beastCritChance = getBeastCriticalChance(adventurer);
+  const startingBeastHp = Math.max(0, adventurer.beast_health ?? 0);
+  const effectiveBeastHp = startingBeastHp > 0 ? startingBeastHp : beast.health;
+
+  if (effectiveBeastHp <= 0) {
+    return defaultSimulationResult;
+  }
 
   const beastDamageBySlot = ARMOR_TARGET_SLOTS.reduce<Record<string, ReturnType<typeof calculateBeastDamageDetails>>>(
     (acc, slot) => {
@@ -104,7 +110,7 @@ export const simulateCombatOutcomes = (
 
   const runFight = (): Accumulator => {
     let heroHp = adventurer.health;
-    let beastHp = beast.health;
+    let beastHp = effectiveBeastHp;
     let rounds = 0;
     let damageDealt = 0;
     let damageTaken = 0;
