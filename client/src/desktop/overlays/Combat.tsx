@@ -228,14 +228,14 @@ export default function CombatOverlay() {
                   </Box>
                   <Box sx={[styles.simulationStatCard, styles.simulationStatCardPositive]}>
                     <Typography sx={styles.simulationStatLabel}>Damage Dealt</Typography>
-                    <Typography sx={styles.simulationStatValue}>{formatNumber(Math.round(simulationResult.averageDamageDealt))}</Typography>
+                    <Typography sx={styles.simulationStatValue}>{`Avg ${formatNumber(Math.round(simulationResult.averageDamageDealt))}`}</Typography>
                     <Typography sx={styles.simulationStatSubValue}>
                       {formatRange(Math.round(simulationResult.minDamageDealt), Math.round(simulationResult.maxDamageDealt))}
                     </Typography>
                   </Box>
                   <Box sx={[styles.simulationStatCard, styles.simulationStatCardNegative]}>
                     <Typography sx={styles.simulationStatLabel}>Damage Taken</Typography>
-                    <Typography sx={styles.simulationStatValue}>{formatNumber(Math.round(simulationResult.averageDamageTaken))}</Typography>
+                    <Typography sx={styles.simulationStatValue}>{`Avg ${formatNumber(Math.round(simulationResult.averageDamageTaken))}`}</Typography>
                     <Typography sx={styles.simulationStatSubValue}>
                       {formatRange(Math.round(simulationResult.minDamageTaken), Math.round(simulationResult.maxDamageTaken))}
                     </Typography>
