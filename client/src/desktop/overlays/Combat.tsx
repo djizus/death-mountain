@@ -1,6 +1,7 @@
 import AnimatedText from '@/desktop/components/AnimatedText';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
+import { defaultSimulationResult, simulateCombatOutcomes } from '@/utils/combatSimulation';
 import { ability_based_percentage, calculateAttackDamage, calculateCombatStats, calculateLevel, getNewItemsEquipped } from '@/utils/game';
 import { Box, Button, Checkbox, Typography } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
@@ -131,7 +132,53 @@ export default function CombatOverlay() {
     };
   }, [adventurer?.xp, beast]);
 
+  const simulationResult = useMemo(() => {
+    if (!adventurer || !beast) {
+      return defaultSimulationResult;
+    }
+
+    return simulateCombatOutcomes(adventurer, beast, 100);
+  }, [
+    adventurer?.health,
+    adventurer?.xp,
+    adventurer?.item_specials_seed,
+    adventurer?.stats.strength,
+    adventurer?.stats.luck,
+    adventurer?.equipment.weapon.id,
+    adventurer?.equipment.weapon.xp,
+    adventurer?.equipment.chest.id,
+    adventurer?.equipment.chest.xp,
+    adventurer?.equipment.head.id,
+    adventurer?.equipment.head.xp,
+    adventurer?.equipment.waist.id,
+    adventurer?.equipment.waist.xp,
+    adventurer?.equipment.hand.id,
+    adventurer?.equipment.hand.xp,
+    adventurer?.equipment.foot.id,
+    adventurer?.equipment.foot.xp,
+    adventurer?.equipment.neck.id,
+    adventurer?.equipment.neck.xp,
+    adventurer?.equipment.ring.id,
+    adventurer?.equipment.ring.xp,
+    beast?.health,
+    beast?.level,
+    beast?.tier,
+    beast?.specialPrefix,
+    beast?.specialSuffix,
+  ]);
+
   const formatNumber = (value: number) => value.toLocaleString();
+  const formatRange = (minValue: number, maxValue: number) => {
+    if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
+      return '-';
+    }
+
+    if (minValue === maxValue) {
+      return formatNumber(minValue);
+    }
+
+    return `${formatNumber(minValue)} - ${formatNumber(maxValue)}`;
+  };
 
   return (
     <Box sx={[styles.container, spectating && styles.spectating]}>
@@ -151,6 +198,56 @@ export default function CombatOverlay() {
               <Typography sx={styles.beastStatLabel}>Crit Chance</Typography>
               <Typography sx={styles.beastStatValue}>{formatNumber(beastCombatSummary.critChance)}%</Typography>
             </Box>
+          </Box>
+
+          {simulationResult.totalFights > 0 && (
+            <>
+              <Box sx={styles.beastStatsSeparator} />
+
+              <Box sx={styles.simulationSection}>
+                <Typography sx={styles.simulationTitle}>Simulated Outcomes</Typography>
+                <Typography sx={styles.simulationSubtitle}>100 auto-resolved battles</Typography>
+
+                <Box sx={styles.simulationSummaryRow}>
+                  <Box sx={[styles.simulationChip, styles.simulationChipWin]}>
+                    <Typography sx={styles.simulationChipLabel}>Win</Typography>
+                    <Typography sx={styles.simulationChipValue}>{simulationResult.winRate}%</Typography>
+                    <Typography sx={styles.simulationChipSubValue}>{`${simulationResult.wins}/${simulationResult.totalFights}`}</Typography>
+                  </Box>
+                  <Box sx={[styles.simulationChip, styles.simulationChipLoss]}>
+                    <Typography sx={styles.simulationChipLabel}>Loss</Typography>
+                    <Typography sx={styles.simulationChipValue}>{simulationResult.lossRate}%</Typography>
+                    <Typography sx={styles.simulationChipSubValue}>{`${simulationResult.losses}/${simulationResult.totalFights}`}</Typography>
+                  </Box>
+                </Box>
+
+                <Box sx={styles.simulationStatsGrid}>
+                  <Box sx={[styles.simulationStatCard, styles.simulationStatCardNeutral, styles.simulationStatCardFullWidth]}>
+                    <Typography sx={styles.simulationStatLabel}>Avg Rounds</Typography>
+                    <Typography sx={styles.simulationStatValue}>{simulationResult.averageRounds}</Typography>
+                  </Box>
+                  <Box sx={[styles.simulationStatCard, styles.simulationStatCardPositive]}>
+                    <Typography sx={styles.simulationStatLabel}>Damage Dealt</Typography>
+                    <Typography sx={styles.simulationStatValue}>{formatNumber(Math.round(simulationResult.averageDamageDealt))}</Typography>
+                    <Typography sx={styles.simulationStatSubValue}>
+                      {formatRange(Math.round(simulationResult.minDamageDealt), Math.round(simulationResult.maxDamageDealt))}
+                    </Typography>
+                  </Box>
+                  <Box sx={[styles.simulationStatCard, styles.simulationStatCardNegative]}>
+                    <Typography sx={styles.simulationStatLabel}>Damage Taken</Typography>
+                    <Typography sx={styles.simulationStatValue}>{formatNumber(Math.round(simulationResult.averageDamageTaken))}</Typography>
+                    <Typography sx={styles.simulationStatSubValue}>
+                      {formatRange(Math.round(simulationResult.minDamageTaken), Math.round(simulationResult.maxDamageTaken))}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            </>
+          )}
+
+          <Box sx={styles.beastStatsSeparator} />
+
+          <Box sx={styles.beastStatsList}>
             <Box sx={styles.beastStatRow}>
               <Typography sx={styles.beastStatLabel}>Gold Reward</Typography>
               <Typography sx={styles.beastStatValue}>+{formatNumber(beastCombatSummary.goldReward)}</Typography>
@@ -446,5 +543,108 @@ const styles = {
     fontSize: '0.8rem',
     fontFamily: 'Cinzel, Georgia, serif',
     fontWeight: 500,
+  },
+  simulationSection: {
+    marginTop: '10px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  simulationTitle: {
+    color: '#d0c98d',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.8rem',
+    fontWeight: 600,
+    letterSpacing: '0.35px',
+  },
+  simulationSubtitle: {
+    color: 'rgba(208, 201, 141, 0.6)',
+    fontSize: '0.66rem',
+    marginTop: '-4px',
+  },
+  simulationSummaryRow: {
+    display: 'flex',
+    gap: '8px',
+    justifyContent: 'space-between',
+  },
+  simulationChip: {
+    flex: 1,
+    padding: '6px 8px',
+    borderRadius: '10px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    border: '1px solid rgba(208, 201, 141, 0.2)',
+    background: 'rgba(24, 40, 24, 0.55)',
+  },
+  simulationChipWin: {
+    background: 'linear-gradient(135deg, rgba(44, 96, 52, 0.7), rgba(18, 54, 30, 0.85))',
+    borderColor: 'rgba(94, 176, 116, 0.6)',
+  },
+  simulationChipLoss: {
+    background: 'linear-gradient(135deg, rgba(126, 44, 42, 0.7), rgba(70, 22, 20, 0.85))',
+    borderColor: 'rgba(194, 96, 90, 0.6)',
+  },
+  simulationChipLabel: {
+    color: 'rgba(208, 201, 141, 0.85)',
+    fontSize: '0.62rem',
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase',
+  },
+  simulationChipValue: {
+    color: '#ffffff',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.95rem',
+    fontWeight: 600,
+    lineHeight: 1.1,
+  },
+  simulationChipSubValue: {
+    color: 'rgba(208, 201, 141, 0.75)',
+    fontSize: '0.62rem',
+  },
+  simulationStatsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '6px',
+  },
+  simulationStatCard: {
+    borderRadius: '10px',
+    padding: '6px 8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+  },
+  simulationStatCardFullWidth: {
+    gridColumn: 'span 2',
+  },
+  simulationStatCardNeutral: {
+    background: 'rgba(24, 40, 24, 0.5)',
+    border: '1px solid rgba(208, 201, 141, 0.25)',
+  },
+  simulationStatCardPositive: {
+    background: 'linear-gradient(135deg, rgba(38, 92, 48, 0.65), rgba(18, 54, 30, 0.75))',
+    border: '1px solid rgba(90, 176, 112, 0.6)',
+  },
+  simulationStatCardNegative: {
+    background: 'linear-gradient(135deg, rgba(118, 38, 32, 0.6), rgba(68, 20, 18, 0.7))',
+    border: '1px solid rgba(176, 74, 68, 0.6)',
+  },
+  simulationStatLabel: {
+    color: 'rgba(208, 201, 141, 0.75)',
+    fontSize: '0.64rem',
+  },
+  simulationStatValue: {
+    color: '#ffffff',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.76rem',
+  },
+  simulationStatSubValue: {
+    color: 'rgba(208, 201, 141, 0.7)',
+    fontSize: '0.62rem',
+  },
+  beastStatsSeparator: {
+    marginTop: '10px',
+    marginBottom: '8px',
+    borderTop: '1px solid rgba(208, 201, 141, 0.2)',
   },
 };
