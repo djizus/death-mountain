@@ -109,7 +109,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     setClaimInProgress,
   } = useGameStore();
   const { setIsOpen } = useMarketStore();
-  const { skipAllAnimations, skipIntroOutro } = useUIStore();
+  const { skipAllAnimations, skipIntroOutro, skipCombatDelays } = useUIStore();
 
   const [VRFEnabled, setVRFEnabled] = useState(VRF_ENABLED);
   const [spectating, setSpectating] = useState(false);
@@ -167,7 +167,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       if (eventQueue.length > 0 && !isProcessing) {
         setIsProcessing(true);
         const event = eventQueue[0];
-        await processEvent(event);
+        await processEvent(event, skipCombatDelays);
         setEventQueue((prev) => prev.slice(1));
         setIsProcessing(false);
         setEventsProcessed((prev) => prev + 1);
@@ -175,7 +175,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     };
 
     processNextEvent();
-  }, [eventQueue, isProcessing]);
+  }, [eventQueue, isProcessing, skipCombatDelays]);
 
   useEffect(() => {
     if (beastDefeated && collectable && currentNetworkConfig.beasts) {

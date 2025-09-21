@@ -19,8 +19,10 @@ interface UIState {
   // Animations
   setSkipIntroOutro: (skip: boolean) => void
   setSkipAllAnimations: (skip: boolean) => void
+  setSkipCombatDelays: (skip: boolean) => void
   skipIntroOutro: boolean
   skipAllAnimations: boolean
+  skipCombatDelays: boolean
 }
 
 export const useUIStore = create<UIState>()(
@@ -39,8 +41,10 @@ export const useUIStore = create<UIState>()(
       // Animations
       setSkipIntroOutro: (skip) => set({ skipIntroOutro: skip }),
       setSkipAllAnimations: (skip) => set({ skipAllAnimations: skip }),
+      setSkipCombatDelays: (skip) => set({ skipCombatDelays: skip }),
       skipIntroOutro: false,
       skipAllAnimations: false,
+      skipCombatDelays: false,
 
       // Client preferences
       setUseMobileClient: (useMobile) => set({ useMobileClient: useMobile }),

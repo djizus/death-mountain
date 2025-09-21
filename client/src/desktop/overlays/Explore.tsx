@@ -4,7 +4,7 @@ import { useMarketStore } from '@/stores/marketStore';
 import { streamIds } from '@/utils/cloudflare';
 import { getEventTitle } from '@/utils/events';
 import { ItemUtils } from '@/utils/loot';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, Checkbox, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import BeastCollectedPopup from '../../components/BeastCollectedPopup';
 import Adventurer from './Adventurer';
@@ -21,6 +21,7 @@ export default function ExploreOverlay() {
   const { cart, inProgress, setInProgress } = useMarketStore();
   const { skipAllAnimations } = useUIStore();
   const { enqueueSnackbar } = useSnackbar()
+  const [untilBeast, setUntilBeast] = useState(false);
 
   const [isExploring, setIsExploring] = useState(false);
   const [isSelectingStats, setIsSelectingStats] = useState(false);
@@ -40,7 +41,7 @@ export default function ExploreOverlay() {
       setIsExploring(true);
     }
 
-    executeGameAction({ type: 'explore', untilBeast: false });
+    executeGameAction({ type: 'explore', untilBeast });
   };
 
   const handleSelectStats = async () => {
@@ -164,50 +165,73 @@ export default function ExploreOverlay() {
       {adventurer?.stat_upgrades_available! === 0 && <MarketOverlay />}
 
       {/* Bottom Buttons */}
-      {!spectating && <Box sx={styles.buttonContainer}>
-        {adventurer?.stat_upgrades_available! > 0 ? (
-          <Button
-            variant="contained"
-            onClick={handleSelectStats}
-            sx={{
-              ...styles.exploreButton,
-              ...(Object.values(selectedStats).reduce((a, b) => a + b, 0) === adventurer?.stat_upgrades_available && styles.selectStatsButtonHighlighted)
-            }}
-            disabled={isSelectingStats || Object.values(selectedStats).reduce((a, b) => a + b, 0) !== adventurer?.stat_upgrades_available}
-          >
-            {isSelectingStats
-              ? <Box display={'flex'} alignItems={'baseline'}>
-                <Typography sx={styles.buttonText}>Selecting Stats</Typography>
-                <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
-              </Box>
-              : <Typography sx={styles.buttonText}>Select Stats</Typography>
-            }
-          </Button>
-        ) : (
-          <Button
-            variant="contained"
-            onClick={cart.items.length > 0 || cart.potions > 0 ? handleCheckout : handleExplore}
-            sx={styles.exploreButton}
-            disabled={inProgress || isExploring}
-          >
-            {inProgress ? (
-              <Box display={'flex'} alignItems={'baseline'}>
-                <Typography sx={styles.buttonText}>Processing</Typography>
-                <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
-              </Box>
-            ) : isExploring ? (
-              <Box display={'flex'} alignItems={'baseline'}>
-                <Typography sx={styles.buttonText}>Exploring</Typography>
-                <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
-              </Box>
-            ) : (
-              <Typography sx={styles.buttonText}>
-                {cart.items.length > 0 || cart.potions > 0 ? 'BUY ITEMS' : 'EXPLORE'}
-              </Typography>
-            )}
-          </Button>
-        )}
-      </Box>}
+      <Box sx={styles.buttonContainer}>
+        {!spectating && <Box sx={styles.buttonContainer}>
+          {adventurer?.stat_upgrades_available! > 0 ? (
+            <Button
+              variant="contained"
+              onClick={handleSelectStats}
+              sx={{
+                ...styles.exploreButton,
+                ...(Object.values(selectedStats).reduce((a, b) => a + b, 0) === adventurer?.stat_upgrades_available && styles.selectStatsButtonHighlighted)
+              }}
+              disabled={isSelectingStats || Object.values(selectedStats).reduce((a, b) => a + b, 0) !== adventurer?.stat_upgrades_available}
+            >
+              {isSelectingStats
+                ? <Box display={'flex'} alignItems={'baseline'}>
+                  <Typography sx={styles.buttonText}>Selecting Stats</Typography>
+                  <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
+                </Box>
+                : <Typography sx={styles.buttonText}>Select Stats</Typography>
+              }
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              onClick={cart.items.length > 0 || cart.potions > 0 ? handleCheckout : handleExplore}
+              sx={styles.exploreButton}
+              disabled={inProgress || isExploring}
+            >
+              {inProgress ? (
+                <Box display={'flex'} alignItems={'baseline'}>
+                  <Typography sx={styles.buttonText}>Processing</Typography>
+                  <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
+                </Box>
+              ) : isExploring ? (
+                <Box display={'flex'} alignItems={'baseline'}>
+                  <Typography sx={styles.buttonText}>Exploring</Typography>
+                  <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
+                </Box>
+              ) : cart.items.length > 0 || cart.potions > 0 ? (
+                <Typography sx={styles.buttonText}>
+                  BUY ITEMS
+                </Typography>
+              ) : (
+                <Typography sx={styles.buttonText}>
+                  EXPLORE
+                </Typography>
+              )}
+            </Button>
+          )}
+        </Box>}
+
+        <Box sx={styles.deathCheckboxContainer} onClick={() => {
+          if (!isExploring && !inProgress && cart.items.length === 0 && cart.potions === 0 && adventurer?.stat_upgrades_available! === 0) {
+            setUntilBeast(!untilBeast);
+          }
+        }}>
+          <Typography sx={styles.deathCheckboxLabel}>
+            until beast
+          </Typography>
+          <Checkbox
+            checked={untilBeast}
+            disabled={isExploring || inProgress || cart.items.length > 0 || cart.potions > 0 || adventurer?.stat_upgrades_available! > 0}
+            onChange={(e) => setUntilBeast(e.target.checked)}
+            size="medium"
+            sx={styles.deathCheckbox}
+          />
+        </Box>
+      </Box>
 
       {claimInProgress && (
         <Box sx={styles.toastContainer}>
@@ -362,5 +386,28 @@ const styles = {
     color: '#d0c98d',
     letterSpacing: '0.5px',
     margin: 0,
+  },
+  deathCheckboxContainer: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    minWidth: '32px',
+    cursor: 'pointer',
+  },
+  deathCheckboxLabel: {
+    color: 'rgba(208, 201, 141, 0.7)',
+    fontSize: '0.75rem',
+    fontFamily: 'Cinzel, Georgia, serif',
+    lineHeight: '0.9',
+    textAlign: 'center',
+  },
+  deathCheckbox: {
+    color: 'rgba(208, 201, 141, 0.7)',
+    padding: '0',
+    '&.Mui-checked': {
+      color: '#d0c98d',
+    },
   },
 };
