@@ -27,6 +27,7 @@ export default function CombatOverlay() {
   const [fleeInProgress, setFleeInProgress] = useState(false);
   const [equipInProgress, setEquipInProgress] = useState(false);
   const [combatLog, setCombatLog] = useState("");
+  const [simulationResult, setSimulationResult] = useState(defaultSimulationResult);
 
   useEffect(() => {
     if (adventurer?.xp === 0) {
@@ -141,12 +142,28 @@ export default function CombatOverlay() {
     return calculateLevel(adventurer.xp);
   }, [adventurer?.xp]);
 
-  const simulationResult = useMemo(() => {
+  useEffect(() => {
+    let cancelled = false;
+
     if (!adventurer || !beast || !beastCombatSummary) {
-      return defaultSimulationResult;
+      setSimulationResult(defaultSimulationResult);
+      return () => {
+        cancelled = true;
+      };
     }
 
-    return simulateCombatOutcomes(adventurer, beast, 10000, beastCombatSummary.goldReward);
+    const runSimulation = async () => {
+      const result = await simulateCombatOutcomes(adventurer, beast, 10000, beastCombatSummary.goldReward);
+      if (!cancelled) {
+        setSimulationResult(result);
+      }
+    };
+
+    void runSimulation();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     adventurer?.health,
     adventurer?.xp,
@@ -275,6 +292,19 @@ export default function CombatOverlay() {
   }, [fightEfficiencyPercent, simulationResult.totalFights]);
 
   const formatNumber = (value: number) => value.toLocaleString();
+  const formatCompactNumber = (value: number) => {
+    const absValue = Math.abs(value);
+
+    if (absValue < 1000) {
+      return formatNumber(value);
+    }
+
+    const compact = absValue / 1000;
+    const formatted = compact % 1 === 0 ? compact.toFixed(0) : compact.toFixed(1);
+    const suffixValue = formatted.replace(/\.0$/, '');
+
+    return `${value < 0 ? '-' : ''}${suffixValue}k`;
+  };
   const formatRange = (minValue: number, maxValue: number) => {
     if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
       return '-';
@@ -321,12 +351,12 @@ export default function CombatOverlay() {
                   <Box sx={[styles.simulationChip, styles.simulationChipWin]}>
                     <Typography sx={styles.simulationChipLabel}>Win</Typography>
                     <Typography sx={styles.simulationChipValue}>{simulationResult.winRate}%</Typography>
-                    <Typography sx={styles.simulationChipSubValue}>{`${simulationResult.wins}/${simulationResult.totalFights}`}</Typography>
+                    <Typography sx={styles.simulationChipSubValue}>{`${formatCompactNumber(simulationResult.wins)}/${formatCompactNumber(simulationResult.totalFights)}`}</Typography>
                   </Box>
                   <Box sx={[styles.simulationChip, styles.simulationChipLoss]}>
                     <Typography sx={styles.simulationChipLabel}>Loss</Typography>
                     <Typography sx={styles.simulationChipValue}>{simulationResult.lossRate}%</Typography>
-                    <Typography sx={styles.simulationChipSubValue}>{`${simulationResult.losses}/${simulationResult.totalFights}`}</Typography>
+                    <Typography sx={styles.simulationChipSubValue}>{`${formatCompactNumber(simulationResult.losses)}/${formatCompactNumber(simulationResult.totalFights)}`}</Typography>
                   </Box>
                 </Box>
 
