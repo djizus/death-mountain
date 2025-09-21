@@ -142,22 +142,33 @@ export const simulateCombatOutcomes = (
   const losses = fightsSimulated - wins;
   const modeDamageTaken = (() => {
     if (damageTakenValues.length === 0) return 0;
+    const bucketSize = 5;
     const counts = new Map<number, number>();
-    let currentMode = Math.round(damageTakenValues[0]);
-    let highestCount = 0;
 
     damageTakenValues.forEach((value) => {
-      const rounded = Math.round(value);
-      const count = (counts.get(rounded) || 0) + 1;
-      counts.set(rounded, count);
+      const bucket = Math.round(value / bucketSize) * bucketSize;
+      counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
+    });
 
-      if (count > highestCount || (count === highestCount && rounded < currentMode)) {
-        currentMode = rounded;
+    let modeBucket = 0;
+    let highestCount = 0;
+
+    counts.forEach((count, bucket) => {
+      if (bucket === 0) {
+        return;
+      }
+
+      if (count > highestCount || (count === highestCount && bucket < modeBucket)) {
+        modeBucket = bucket;
         highestCount = count;
       }
     });
 
-    return currentMode;
+    if (highestCount === 0) {
+      return 0;
+    }
+
+    return modeBucket;
   })();
 
   return {
