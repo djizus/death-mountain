@@ -79,8 +79,8 @@ export default function ExploreScreen() {
                     )}
 
                     {event.type === 'obstacle' && (
-                      <Typography sx={styles.encounterXP}>
-                        {event.obstacle?.dodged ? '' : `-${event.obstacle?.damage} Health ${event.obstacle?.critical_hit ? 'critical hit!' : ''}`}
+                      <Typography sx={event.obstacle?.dodged ? styles.encounterXP : styles.encounterDamage}>
+                        {event.obstacle?.dodged ? 'Dodged' : `-${event.obstacle?.damage} Health ${event.obstacle?.critical_hit ? 'critical hit!' : ''}`}
                       </Typography>
                     )}
 
@@ -98,7 +98,7 @@ export default function ExploreScreen() {
                           </Typography>
                         )}
                         {event.discovery.type === 'Health' && (
-                          <Typography sx={styles.encounterXP}>
+                          <Typography sx={styles.encounterHeal}>
                             +{event.discovery.amount} Health
                           </Typography>
                         )}
@@ -111,6 +111,12 @@ export default function ExploreScreen() {
                           .filter(([_, value]) => typeof value === 'number' && value > 0)
                           .map(([stat, value]) => `+${value} ${stat.slice(0, 3).toUpperCase()}`)
                           .join(', ')}
+                      </Typography>
+                    )}
+
+                    {(['defeated_beast', 'fled_beast'].includes(event.type)) && event.health_loss && event.health_loss > 0 && (
+                      <Typography sx={styles.encounterDamage}>
+                        -{event.health_loss} Health
                       </Typography>
                     )}
 
@@ -327,6 +333,17 @@ const styles = {
   },
   encounterXP: {
     color: '#EDCF33',
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.9rem',
+  },
+  encounterHeal: {
+    color: '#80ff00',
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.9rem',
+    fontWeight: 600,
+  },
+  encounterDamage: {
+    color: '#FF6B6B',
     fontFamily: 'VT323, monospace',
     fontSize: '0.9rem',
   },

@@ -31,6 +31,7 @@ export interface GameEvent {
   market_seed?: bigint;
   level?: number;
   success?: boolean;
+  health_loss?: number;
 
 }
 

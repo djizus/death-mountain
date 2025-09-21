@@ -21,6 +21,7 @@ import {
   useContext,
   useEffect,
   useReducer,
+  useRef,
   useState,
 } from "react";
 import { useAnalytics } from "@/utils/analytics";
@@ -117,6 +118,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [eventQueue, setEventQueue] = useState<any[]>([]);
   const [eventsProcessed, setEventsProcessed] = useState(0);
+  const battleDamageRef = useRef<number>(0);
   const [videoQueue, setVideoQueue] = useState<string[]>([]);
 
   const [beastDefeated, setBeastDefeated] = useState(false);
@@ -205,7 +207,24 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
   const restoreGameState = async (gameState: any) => {
     const gameEvents = await getGameEvents(gameId!);
 
+    let restoredBattleDamage = 0;
+
     gameEvents.forEach((event: GameEvent) => {
+      if (event.type === "beast") {
+        restoredBattleDamage = 0;
+      }
+
+      if ((event.type === "ambush" || event.type === "beast_attack") && event.attack?.damage) {
+        restoredBattleDamage += event.attack.damage;
+      }
+
+      if ((event.type === "defeated_beast" || event.type === "fled_beast") && restoredBattleDamage > 0) {
+        event.health_loss = restoredBattleDamage;
+        restoredBattleDamage = 0;
+      } else if (event.type === "defeated_beast" || event.type === "fled_beast") {
+        restoredBattleDamage = 0;
+      }
+
       if (ExplorerLogEvents.includes(event.type)) {
         setExploreLog(event);
       }
@@ -234,6 +253,19 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
   };
 
   const processEvent = async (event: any, skipDelay: boolean = false) => {
+    if (event.type === "beast") {
+      battleDamageRef.current = 0;
+    }
+
+    if ((event.type === "ambush" || event.type === "beast_attack") && event.attack?.damage) {
+      battleDamageRef.current += event.attack.damage;
+    }
+
+    const isBattleEndEvent = event.type === "defeated_beast" || event.type === "fled_beast";
+    if (isBattleEndEvent && battleDamageRef.current > 0) {
+      event.health_loss = battleDamageRef.current;
+    }
+
     if (event.type === "adventurer") {
       setAdventurer(event.adventurer!);
 
@@ -296,6 +328,10 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
 
     if (spectating && ExplorerReplayEvents.includes(event.type)) {
       setExploreLog(event);
+    }
+
+    if (isBattleEndEvent) {
+      battleDamageRef.current = 0;
     }
 
     if (BattleEvents.includes(event.type)) {

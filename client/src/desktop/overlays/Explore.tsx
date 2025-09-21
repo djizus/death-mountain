@@ -90,8 +90,8 @@ export default function ExploreOverlay() {
               )}
 
               {event.type === 'obstacle' && (
-                <Typography color='secondary'>
-                  {event.obstacle?.dodged ? '' : `-${event.obstacle?.damage} Health ${event.obstacle?.critical_hit ? 'critical hit!' : ''}`}
+                <Typography sx={{ color: event.obstacle?.dodged ? '#d7c529' : '#ff6b6b' }}>
+                  {event.obstacle?.dodged ? 'Dodged' : `-${event.obstacle?.damage} Health ${event.obstacle?.critical_hit ? 'critical hit!' : ''}`}
                 </Typography>
               )}
 
@@ -109,7 +109,7 @@ export default function ExploreOverlay() {
                     </Typography>
                   )}
                   {event.discovery.type === 'Health' && (
-                    <Typography color='secondary'>
+                    <Typography sx={{ color: '#80ff00' }}>
                       +{event.discovery.amount} Health
                     </Typography>
                   )}
@@ -122,6 +122,12 @@ export default function ExploreOverlay() {
                     .filter(([_, value]) => typeof value === 'number' && value > 0)
                     .map(([stat, value]) => `+${value} ${stat.slice(0, 3).toUpperCase()}`)
                     .join(', ')}
+                </Typography>
+              )}
+
+              {(['defeated_beast', 'fled_beast'].includes(event.type)) && event.health_loss && event.health_loss > 0 && (
+                <Typography color='error'>
+                  -{event.health_loss} Health
                 </Typography>
               )}
 

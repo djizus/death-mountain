@@ -264,7 +264,7 @@ export default function MarketOverlay() {
                   )}
 
                   {event.type === 'obstacle' && (
-                    <Typography sx={styles.eventMetaValue}>
+                    <Typography sx={event.obstacle?.dodged ? styles.eventMetaValue : styles.eventMetaDamage}>
                       {event.obstacle?.dodged
                         ? 'Dodged'
                         : `-${event.obstacle?.damage} Health${event.obstacle?.critical_hit ? ' critical hit!' : ''}`}
@@ -280,7 +280,7 @@ export default function MarketOverlay() {
                   )}
 
                   {event.type === 'discovery' && event.discovery?.type === 'Health' && (
-                    <Typography sx={styles.eventMetaValue}>+{event.discovery.amount} Health</Typography>
+                    <Typography sx={styles.eventMetaHeal}>+{event.discovery.amount} Health</Typography>
                   )}
 
                   {event.type === 'stat_upgrade' && event.stats && (
@@ -290,6 +290,10 @@ export default function MarketOverlay() {
                         .map(([stat, value]) => `+${value} ${stat.slice(0, 3).toUpperCase()}`)
                         .join(', ')}
                     </Typography>
+                  )}
+
+                  {(['defeated_beast', 'fled_beast'].includes(event.type)) && event.health_loss && event.health_loss > 0 && (
+                    <Typography sx={styles.eventMetaDamage}>-{event.health_loss} Health</Typography>
                   )}
 
                   {event.type === 'level_up' && event.level && (
@@ -799,6 +803,16 @@ const styles = {
   eventMetaValue: {
     color: '#d7c529',
     fontSize: '0.72rem',
+  },
+  eventMetaDamage: {
+    color: '#ff6b6b',
+    fontSize: '0.72rem',
+    fontWeight: 600,
+  },
+  eventMetaHeal: {
+    color: '#80ff00',
+    fontSize: '0.72rem',
+    fontWeight: 600,
   },
   topBar: {
     display: 'flex',
