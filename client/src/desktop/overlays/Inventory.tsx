@@ -878,7 +878,7 @@ const styles = {
     zIndex: 1000,
     minWidth: '220px',
     boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-    transform: 'translate(3%, -30%)',
+    transform: 'translate(-20%, -105%)',
   },
   newItem: {
     border: '2px solid #80FF00',
