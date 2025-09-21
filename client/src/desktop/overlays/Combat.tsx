@@ -28,6 +28,31 @@ export default function CombatOverlay() {
   const [equipInProgress, setEquipInProgress] = useState(false);
   const [combatLog, setCombatLog] = useState("");
   const [simulationResult, setSimulationResult] = useState(defaultSimulationResult);
+  const formatNumber = (value: number) => value.toLocaleString();
+  const formatCompactNumber = (value: number) => {
+    const absValue = Math.abs(value);
+
+    if (absValue < 1000) {
+      return formatNumber(value);
+    }
+
+    const compact = absValue / 1000;
+    const formatted = compact % 1 === 0 ? compact.toFixed(0) : compact.toFixed(1);
+    const suffixValue = formatted.replace(/\.0$/, '');
+
+    return `${value < 0 ? '-' : ''}${suffixValue}k`;
+  };
+  const formatRange = (minValue: number, maxValue: number) => {
+    if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
+      return '-';
+    }
+
+    if (minValue === maxValue) {
+      return formatNumber(minValue);
+    }
+
+    return `${formatNumber(minValue)} - ${formatNumber(maxValue)}`;
+  };
 
   useEffect(() => {
     if (adventurer?.xp === 0) {
@@ -219,26 +244,27 @@ export default function CombatOverlay() {
     };
   }, [beastCombatSummary?.goldReward, potionCost]);
 
-  const fightEfficiencyPercent = useMemo(() => {
+  const potentialHealthChange = useMemo(() => {
     if (simulationResult.totalFights === 0) {
       return 0;
     }
 
     const damageTaken = Math.max(0, simulationResult.modeDamageTaken);
-    if (damageTaken <= 0) {
-      return 100;
-    }
-
     if (potionCoverage.coverage === Number.POSITIVE_INFINITY) {
       return Number.POSITIVE_INFINITY;
     }
 
-    return (potionCoverage.coverage / damageTaken) * 100;
+    return potionCoverage.coverage - damageTaken;
   }, [simulationResult.totalFights, simulationResult.modeDamageTaken, potionCoverage.coverage]);
 
-  const isFightEfficiencyLow = simulationResult.totalFights > 0
-    && Number.isFinite(fightEfficiencyPercent)
-    && fightEfficiencyPercent < 100;
+  const isPotentialHealthNegative = simulationResult.totalFights > 0
+    && Number.isFinite(potentialHealthChange)
+    && potentialHealthChange < 0;
+  const isPotentialHealthPositive = simulationResult.totalFights > 0
+    && (potentialHealthChange === Number.POSITIVE_INFINITY || potentialHealthChange > 0);
+  const shouldForceGamble = simulationResult.totalFights > 0
+    && simulationResult.winRate > 50
+    && isPotentialHealthNegative;
 
   const { tipLabel, tipStyles, tipReason } = useMemo(() => {
     if (simulationResult.totalFights === 0) {
@@ -249,7 +275,15 @@ export default function CombatOverlay() {
       };
     }
 
-    if (isFightEfficiencyLow) {
+    if (simulationResult.winRate <= 50) {
+      return {
+        tipLabel: 'FLEE',
+        tipStyles: styles.simulationTipFlee,
+        tipReason: 'Death risk',
+      };
+    }
+
+    if (shouldForceGamble) {
       return {
         tipLabel: 'GAMBLE',
         tipStyles: styles.simulationTipGamble,
@@ -265,57 +299,30 @@ export default function CombatOverlay() {
       };
     }
 
-    if (simulationResult.winRate < 50) {
-      return {
-        tipLabel: 'FLEE',
-        tipStyles: styles.simulationTipFlee,
-        tipReason: 'Death risk',
-      };
-    }
-
     return {
       tipLabel: 'GAMBLE',
       tipStyles: styles.simulationTipGamble,
       tipReason: 'Even odds',
     };
-  }, [simulationResult.totalFights, simulationResult.winRate, isFightEfficiencyLow]);
+  }, [simulationResult.totalFights, simulationResult.winRate, shouldForceGamble]);
 
-  const fightEfficiencyText = useMemo(() => {
+  const potentialHealthChangeText = (() => {
     if (simulationResult.totalFights === 0) {
       return '-';
     }
 
-    const percentValue = fightEfficiencyPercent;
-    return Number.isFinite(percentValue)
-      ? `${Math.round(percentValue)}%`
-      : '∞%';
-  }, [fightEfficiencyPercent, simulationResult.totalFights]);
-
-  const formatNumber = (value: number) => value.toLocaleString();
-  const formatCompactNumber = (value: number) => {
-    const absValue = Math.abs(value);
-
-    if (absValue < 1000) {
-      return formatNumber(value);
+    if (!Number.isFinite(potentialHealthChange)) {
+      return '∞';
     }
 
-    const compact = absValue / 1000;
-    const formatted = compact % 1 === 0 ? compact.toFixed(0) : compact.toFixed(1);
-    const suffixValue = formatted.replace(/\.0$/, '');
-
-    return `${value < 0 ? '-' : ''}${suffixValue}k`;
-  };
-  const formatRange = (minValue: number, maxValue: number) => {
-    if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
-      return '-';
+    const rounded = Math.round(potentialHealthChange);
+    if (rounded === 0) {
+      return '0';
     }
 
-    if (minValue === maxValue) {
-      return formatNumber(minValue);
-    }
-
-    return `${formatNumber(minValue)} - ${formatNumber(maxValue)}`;
-  };
+    const formatted = formatNumber(Math.abs(rounded));
+    return `${rounded > 0 ? '+' : '-'}${formatted}`;
+  })();
 
   return (
     <Box sx={[styles.container, spectating && styles.spectating]}>
@@ -392,11 +399,12 @@ export default function CombatOverlay() {
           <Box sx={styles.beastStatsList}>
             {simulationResult.totalFights > 0 && (
               <Box sx={styles.beastStatRow}>
-                <Typography sx={styles.beastStatLabel}>Fight Efficiency</Typography>
+                <Typography sx={styles.beastStatLabel}>Potential Health Change</Typography>
                 <Typography sx={[
                   styles.beastStatValue,
-                  isFightEfficiencyLow && styles.beastStatWarningValue,
-                ]}>{fightEfficiencyText}</Typography>
+                  isPotentialHealthPositive && styles.beastStatPositiveValue,
+                  isPotentialHealthNegative && styles.beastStatWarningValue,
+                ]}>{potentialHealthChangeText}</Typography>
               </Box>
             )}
             <Box sx={styles.beastStatRow}>
@@ -694,6 +702,10 @@ const styles = {
     fontSize: '0.8rem',
     fontFamily: 'Cinzel, Georgia, serif',
     fontWeight: 500,
+  },
+  beastStatPositiveValue: {
+    color: '#6edd84',
+    fontWeight: 600,
   },
   beastStatWarningValue: {
     color: '#f28d85',
