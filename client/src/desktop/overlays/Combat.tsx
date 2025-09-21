@@ -224,7 +224,7 @@ export default function CombatOverlay() {
                 <Box sx={styles.simulationStatsGrid}>
                   <Box sx={[styles.simulationStatCard, styles.simulationStatCardNeutral, styles.simulationStatCardFullWidth]}>
                     <Typography sx={styles.simulationStatLabel}>Avg Rounds</Typography>
-                    <Typography sx={styles.simulationStatValue}>{simulationResult.averageRounds}</Typography>
+                    <Typography sx={styles.simulationStatValue}>{formatNumber(Math.round(simulationResult.averageRounds))}</Typography>
                   </Box>
                   <Box sx={[styles.simulationStatCard, styles.simulationStatCardPositive]}>
                     <Typography sx={styles.simulationStatLabel}>Damage Dealt</Typography>
