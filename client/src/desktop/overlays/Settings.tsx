@@ -16,7 +16,7 @@ import WalletConnect from '../components/WalletConnect';
 export default function SettingsOverlay() {
   const { showSettings, setShowSettings } = useGameStore();
   const { volume, setVolume, muted, setMuted, musicVolume, setMusicVolume, musicMuted, setMusicMuted } = useSound();
-  const { skipAllAnimations, setSkipAllAnimations } = useUIStore();
+  const { skipAllAnimations, setSkipAllAnimations, skipCombatDelays, setSkipCombatDelays } = useUIStore();
   const navigate = useNavigate();
 
   const handleExitGame = () => {
@@ -144,6 +144,17 @@ export default function SettingsOverlay() {
                       />
                     }
                     label="Skip all animations"
+                    sx={styles.checkboxLabel}
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={skipCombatDelays}
+                        onChange={(e) => setSkipCombatDelays(e.target.checked)}
+                        sx={styles.checkbox}
+                      />
+                    }
+                    label="Skip combat delays"
                     sx={styles.checkboxLabel}
                   />
                 </Box>
