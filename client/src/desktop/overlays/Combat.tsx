@@ -3,6 +3,7 @@ import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
 import { defaultSimulationResult, simulateCombatOutcomes } from '@/utils/combatSimulation';
 import { ability_based_percentage, calculateAttackDamage, calculateCombatStats, calculateLevel, getNewItemsEquipped } from '@/utils/game';
+import { potionPrice } from '@/utils/market';
 import { Box, Button, Checkbox, Typography } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import Adventurer from './Adventurer';
@@ -132,12 +133,20 @@ export default function CombatOverlay() {
     };
   }, [adventurer?.xp, beast]);
 
+  const adventurerLevel = useMemo(() => {
+    if (!adventurer) {
+      return 0;
+    }
+
+    return calculateLevel(adventurer.xp);
+  }, [adventurer?.xp]);
+
   const simulationResult = useMemo(() => {
-    if (!adventurer || !beast) {
+    if (!adventurer || !beast || !beastCombatSummary) {
       return defaultSimulationResult;
     }
 
-    return simulateCombatOutcomes(adventurer, beast, 100);
+    return simulateCombatOutcomes(adventurer, beast, 100, beastCombatSummary.goldReward);
   }, [
     adventurer?.health,
     adventurer?.xp,
@@ -165,7 +174,104 @@ export default function CombatOverlay() {
     beast?.tier,
     beast?.specialPrefix,
     beast?.specialSuffix,
+    beastCombatSummary?.goldReward,
   ]);
+
+  const potionCost = useMemo(() => {
+    if (!adventurer) {
+      return 0;
+    }
+
+    return potionPrice(adventurerLevel, adventurer.stats.charisma ?? 0);
+  }, [adventurerLevel, adventurer?.stats.charisma]);
+
+  const potionCoverage = useMemo(() => {
+    if (!beastCombatSummary) {
+      return { potions: 0, coverage: 0 };
+    }
+
+    if (potionCost <= 0) {
+      return { potions: Number.POSITIVE_INFINITY, coverage: Number.POSITIVE_INFINITY };
+    }
+
+    const potions = Math.floor(beastCombatSummary.goldReward / potionCost);
+    return {
+      potions,
+      coverage: potions * 10,
+    };
+  }, [beastCombatSummary?.goldReward, potionCost]);
+
+  const fightEfficiencyPercent = useMemo(() => {
+    if (simulationResult.totalFights === 0) {
+      return 0;
+    }
+
+    const damageTaken = Math.max(0, simulationResult.modeDamageTaken);
+    if (damageTaken <= 0) {
+      return 100;
+    }
+
+    if (potionCoverage.coverage === Number.POSITIVE_INFINITY) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    return (potionCoverage.coverage / damageTaken) * 100;
+  }, [simulationResult.totalFights, simulationResult.modeDamageTaken, potionCoverage.coverage]);
+
+  const isFightEfficiencyLow = simulationResult.totalFights > 0
+    && Number.isFinite(fightEfficiencyPercent)
+    && fightEfficiencyPercent < 100;
+
+  const { tipLabel, tipStyles, tipReason } = useMemo(() => {
+    if (simulationResult.totalFights === 0) {
+      return {
+        tipLabel: '—',
+        tipStyles: styles.simulationTipNeutral,
+        tipReason: 'Idle',
+      };
+    }
+
+    if (isFightEfficiencyLow) {
+      return {
+        tipLabel: 'GAMBLE',
+        tipStyles: styles.simulationTipGamble,
+        tipReason: 'Health loss',
+      };
+    }
+
+    if (simulationResult.winRate > 75) {
+      return {
+        tipLabel: 'FIGHT',
+        tipStyles: styles.simulationTipFight,
+        tipReason: 'Easy win',
+      };
+    }
+
+    if (simulationResult.winRate < 50) {
+      return {
+        tipLabel: 'FLEE',
+        tipStyles: styles.simulationTipFlee,
+        tipReason: 'Death risk',
+      };
+    }
+
+    return {
+      tipLabel: 'GAMBLE',
+      tipStyles: styles.simulationTipGamble,
+      tipReason: 'Even odds',
+    };
+  }, [simulationResult.totalFights, simulationResult.winRate, isFightEfficiencyLow]);
+
+  const fightEfficiencyText = useMemo(() => {
+    if (simulationResult.totalFights === 0) {
+      return '-';
+    }
+
+    const percentValue = fightEfficiencyPercent;
+    return Number.isFinite(percentValue)
+      ? `${Math.round(percentValue)}%`
+      : '∞%';
+  }, [fightEfficiencyPercent, simulationResult.totalFights]);
 
   const formatNumber = (value: number) => value.toLocaleString();
   const formatRange = (minValue: number, maxValue: number) => {
@@ -202,13 +308,15 @@ export default function CombatOverlay() {
 
           {simulationResult.totalFights > 0 && (
             <>
-              <Box sx={styles.beastStatsSeparator} />
-
               <Box sx={styles.simulationSection}>
                 <Typography sx={styles.simulationTitle}>Simulated Outcomes</Typography>
-                <Typography sx={styles.simulationSubtitle}>100 auto-resolved battles</Typography>
 
                 <Box sx={styles.simulationSummaryRow}>
+                  <Box sx={[styles.simulationTipChip, tipStyles]}>
+                    <Typography sx={styles.simulationChipLabel}>Tip</Typography>
+                    <Typography sx={[styles.simulationChipValue, styles.simulationTipValue]}>{tipLabel}</Typography>
+                    <Typography sx={styles.simulationTipReason}>{tipReason}</Typography>
+                  </Box>
                   <Box sx={[styles.simulationChip, styles.simulationChipWin]}>
                     <Typography sx={styles.simulationChipLabel}>Win</Typography>
                     <Typography sx={styles.simulationChipValue}>{simulationResult.winRate}%</Typography>
@@ -222,19 +330,22 @@ export default function CombatOverlay() {
                 </Box>
 
                 <Box sx={styles.simulationStatsGrid}>
-                  <Box sx={[styles.simulationStatCard, styles.simulationStatCardNeutral, styles.simulationStatCardFullWidth]}>
-                    <Typography sx={styles.simulationStatLabel}>Avg Rounds</Typography>
-                    <Typography sx={styles.simulationStatValue}>{formatNumber(Math.round(simulationResult.averageRounds))}</Typography>
+                  <Box sx={[styles.simulationStatCard, styles.simulationStatCardNeutral]}>
+                    <Typography sx={styles.simulationStatLabel}>Rounds</Typography>
+                    <Typography sx={styles.simulationStatValue}>{formatNumber(simulationResult.modeRounds)}</Typography>
+                    <Typography sx={styles.simulationStatSubValue}>
+                      {formatRange(simulationResult.minRounds, simulationResult.maxRounds)}
+                    </Typography>
                   </Box>
                   <Box sx={[styles.simulationStatCard, styles.simulationStatCardPositive]}>
-                    <Typography sx={styles.simulationStatLabel}>Damage Dealt</Typography>
+                    <Typography sx={styles.simulationStatLabel}>Dmg Dealt</Typography>
                     <Typography sx={styles.simulationStatValue}>{formatNumber(simulationResult.modeDamageDealt)}</Typography>
                     <Typography sx={styles.simulationStatSubValue}>
                       {formatRange(Math.round(simulationResult.minDamageDealt), Math.round(simulationResult.maxDamageDealt))}
                     </Typography>
                   </Box>
                   <Box sx={[styles.simulationStatCard, styles.simulationStatCardNegative]}>
-                    <Typography sx={styles.simulationStatLabel}>Damage Taken</Typography>
+                    <Typography sx={styles.simulationStatLabel}>Dmg Taken</Typography>
                     <Typography sx={styles.simulationStatValue}>{formatNumber(Math.round(simulationResult.modeDamageTaken))}</Typography>
                     <Typography sx={styles.simulationStatSubValue}>
                       {formatRange(Math.round(simulationResult.minDamageTaken), Math.round(simulationResult.maxDamageTaken))}
@@ -248,6 +359,15 @@ export default function CombatOverlay() {
           <Box sx={styles.beastStatsSeparator} />
 
           <Box sx={styles.beastStatsList}>
+            {simulationResult.totalFights > 0 && (
+              <Box sx={styles.beastStatRow}>
+                <Typography sx={styles.beastStatLabel}>Fight Efficiency</Typography>
+                <Typography sx={[
+                  styles.beastStatValue,
+                  isFightEfficiencyLow && styles.beastStatWarningValue,
+                ]}>{fightEfficiencyText}</Typography>
+              </Box>
+            )}
             <Box sx={styles.beastStatRow}>
               <Typography sx={styles.beastStatLabel}>Gold Reward</Typography>
               <Typography sx={styles.beastStatValue}>+{formatNumber(beastCombatSummary.goldReward)}</Typography>
@@ -544,6 +664,10 @@ const styles = {
     fontFamily: 'Cinzel, Georgia, serif',
     fontWeight: 500,
   },
+  beastStatWarningValue: {
+    color: '#f28d85',
+    fontWeight: 600,
+  },
   simulationSection: {
     marginTop: '10px',
     display: 'flex',
@@ -556,11 +680,6 @@ const styles = {
     fontSize: '0.8rem',
     fontWeight: 600,
     letterSpacing: '0.35px',
-  },
-  simulationSubtitle: {
-    color: 'rgba(208, 201, 141, 0.6)',
-    fontSize: '0.66rem',
-    marginTop: '-4px',
   },
   simulationSummaryRow: {
     display: 'flex',
@@ -598,13 +717,48 @@ const styles = {
     fontWeight: 600,
     lineHeight: 1.1,
   },
+  simulationTipValue: {
+    textTransform: 'uppercase',
+  },
+  simulationTipReason: {
+    color: 'rgba(208, 201, 141, 0.75)',
+    fontSize: '0.6rem',
+    letterSpacing: '0.4px',
+    textTransform: 'uppercase',
+  },
   simulationChipSubValue: {
     color: 'rgba(208, 201, 141, 0.75)',
     fontSize: '0.62rem',
   },
+  simulationTipChip: {
+    flex: 1,
+    padding: '6px 8px',
+    borderRadius: '10px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    border: '1px solid rgba(208, 201, 141, 0.25)',
+    background: 'rgba(24, 40, 24, 0.55)',
+  },
+  simulationTipNeutral: {
+    border: '1px solid rgba(208, 201, 141, 0.25)',
+    background: 'rgba(24, 40, 24, 0.55)',
+  },
+  simulationTipFight: {
+    background: 'linear-gradient(135deg, rgba(44, 96, 52, 0.7), rgba(18, 54, 30, 0.85))',
+    border: '1px solid rgba(94, 176, 116, 0.6)',
+  },
+  simulationTipFlee: {
+    background: 'linear-gradient(135deg, rgba(126, 44, 42, 0.7), rgba(70, 22, 20, 0.85))',
+    border: '1px solid rgba(194, 96, 90, 0.6)',
+  },
+  simulationTipGamble: {
+    background: 'linear-gradient(135deg, rgba(156, 118, 36, 0.65), rgba(86, 52, 12, 0.75))',
+    border: '1px solid rgba(208, 172, 64, 0.6)',
+  },
   simulationStatsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
     gap: '6px',
   },
   simulationStatCard: {
@@ -613,9 +767,6 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '2px',
-  },
-  simulationStatCardFullWidth: {
-    gridColumn: 'span 2',
   },
   simulationStatCardNeutral: {
     background: 'rgba(24, 40, 24, 0.5)',
@@ -636,11 +787,14 @@ const styles = {
   simulationStatValue: {
     color: '#ffffff',
     fontFamily: 'Cinzel, Georgia, serif',
-    fontSize: '0.76rem',
+    fontSize: '0.95rem',
+    fontWeight: 600,
+    lineHeight: 1.1,
   },
   simulationStatSubValue: {
     color: 'rgba(208, 201, 141, 0.7)',
-    fontSize: '0.62rem',
+    fontSize: '0.7rem',
+    fontWeight: 500,
   },
   beastStatsSeparator: {
     marginTop: '10px',

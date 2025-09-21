@@ -15,10 +15,14 @@ export interface CombatSimulationResult {
   averageDamageTaken: number;
   modeDamageTaken: number;
   modeDamageDealt: number;
+  modeRounds: number;
+  minRounds: number;
+  maxRounds: number;
   minDamageDealt: number;
   maxDamageDealt: number;
   minDamageTaken: number;
   maxDamageTaken: number;
+  goldRiskRatio: number;
 }
 
 export const defaultSimulationResult: CombatSimulationResult = {
@@ -32,10 +36,14 @@ export const defaultSimulationResult: CombatSimulationResult = {
   averageDamageTaken: 0,
   modeDamageTaken: 0,
   modeDamageDealt: 0,
+  modeRounds: 0,
+  minRounds: 0,
+  maxRounds: 0,
   minDamageDealt: 0,
   maxDamageDealt: 0,
   minDamageTaken: 0,
   maxDamageTaken: 0,
+  goldRiskRatio: 0,
 };
 
 interface Accumulator {
@@ -58,7 +66,8 @@ const getBeastCriticalChance = (adventurer: Adventurer) => clamp(calculateLevel(
 export const simulateCombatOutcomes = (
   adventurer: Adventurer | null | undefined,
   beast: Beast | null | undefined,
-  iterations = 100,
+  iterations = 10000,
+  goldReward: number,
 ): CombatSimulationResult => {
   if (!adventurer || !beast || adventurer.health <= 0 || beast.health <= 0 || iterations <= 0) {
     return defaultSimulationResult;
@@ -87,8 +96,11 @@ export const simulateCombatOutcomes = (
   let maxDamageDealt = 0;
   let minDamageTaken = Number.POSITIVE_INFINITY;
   let maxDamageTaken = 0;
+  let minRounds = Number.POSITIVE_INFINITY;
+  let maxRounds = 0;
   const damageTakenValues: number[] = [];
   const damageDealtCounts = new Map<number, number>();
+  const roundsCounts = new Map<number, number>();
 
   const runFight = (): Accumulator => {
     let heroHp = adventurer.health;
@@ -131,9 +143,12 @@ export const simulateCombatOutcomes = (
     maxDamageDealt = Math.max(maxDamageDealt, damageDealt);
     minDamageTaken = Math.min(minDamageTaken, damageTaken);
     maxDamageTaken = Math.max(maxDamageTaken, damageTaken);
+    minRounds = Math.min(minRounds, rounds);
+    maxRounds = Math.max(maxRounds, rounds);
     damageTakenValues.push(damageTaken);
     const roundedDealt = Math.round(damageDealt);
     damageDealtCounts.set(roundedDealt, (damageDealtCounts.get(roundedDealt) ?? 0) + 1);
+    roundsCounts.set(rounds, (roundsCounts.get(rounds) ?? 0) + 1);
 
     if (heroHp > 0 && beastHp <= 0) {
       wins += 1;
@@ -191,6 +206,21 @@ export const simulateCombatOutcomes = (
     return modeValue;
   })();
 
+  const modeRounds = (() => {
+    if (roundsCounts.size === 0) return 0;
+    let modeValue = 0;
+    let highestCount = 0;
+
+    roundsCounts.forEach((count, value) => {
+      if (count > highestCount || (count === highestCount && value < modeValue)) {
+        modeValue = value;
+        highestCount = count;
+      }
+    });
+
+    return modeValue;
+  })();
+
   return {
     totalFights: fightsSimulated,
     wins,
@@ -202,9 +232,13 @@ export const simulateCombatOutcomes = (
     averageDamageTaken: Number((totalDamageTaken / fightsSimulated).toFixed(1)),
     modeDamageTaken,
     modeDamageDealt,
+    modeRounds,
+    minRounds: Number.isFinite(minRounds) ? minRounds : 0,
+    maxRounds,
     minDamageDealt: Number.isFinite(minDamageDealt) ? Math.round(minDamageDealt) : 0,
     maxDamageDealt: Math.round(maxDamageDealt),
     minDamageTaken: Number.isFinite(minDamageTaken) ? Math.round(minDamageTaken) : 0,
     maxDamageTaken: Math.round(maxDamageTaken),
+    goldRiskRatio: goldReward > 0 ? Number((modeDamageTaken / goldReward).toFixed(2)) : modeDamageTaken,
   };
 };
