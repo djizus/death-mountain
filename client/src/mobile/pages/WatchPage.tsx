@@ -189,8 +189,8 @@ export default function WatchPage() {
 
   useEffect(() => {
     hasPrimedReplay.current = false;
-    setReplayIndex(0);
-    setSliderStep(0);
+    setReplayIndex(prev => (prev === 0 ? prev : 0));
+    setSliderStep(prev => (prev === 0 ? prev : 0));
 
     if (game_id) {
       setSpectating(true);
@@ -206,9 +206,19 @@ export default function WatchPage() {
     if (replayEvents.length === 0 || replayIndex !== 0) return;
 
     hasPrimedReplay.current = true;
-    processEvent(replayEvents[0], true);
-    replayForward();
-  }, [replayEvents, replayIndex, replayForward]);
+
+    let cancelled = false;
+
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      processEvent(replayEvents[0], true);
+      replayForward();
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [replayEvents, replayIndex, replayForward, processEvent]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
