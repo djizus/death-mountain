@@ -168,7 +168,7 @@ export default function ExploreOverlay() {
       <InventoryOverlay disabledEquip={isExploring || isSelectingStats || inProgress} />
       <SettingsOverlay />
 
-      {adventurer?.stat_upgrades_available! === 0 && <MarketOverlay />}
+      {adventurer?.beast_health === 0 && <MarketOverlay />}
 
       {/* Bottom Buttons */}
       <Box sx={styles.buttonContainer}>
