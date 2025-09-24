@@ -104,7 +104,7 @@ export default function ItemTooltip({ itemSpecialsSeed, item, style }: ItemToolt
               {damageTaken && (
                 <Box>
                   <Box fontSize="13px">-{damageTaken.baseDamage} health (base)</Box>
-                  <Box fontSize="13px">-{damageTaken.criticalDamage} health (critical)</Box>
+                  <Box fontSize="13px">-{damageTaken.criticalDamage} health (if critical)</Box>
                 </Box>
               )}
             </Box>
@@ -174,7 +174,7 @@ export default function ItemTooltip({ itemSpecialsSeed, item, style }: ItemToolt
           <Box sx={styles.divider} />
           <Box sx={styles.jewelryContainer}>
             <Typography sx={styles.jewelryEffect}>
-              {ItemUtils.getJewelryEffect(item.id)}
+              {ItemUtils.getCurrentJewelryEffect(item.id, level)}
             </Typography>
           </Box>
         </>

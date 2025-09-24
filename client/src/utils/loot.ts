@@ -573,5 +573,22 @@ export const ItemUtils = {
 
       default: return "No special effect";
     }
+  },
+
+  getCurrentJewelryEffect: (id: number, level: number): string => {
+    switch (id) {
+      // Necklaces
+      case 1: return `Hide armor defense increased by ${level * 3}%`;
+      case 2: return `Metal armor defense increased by ${level * 3}%`;
+      case 3: return `Cloth armor defense increased by ${level * 3}%`;
+
+      // Rings
+      case 4: return `Increases critical hit chance by ${level}%`;
+      case 6: return `Name match bonus damage increased by ${level * 3}%`;
+      case 7: return `Critical hit bonus damage increased by ${level * 3}%`;
+      case 8: return `Gold earned from defeating beasts increased by ${level * 3}%`;
+
+      default: return "No special effect";
+    }
   }
 };

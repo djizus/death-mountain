@@ -270,3 +270,15 @@ export const getCollectableTraits = (seed: bigint) => {
     animated,
   };
 };
+
+export const collectableImage = (name: string, traits: { shiny: boolean, animated: boolean }) => {
+  if (traits.shiny && traits.animated) {
+    return `/images/nfts/animated/shiny/${name.toLowerCase()}.gif`;
+  } else if (traits.animated) {
+    return `/images/nfts/animated/regular/${name.toLowerCase()}.gif`;
+  } else if (traits.shiny) {
+    return `/images/nfts/shiny/${name.toLowerCase()}.png`;
+  } else {
+    return `/images/nfts/regular/${name.toLowerCase()}.png`;
+  }
+};

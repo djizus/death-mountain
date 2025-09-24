@@ -40,6 +40,10 @@ export interface GameDirectorContext {
   eventsProcessed: number;
   setEventQueue: (events: any) => void;
   setEventsProcessed: (eventsProcessed: number) => void;
+  setSkipCombat: (skipCombat: boolean) => void;
+  skipCombat: boolean;
+  setShowSkipCombat: (showSkipCombat: boolean) => void;
+  showSkipCombat: boolean;
 }
 
 const GameDirectorContext = createContext<GameDirectorContext>(
@@ -121,6 +125,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
   const battleDamageRef = useRef<number>(0);
   const [videoQueue, setVideoQueue] = useState<string[]>([]);
 
+  const [skipCombat, setSkipCombat] = useState(false);
+  const [showSkipCombat, setShowSkipCombat] = useState(false);
   const [beastDefeated, setBeastDefeated] = useState(false);
 
   useEffect(() => {
@@ -169,7 +175,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       if (eventQueue.length > 0 && !isProcessing) {
         setIsProcessing(true);
         const event = eventQueue[0];
-        await processEvent(event, skipCombatDelays);
+        await processEvent(event, skipCombatDelays || skipCombat);
         setEventQueue((prev) => prev.slice(1));
         setIsProcessing(false);
         setEventsProcessed((prev) => prev + 1);
@@ -177,7 +183,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     };
 
     processNextEvent();
-  }, [eventQueue, isProcessing, skipCombatDelays]);
+  }, [eventQueue, isProcessing, skipCombatDelays, skipCombat]);
 
   useEffect(() => {
     if (beastDefeated && collectable && currentNetworkConfig.beasts) {
@@ -268,6 +274,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
 
     if (event.type === "adventurer") {
       setAdventurer(event.adventurer!);
+      setSkipCombat(false);
+      setShowSkipCombat(false);
 
       if (event.adventurer!.health === 0 && !skipDelay && !skipIntroOutro) {
         setShowOverlay(false);
@@ -363,13 +371,13 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
         action.settings.game_seed === 0 &&
         action.settings.adventurer.xp !== 0
       ) {
-        txs.push(requestRandom());
+        txs.push(requestRandom(action.gameId!, action.settings.adventurer.xp));
       }
       txs.push(startGame(action.gameId!));
     }
 
     if (VRFEnabled && ["explore", "attack", "flee"].includes(action.type)) {
-      txs.push(requestRandom());
+      txs.push(requestRandom(gameId!, adventurer!.xp));
     }
 
     if (
@@ -377,7 +385,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       action.type === "equip" &&
       adventurer?.beast_health! > 0
     ) {
-      txs.push(requestRandom());
+      txs.push(requestRandom(gameId!, adventurer!.xp));
     }
 
     let newItemsEquipped = getNewItemsEquipped(
@@ -420,6 +428,10 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       setBeastDefeated(true);
     }
 
+    if (events.filter((event: any) => event.type === "beast_attack").length >= 2) {
+      setShowSkipCombat(true);
+    }
+
     setEventQueue((prev) => [...prev, ...events]);
   };
 
@@ -436,6 +448,10 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
         setEventQueue,
         setSpectating,
         spectating,
+        setSkipCombat,
+        skipCombat,
+        setShowSkipCombat,
+        showSkipCombat,
       }}
     >
       {children}

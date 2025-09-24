@@ -231,7 +231,7 @@ export const calculateBeastDamageDetails = (
 };
 
 export const calculateBeastDamage = (beast: Beast, adventurer: Adventurer, armor: Item) => {
-  return calculateBeastDamageDetails(beast, adventurer, armor).baseDamage;
+  return calculateBeastDamageDetails(beast, adventurer, armor);
 };
 
 // Check if neck item provides bonus armor reduction
@@ -306,13 +306,13 @@ export const calculateCombatStats = (adventurer: Adventurer, bagItems: Item[], b
       let armorDefense = 0;
 
       if (armor.id !== 0) {
-        armorDefense = Math.max(0, maxDamage - calculateBeastDamage(beast, adventurer, armor));
+        armorDefense = Math.max(0, maxDamage - calculateBeastDamage(beast, adventurer, armor).baseDamage);
       }
 
       let bestDefense = armorDefense;
       let bestItem = null;
       bagItems.filter((item) => ItemUtils.getItemSlot(item.id).toLowerCase() === slot).forEach((item) => {
-        let itemDefense = Math.max(0, maxDamage - calculateBeastDamage(beast, adventurer, item));
+        let itemDefense = Math.max(0, maxDamage - calculateBeastDamage(beast, adventurer, item).baseDamage);
         if (itemDefense > bestDefense) {
           bestDefense = itemDefense;
           bestItem = item;
@@ -359,4 +359,16 @@ export const calculateCombatStats = (adventurer: Adventurer, bagItems: Item[], b
     criticalDamage,
     gearScore,
   };
+};
+
+export const calculateGoldReward = (beast: Beast, ring: Item | null) => {
+  let goldReward = Math.floor(beast.level * (6 - Number(beast.tier)) / 2);
+
+  // Gold Ring gives 3% bonus per level on gold reward
+  if (ring && ItemUtils.getItemName(ring.id) === "Gold Ring" && goldReward > 0) {
+    const ringLevel = calculateLevel(ring.xp);
+    goldReward += Math.floor((goldReward * 3 * ringLevel) / 100);
+  }
+
+  return goldReward;
 };

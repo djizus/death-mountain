@@ -18,7 +18,7 @@ const fleeMessage = "Attempting to flee";
 const equipMessage = "Equipping items";
 
 export default function CombatOverlay() {
-  const { executeGameAction, actionFailed, spectating } = useGameDirector();
+  const { executeGameAction, actionFailed, spectating, setSkipCombat, skipCombat, showSkipCombat } = useGameDirector();
   const { currentNetworkConfig } = useDynamicConnector();
   const { adventurer, adventurerState, beast, battleEvent, bag, undoEquipment } = useGameStore();
 
@@ -61,7 +61,7 @@ export default function CombatOverlay() {
   }, []);
 
   useEffect(() => {
-    if (battleEvent) {
+    if (battleEvent && !skipCombat) {
       if (battleEvent.type === "attack") {
         setCombatLog(`You attacked ${beast!.baseName} for ${battleEvent.attack?.damage} damage ${battleEvent.attack?.critical_hit ? 'CRITICAL HIT!' : ''}`);
       }
@@ -115,6 +115,10 @@ export default function CombatOverlay() {
     setEquipInProgress(true);
     setCombatLog(equipMessage);
     executeGameAction({ type: 'equip' });
+  };
+
+  const handleSkipCombat = () => {
+    setSkipCombat(true);
   };
 
   const fleePercentage = ability_based_percentage(adventurer!.xp, adventurer!.stats.dexterity);
@@ -427,6 +431,25 @@ export default function CombatOverlay() {
             && <div className='dotLoader yellow' style={{ marginTop: '6px' }} />}
         </Box>
       </Box>
+
+      {/* Skip Animations Toggle */}
+      {showSkipCombat && untilDeath && <Box sx={styles.skipContainer}>
+        <Button
+          variant="outlined"
+          onClick={handleSkipCombat}
+          sx={[
+            styles.skipButton,
+          ]}
+          disabled={skipCombat}
+        >
+          <Typography fontWeight={600}>
+            Skip
+          </Typography>
+          <Box sx={{ fontSize: '0.6rem' }}>
+            ▶▶
+          </Box>
+        </Button>
+      </Box>}
 
       <InventoryOverlay disabledEquip={attackInProgress || fleeInProgress || equipInProgress} />
       <SettingsOverlay />
@@ -843,5 +866,22 @@ const styles = {
     marginTop: '10px',
     marginBottom: '8px',
     borderTop: '1px solid rgba(208, 201, 141, 0.2)',
+  },
+  skipContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    position: 'absolute',
+    top: 90,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 10,
+  },
+  skipButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    width: '90px',
+    height: '32px',
   },
 };

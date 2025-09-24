@@ -13,12 +13,13 @@ const STAT_DESCRIPTIONS = {
   intelligence: "Increases chance of dodging Obstacles.",
   wisdom: "Increases chance of avoiding Beast ambush.",
   charisma: "Provides discounts on the marketplace.",
+  luck: "Increases chance of critical hits. Based on the total level of all your equipped and bagged jewelry."
 } as const;
 
 const COMBAT_STAT_DESCRIPTIONS = {
   baseDamage: "Damage you deal per hit.",
   criticalDamage: "Damage you deal if critical hit.",
-  critChance: "Chance to land a critical hit.",
+  critChance: "Chance to land a critical hit. Based on the total level of all your equipped and bagged jewelry.",
   gearScore: "Combined power of your equipment and bag."
 } as const;
 
@@ -63,6 +64,10 @@ export default function AdventurerStats({ variant }: AdventurerStatsProps) {
   function STAT_TITLE(stat: string) {
     if (stat === 'intelligence') {
       return 'Intellect';
+    }
+
+    if (stat === "luck") {
+      return 'Crit Chance';
     }
 
     return stat.charAt(0).toUpperCase() + stat.slice(1);

@@ -21,7 +21,7 @@ export default function DeathOverlay() {
   const { gameId, exploreLog, battleEvent, beast, quest, adventurer } = useGameStore();
   const navigate = useNavigate();
   const { playerDiedEvent } = useAnalytics();
-  const [showRewards, setShowRewards] = useState(currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT);
+  const [showRewards, setShowRewards] = useState(false);
 
   const finalBattleEvent = battleEvent || exploreLog.find(event => event.type === 'obstacle');
   let collectableCount = parseInt(localStorage.getItem(`beast_collected_${gameId}`) || "0");
@@ -49,6 +49,14 @@ export default function DeathOverlay() {
       navigate('/survivor', { replace: true });
     }
   };
+
+  const continueToRewards = () => {
+    if (currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT) {
+      setShowRewards(true);
+    } else {
+      backToMenu();
+    }
+  }
 
   useEffect(() => {
     if (gameId && adventurer) {
@@ -82,7 +90,7 @@ export default function DeathOverlay() {
     remainingSurvivorTokens > 0 &&
     adventurer?.xp! >= 9
   ) {
-    return <RewardsOverlay gameId={gameId!} adventurerLevel={calculateLevel(adventurer?.xp!)} onClose={handleRewardsClose} />;
+    return <RewardsOverlay gameId={gameId!} adventurerLevel={calculateLevel(adventurer?.xp!)} onClose={backToMenu} />;
   }
 
   return (
@@ -133,10 +141,10 @@ export default function DeathOverlay() {
           </Button>
           <Button
             variant="contained"
-            onClick={backToMenu}
+            onClick={continueToRewards}
             sx={styles.restartButton}
           >
-            Play Again
+            {currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT ? "Claim Reward" : "Play Again"}
           </Button>
         </Box>
       </Box>

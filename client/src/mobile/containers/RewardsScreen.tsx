@@ -67,7 +67,6 @@ export default function RewardsScreen({ gameId, adventurerLevel, onClose }: Rewa
     };
 
     updateCountdown();
-
   };
 
   const handleContinue = () => {

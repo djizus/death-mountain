@@ -40,7 +40,7 @@ export default function ItemInfoPopup({ item, itemSpecialsSeed, onClose, onItemE
     isNameMatch = ItemUtils.isNameMatch(item.id, level, itemSpecialsSeed, beast);
 
     if (["Head", "Chest", "Foot", "Hand", "Waist"].includes(ItemUtils.getItemSlot(item.id))) {
-      damageTaken = calculateBeastDamage(beast, adventurer!, item);
+      damageTaken = calculateBeastDamage(beast, adventurer!, item).baseDamage;
     } else if (ItemUtils.isWeapon(item.id)) {
       damage = calculateAttackDamage(item, adventurer!, beast);
     }

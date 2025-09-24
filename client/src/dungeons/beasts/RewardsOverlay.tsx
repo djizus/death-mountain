@@ -232,7 +232,7 @@ export default function RewardsOverlay({ gameId, adventurerLevel, onClose }: Rew
                           marginTop: 2,
                         }}
                       >
-                        Continue
+                        Play Again
                       </Button>
                     </motion.div>
                   </Box>

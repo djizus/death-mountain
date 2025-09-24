@@ -122,7 +122,10 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
                       <Box sx={styles.emptySlotTooltipDivider} />
                       <Box sx={styles.emptySlotTooltipDamageContainer}>
                         <Typography sx={styles.emptySlotTooltipDamageText}>
-                          -{Math.floor((6 - beast.tier) * beast.level * 1.5)} health when hit
+                          -{Math.floor((6 - beast.tier) * beast.level * 1.5)} health (Base)
+                        </Typography>
+                        <Typography sx={styles.emptySlotTooltipDamageText}>
+                          -{Math.floor((6 - beast.tier) * beast.level * 1.5 * 2)} health (Critical)
                         </Typography>
                       </Box>
                     </Box>

@@ -16,6 +16,7 @@ import { delay, stringToFelt } from "@/utils/utils";
 import { CairoOption, CairoOptionVariant, CallData, byteArray } from "starknet";
 import { useAnalytics } from "@/utils/analytics";
 import { useSnackbar } from "notistack";
+import * as starknet from "@scure/starknet";
 
 export const useSystemCalls = () => {
   const { enqueueSnackbar } = useSnackbar();
@@ -77,8 +78,15 @@ export const useSystemCalls = () => {
       }
 
       const translatedEvents = receipt.events.map((event: any) =>
-        translateGameEvent(event, currentNetworkConfig.manifest)
+        translateGameEvent(event, currentNetworkConfig.manifest, gameId)
       );
+
+      if (translatedEvents.includes('Fatal Error')) {
+        await delay(3000);
+        window.location.reload();
+        return;
+      }
+
       return translatedEvents.filter(Boolean);
     } catch (error) {
       console.error("Error executing action:", error);
@@ -119,7 +127,7 @@ export const useSystemCalls = () => {
 
       return receipt;
     } catch (error) {
-      console.error("Error waiting for transaction:", error);
+      console.error("Error waiting for transaction :", error);
       await delay(500);
       return waitForTransaction(txHash, retries + 1, _account);
     }
@@ -256,13 +264,16 @@ export const useSystemCalls = () => {
   /**
    * Requests randomness from the VRF provider.
    */
-  const requestRandom = () => {
+  const requestRandom = (gameId: number, xp: number) => {
+    let params = [BigInt(xp), BigInt(gameId)];
+    let poseidon = starknet.poseidonHashMany(params);
+
     return {
       contractAddress: VRF_PROVIDER_ADDRESS,
       entrypoint: "request_random",
       calldata: CallData.compile({
         caller: GAME_ADDRESS,
-        source: { type: 0, address: account!.address },
+        source: { type: 1, salt: poseidon },
       }),
     };
   };
