@@ -236,7 +236,7 @@ const buildDamageDistribution = (samples: WeightedSample[], maxBuckets = 6): Dam
     }
   }
 
-  return buckets.sort((a, b) => b.percentage - a.percentage || a.start - b.start);
+  return buckets.sort((a, b) => a.start - b.start);
 };
 
 export interface SlotDamageSummary {
