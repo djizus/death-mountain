@@ -138,7 +138,7 @@ export default function DeathOverlay() {
           <Button
             variant="contained"
             onClick={continueToRewards}
-            sx={styles.restartButton}
+            sx={(currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT && adventurer?.xp! >= 9) ? styles.claimRewardButton : styles.restartButton}
           >
             {(currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT && adventurer?.xp! >= 9) ? "Claim Reward" : "Play Again"}
           </Button>
@@ -293,6 +293,32 @@ const styles = {
     height: '48px',
     justifyContent: 'center',
     borderRadius: '8px',
+  },
+  claimRewardButton: {
+    border: '2px solid rgba(208, 201, 141, 0.6)',
+    background: 'rgba(24, 40, 24, 1)',
+    color: '#d0c98d',
+    minWidth: '150px',
+    height: '48px',
+    justifyContent: 'center',
+    borderRadius: '8px',
+    fontWeight: 'bold',
+    boxShadow: '0 0 20px rgba(208, 201, 141, 0.4), 0 0 40px rgba(208, 201, 141, 0.2)',
+    animation: 'claimRewardGlow 2s ease-in-out infinite',
+    '&:hover': {
+      background: 'rgba(34, 60, 34, 1)',
+      border: '2px solid rgba(208, 201, 141, 0.8)',
+      boxShadow: '0 0 30px rgba(208, 201, 141, 0.6), 0 0 60px rgba(208, 201, 141, 0.3)',
+      transform: 'scale(1.02)',
+    },
+    '@keyframes claimRewardGlow': {
+      '0%, 100%': { 
+        boxShadow: '0 0 20px rgba(208, 201, 141, 0.4), 0 0 40px rgba(208, 201, 141, 0.2)',
+      },
+      '50%': { 
+        boxShadow: '0 0 30px rgba(208, 201, 141, 0.6), 0 0 60px rgba(208, 201, 141, 0.4)',
+      },
+    },
   },
   restartButton: {
     border: '2px solid rgba(255, 255, 255, 0.15)',

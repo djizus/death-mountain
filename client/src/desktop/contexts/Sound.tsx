@@ -56,6 +56,10 @@ class AudioManager {
       return;
     }
 
+    if (trackPath === this.currentTrack) {
+      return;
+    }
+
     // Allow overriding transitions when switching between specific tracks
     // Only block transitions when switching to/from background
     const isSwitchingToBackground = !trackPath;
