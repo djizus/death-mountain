@@ -194,7 +194,7 @@ const buildDamageDistribution = (samples: WeightedSample[], maxBuckets = 6): Dam
       start: Math.min(...overflowValues),
       end: Math.max(...overflowValues),
       percentage: Number(((overflowWeight / totalWeight) * 100).toFixed(2)),
-      label: `${Math.min(...overflowValues)}+`,
+      label: '>1024',
     });
     remainingBuckets -= 1;
   }
