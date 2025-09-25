@@ -1,6 +1,6 @@
-import { BEAST_NAMES } from "@/constants/beast";
+import { BEAST_NAMES, BEAST_SPECIAL_NAME_LEVEL_UNLOCK, MAX_SPECIAL2, MAX_SPECIAL3 } from "@/constants/beast";
 import { OBSTACLE_NAMES } from "@/constants/obstacle";
-import { ability_based_damage_reduction, ability_based_percentage, calculateBeastDamageDetails, calculateLevel, elementalAdjustedDamage } from "@/utils/game";
+import { calculateBeastDamageDetails, calculateLevel, elementalAdjustedDamage } from "@/utils/game";
 import { getAttackType, getBeastTier } from "@/utils/beast";
 import { ItemUtils, ItemType, Tier as ItemTier } from "@/utils/loot";
 import type { Adventurer, Beast, Equipment, Item } from "@/types/game";
@@ -12,6 +12,19 @@ const SLOT_ORDER: Array<keyof Equipment> = ['hand', 'head', 'chest', 'waist', 'f
 const MIN_DAMAGE_FROM_BEASTS = 2;
 const MIN_DAMAGE_FROM_OBSTACLES = 4;
 const NECKLACE_ARMOR_BONUS = 3;
+const BEAST_SPECIAL_PREFIX_POOL = Number(MAX_SPECIAL2);
+const BEAST_SPECIAL_SUFFIX_POOL = Number(MAX_SPECIAL3);
+const CRITICAL_HIT_LEVEL_MULTIPLIER = 1; // mirrors BeastSettings::CRITICAL_HIT_LEVEL_MULTIPLIER
+const CRITICAL_HIT_AMBUSH_MULTIPLIER = 1; // mirrors BeastSettings::CRITICAL_HIT_AMBUSH_MULTIPLIER
+
+const getBeastCriticalChance = (adventurerLevel: number, isAmbush: boolean): number => {
+  const multiplier = isAmbush ? CRITICAL_HIT_AMBUSH_MULTIPLIER : CRITICAL_HIT_LEVEL_MULTIPLIER;
+  return Math.min(1, (adventurerLevel * multiplier) / 100);
+};
+
+const getObstacleCriticalChance = (adventurerLevel: number): number => (
+  Math.min(1, (adventurerLevel * CRITICAL_HIT_LEVEL_MULTIPLIER) / 100)
+);
 
 const ENCOUNTER_BASE_MIX = {
   beast: 100 / 3,
@@ -72,13 +85,6 @@ const getEncounterLevelRange = (adventurerLevel: number) => {
   };
 };
 
-const applyDamageReduction = (damage: number, reduction: number) => {
-  if (damage <= 0 || reduction <= 0) {
-    return Math.max(0, Math.floor(damage));
-  }
-  return Math.max(0, Math.floor(damage * (100 - reduction) / 100));
-};
-
 const applyNecklaceMitigation = (
   baseDamage: number,
   armorBase: number,
@@ -108,33 +114,9 @@ const applyNecklaceMitigation = (
   return MIN_DAMAGE_FROM_OBSTACLES;
 };
 
-const finaliseBeastDamage = (
-  rawDamage: number,
-  baseReduction: number,
-  statsMode: Settings['stats_mode'],
-  adventurer: Adventurer,
-) => {
-  let damage = applyDamageReduction(rawDamage, baseReduction);
-  if (statsMode === 'Reduction') {
-    const reduction = ability_based_damage_reduction(adventurer.xp, adventurer.stats.wisdom);
-    damage = applyDamageReduction(damage, reduction);
-  }
-  return Math.max(MIN_DAMAGE_FROM_BEASTS, damage);
-};
+const finaliseBeastDamage = (rawDamage: number) => Math.max(MIN_DAMAGE_FROM_BEASTS, Math.round(rawDamage));
 
-const finaliseObstacleDamage = (
-  rawDamage: number,
-  baseReduction: number,
-  statsMode: Settings['stats_mode'],
-  adventurer: Adventurer,
-) => {
-  let damage = applyDamageReduction(rawDamage, baseReduction);
-  if (statsMode === 'Reduction') {
-    const reduction = ability_based_damage_reduction(adventurer.xp, adventurer.stats.intelligence);
-    damage = applyDamageReduction(damage, reduction);
-  }
-  return Math.max(MIN_DAMAGE_FROM_OBSTACLES, damage);
-};
+const finaliseObstacleDamage = (rawDamage: number) => Math.max(MIN_DAMAGE_FROM_OBSTACLES, Math.round(rawDamage));
 
 const getItemTierNumeric = (tier: ItemTier): number => {
   if (typeof tier === 'number') return tier;
@@ -152,6 +134,27 @@ interface WeightedSample {
   value: number;
   weight: number;
 }
+
+const computeMedianDamage = (samples: WeightedSample[]): number => {
+  if (!samples.length) return 0;
+
+  const sorted = samples
+    .map(sample => ({ value: sample.value, weight: sample.weight }))
+    .sort((a, b) => a.value - b.value);
+
+  const total = sorted.reduce((sum, sample) => sum + sample.weight, 0);
+  let cumulative = 0;
+  const target = total / 2;
+
+  for (const sample of sorted) {
+    cumulative += sample.weight;
+    if (cumulative >= target) {
+      return sample.value;
+    }
+  }
+
+  return sorted[sorted.length - 1].value;
+};
 
 export interface DamageBucket {
   start: number;
@@ -178,52 +181,62 @@ const buildDamageDistribution = (samples: WeightedSample[], maxBuckets = 6): Dam
     return [];
   }
 
-  const sortedEntries = Array.from(totals.entries()).sort((a, b) => a[0] - b[0]);
-  const minDamage = sortedEntries[0][0];
-  const maxDamage = sortedEntries[sortedEntries.length - 1][0];
-
-  if (minDamage === maxDamage) {
-    return [{
-      start: minDamage,
-      end: maxDamage,
-      percentage: 100,
-      label: `${minDamage}`,
-    }];
-  }
-
-  const bucketSize = Math.max(1, Math.ceil((maxDamage - minDamage + 1) / maxBuckets));
-  const bucketWeights = new Map<number, number>();
-
-  for (const [damage, weight] of sortedEntries) {
-    const bucketIndex = Math.min(
-      Math.floor((damage - minDamage) / bucketSize),
-      maxBuckets - 1,
-    );
-    const existing = bucketWeights.get(bucketIndex) ?? 0;
-    bucketWeights.set(bucketIndex, existing + weight);
-  }
+  const damageValues = Array.from(totals.keys()).sort((a, b) => a - b);
+  const overflowValues = damageValues.filter(value => value > 1024);
+  const baseValues = damageValues.filter(value => value <= 1024);
 
   const buckets: DamageBucket[] = [];
+  let remainingBuckets = 10;
 
-  const bucketIndices = Array.from(bucketWeights.keys()).sort((a, b) => a - b);
-  for (const bucketIndex of bucketIndices) {
-    const bucketStart = minDamage + bucketIndex * bucketSize;
-    const bucketEnd = Math.min(bucketStart + bucketSize - 1, maxDamage);
-    const weight = bucketWeights.get(bucketIndex) ?? 0;
-    const percentage = Number(((weight / totalWeight) * 100).toFixed(2));
-    const label = bucketStart === bucketEnd
-      ? `${bucketStart}`
-      : `${bucketStart}-${bucketEnd}`;
-
+  if (overflowValues.length > 0) {
+    const overflowWeight = overflowValues.reduce((sum, damage) => sum + (totals.get(damage) ?? 0), 0);
     buckets.push({
-      start: bucketStart,
-      end: bucketEnd,
-      percentage,
-      label,
+      start: Math.min(...overflowValues),
+      end: Math.max(...overflowValues),
+      percentage: Number(((overflowWeight / totalWeight) * 100).toFixed(2)),
+      label: `${Math.min(...overflowValues)}+`,
     });
+    remainingBuckets -= 1;
   }
 
-  return buckets;
+  if (baseValues.length > 0 && remainingBuckets > 0) {
+    const minDamage = baseValues[0];
+    const maxDamage = baseValues[baseValues.length - 1];
+
+    if (minDamage === maxDamage) {
+      buckets.push({
+        start: minDamage,
+        end: maxDamage,
+        percentage: Number(((totals.get(minDamage) ?? 0) / totalWeight * 100).toFixed(2)),
+        label: `${minDamage}`,
+      });
+    } else {
+      const span = maxDamage - minDamage + 1;
+      const bucketSize = Math.max(1, Math.ceil(span / remainingBuckets));
+      const bucketWeights = new Array<number>(remainingBuckets).fill(0);
+
+      for (const [damage, weight] of totals.entries()) {
+        if (damage > 1024) continue;
+        const index = Math.min(remainingBuckets - 1, Math.floor((damage - minDamage) / bucketSize));
+        bucketWeights[index] += weight;
+      }
+
+      for (let i = 0; i < remainingBuckets; i += 1) {
+        const start = Math.min(maxDamage, minDamage + i * bucketSize);
+        const end = Math.min(maxDamage, start + bucketSize - 1);
+        const percentage = Number(((bucketWeights[i] / totalWeight) * 100).toFixed(2));
+
+        buckets.push({
+          start,
+          end,
+          percentage,
+          label: start === end ? `${start}` : `${start}-${end}`,
+        });
+      }
+    }
+  }
+
+  return buckets.sort((a, b) => b.percentage - a.percentage || a.start - b.start);
 };
 
 export interface SlotDamageSummary {
@@ -245,13 +258,7 @@ export interface BeastRiskSummary {
   typeDistribution: Record<'Magic' | 'Blade' | 'Bludgeon', number>;
   slotDamages: SlotDamageSummary[];
   damageDistribution: DamageBucket[];
-  highestThreat?: {
-    beastId: number;
-    name: string;
-    slot: keyof Equipment;
-    damage: number;
-    chance: number;
-  };
+  medianDamage: number;
 }
 
 export interface ObstacleRiskSummary {
@@ -261,13 +268,7 @@ export interface ObstacleRiskSummary {
   typeDistribution: Record<'Magic' | 'Blade' | 'Bludgeon', number>;
   slotDamages: SlotDamageSummary[];
   damageDistribution: DamageBucket[];
-  highestThreat?: {
-    obstacleId: number;
-    name: string;
-    slot: keyof Equipment;
-    damage: number;
-    chance: number;
-  };
+  medianDamage: number;
 }
 
 export interface DiscoverySummary {
@@ -310,11 +311,9 @@ const computeBeastSlotSummary = (
   slot: keyof Equipment,
   adventurer: Adventurer,
   levelRange: { min: number; max: number },
-  baseReduction: number,
-  statsMode: Settings['stats_mode'],
+  isAmbush: boolean,
 ): {
   summary: SlotDamageSummary;
-  threat?: { id: number; damage: number; slot: keyof Equipment; chance: number };
   samples: WeightedSample[];
 } => {
   const armor = ensureItem(adventurer.equipment[slot]);
@@ -324,74 +323,83 @@ const computeBeastSlotSummary = (
     ? ItemUtils.getSpecials(armor.id, armorLevel, adventurer.item_specials_seed)
     : { prefix: null, suffix: null };
 
+  const levelCount = Math.max(1, levelRange.max - levelRange.min + 1);
+  const levelWeight = 1 / levelCount;
+  const adventurerLevel = Math.max(1, calculateLevel(adventurer.xp));
+  const critChance = getBeastCriticalChance(adventurerLevel, isAmbush);
+
+  const prefixMatchChance = armorSpecials.prefix ? 1 / BEAST_SPECIAL_PREFIX_POOL : 0;
+  const suffixMatchChance = armorSpecials.suffix ? 1 / BEAST_SPECIAL_SUFFIX_POOL : 0;
+  const bothMatchChance = prefixMatchChance * suffixMatchChance;
+  const prefixOnlyChance = Math.max(0, prefixMatchChance - bothMatchChance);
+  const suffixOnlyChance = Math.max(0, suffixMatchChance - bothMatchChance);
+  const noneMatchChance = Math.max(0, 1 - prefixMatchChance - suffixMatchChance + bothMatchChance);
+
   let minBase = Number.POSITIVE_INFINITY;
   let maxBase = 0;
   let minCrit = Number.POSITIVE_INFINITY;
   let maxCrit = 0;
   const samples: WeightedSample[] = [];
-  const critProbability = Math.min(100, calculateLevel(adventurer.xp)) / 100;
-  const baseProbability = Math.max(0, 1 - critProbability);
-  const baseWeight = Math.max(baseProbability, 0.0001);
-  const critWeight = Math.max(critProbability, 0.0001);
-  let totalWeight = 0;
   const candidates: Array<{ id: number; damage: number; weight: number }> = [];
+  let totalWeight = 0;
 
   const pushSample = (id: number, value: number, weight: number) => {
-    const safeWeight = Math.max(weight, 0);
-    if (safeWeight <= 0) return;
-    samples.push({ value, weight: safeWeight });
-    candidates.push({ id, damage: value, weight: safeWeight });
-    totalWeight += safeWeight;
+    if (weight <= 0) return;
+    const damage = Math.round(value);
+    samples.push({ value: damage, weight });
+    candidates.push({ id, damage, weight });
+    totalWeight += weight;
   };
 
   for (const beastId of BEAST_IDS) {
     const tier = BEAST_TIER_MAP[beastId];
 
-    const baseBeast: Beast = {
-      id: beastId,
-      seed: 0n,
-      baseName: BEAST_NAMES[beastId] || 'Beast',
-      name: BEAST_NAMES[beastId] || 'Beast',
-      health: 0,
-      level: levelRange.min,
-      type: '',
-      tier,
-      specialPrefix: null,
-      specialSuffix: null,
-      isCollectable: false,
-    };
+    for (let level = levelRange.min; level <= levelRange.max; level += 1) {
+      const hasSpecials = level >= BEAST_SPECIAL_NAME_LEVEL_UNLOCK;
+      const scenarios = hasSpecials
+        ? [
+            { prefix: false, suffix: false, probability: noneMatchChance },
+            { prefix: true, suffix: false, probability: prefixOnlyChance },
+            { prefix: false, suffix: true, probability: suffixOnlyChance },
+            { prefix: true, suffix: true, probability: bothMatchChance },
+          ]
+        : [{ prefix: false, suffix: false, probability: 1 }];
 
-    const maxBeast: Beast = {
-      id: beastId,
-      seed: 0n,
-      baseName: BEAST_NAMES[beastId] || 'Beast',
-      name: BEAST_NAMES[beastId] || 'Beast',
-      health: 0,
-      level: levelRange.max,
-      type: '',
-      tier,
-      specialPrefix: armorSpecials.prefix ?? null,
-      specialSuffix: armorSpecials.suffix ?? null,
-      isCollectable: false,
-    };
+      for (const scenario of scenarios) {
+        if (scenario.probability <= 0) continue;
+        if (scenario.prefix && !armorSpecials.prefix) continue;
+        if (scenario.suffix && !armorSpecials.suffix) continue;
 
-    const baseDamageDetails = calculateBeastDamageDetails(baseBeast, adventurer, armor);
-    const maxDamageDetails = calculateBeastDamageDetails(maxBeast, adventurer, armor);
+        const scenarioWeight = levelWeight * scenario.probability;
+        if (scenarioWeight <= 0) continue;
 
-    const baseDamage = finaliseBeastDamage(baseDamageDetails.baseDamage, baseReduction, statsMode, adventurer);
-    const baseCrit = finaliseBeastDamage(baseDamageDetails.criticalDamage, baseReduction, statsMode, adventurer);
-    const maxDamage = finaliseBeastDamage(maxDamageDetails.baseDamage, baseReduction, statsMode, adventurer);
-    const maxCritDamage = finaliseBeastDamage(maxDamageDetails.criticalDamage, baseReduction, statsMode, adventurer);
+        const beast: Beast = {
+          id: beastId,
+          seed: 0n,
+          baseName: BEAST_NAMES[beastId] || 'Beast',
+          name: BEAST_NAMES[beastId] || 'Beast',
+          health: 0,
+          level,
+          type: '',
+          tier,
+          specialPrefix: scenario.prefix ? armorSpecials.prefix ?? null : null,
+          specialSuffix: scenario.suffix ? armorSpecials.suffix ?? null : null,
+          isCollectable: false,
+        };
 
-    pushSample(beastId, baseDamage, baseWeight);
-    pushSample(beastId, baseCrit, critWeight);
-    pushSample(beastId, maxDamage, baseWeight);
-    pushSample(beastId, maxCritDamage, critWeight);
+        const damageDetails = calculateBeastDamageDetails(beast, adventurer, armor);
+        const baseDamage = finaliseBeastDamage(damageDetails.baseDamage);
+        const critDamage = finaliseBeastDamage(damageDetails.criticalDamage);
 
-    minBase = Math.min(minBase, baseDamage);
-    minCrit = Math.min(minCrit, baseCrit);
-    maxBase = Math.max(maxBase, maxDamage);
-    maxCrit = Math.max(maxCrit, maxCritDamage);
+        pushSample(beastId, baseDamage, scenarioWeight * (1 - critChance));
+        pushSample(beastId, critDamage, scenarioWeight * critChance);
+
+        minBase = Math.min(minBase, baseDamage);
+        maxBase = Math.max(maxBase, baseDamage);
+        minCrit = Math.min(minCrit, critDamage);
+        maxCrit = Math.max(maxCrit, critDamage);
+      }
+    }
   }
 
   if (!Number.isFinite(minBase)) {
@@ -409,21 +417,6 @@ const computeBeastSlotSummary = (
       }
     | undefined;
 
-  if (totalWeight > 0) {
-    const threshold = 0.01;
-    for (const candidate of candidates) {
-      const chance = candidate.weight / totalWeight;
-      if (chance > threshold && (!threat || candidate.damage > threat.damage || (candidate.damage === threat.damage && chance > threat.chance))) {
-        threat = {
-          id: candidate.id,
-          damage: candidate.damage,
-          slot,
-          chance,
-        };
-      }
-    }
-  }
-
   return {
     summary: {
       slot,
@@ -436,7 +429,6 @@ const computeBeastSlotSummary = (
       maxCrit,
       distribution,
     },
-    threat,
     samples,
   };
 };
@@ -445,11 +437,9 @@ const computeObstacleSlotSummary = (
   slot: keyof Equipment,
   adventurer: Adventurer,
   levelRange: { min: number; max: number },
-  baseReduction: number,
-  statsMode: Settings['stats_mode'],
+  dodgeProbability: number,
 ): {
   summary: SlotDamageSummary;
-  threat?: { id: number; damage: number; slot: keyof Equipment; chance: number };
   samples: WeightedSample[];
 } => {
   const armor = ensureItem(adventurer.equipment[slot]);
@@ -465,56 +455,54 @@ const computeObstacleSlotSummary = (
   let minCrit = Number.POSITIVE_INFINITY;
   let maxCrit = 0;
   const samples: WeightedSample[] = [];
-  const critProbability = Math.min(100, calculateLevel(adventurer.xp)) / 100;
-  const baseProbability = Math.max(0, 1 - critProbability);
-  const baseWeight = Math.max(baseProbability, 0.0001);
-  const critWeight = Math.max(critProbability, 0.0001);
-  let totalWeight = 0;
   const candidates: Array<{ id: number; damage: number; weight: number }> = [];
+  let totalWeight = 0;
+
+  const levelCount = Math.max(1, levelRange.max - levelRange.min + 1);
+  const levelWeight = 1 / levelCount;
+  const adventurerLevel = Math.max(1, calculateLevel(adventurer.xp));
+  const critChance = getObstacleCriticalChance(adventurerLevel);
 
   const pushSample = (id: number, value: number, weight: number) => {
-    const safeWeight = Math.max(weight, 0);
-    if (safeWeight <= 0) return;
-    samples.push({ value, weight: safeWeight });
-    candidates.push({ id, damage: value, weight: safeWeight });
-    totalWeight += safeWeight;
+    if (weight <= 0) return;
+    const damage = Math.round(value);
+    samples.push({ value: damage, weight });
+    candidates.push({ id, damage, weight });
+    totalWeight += weight;
   };
 
   for (const obstacleId of OBSTACLE_IDS) {
     const tier = OBSTACLE_TIER_MAP[obstacleId];
     const type = OBSTACLE_TYPE_MAP[obstacleId];
+    const attackScale = Math.max(0, 6 - tier);
 
-    const attackValueMin = levelRange.min * Math.max(0, 6 - tier);
-    const attackValueMax = levelRange.max * Math.max(0, 6 - tier);
+    for (let level = levelRange.min; level <= levelRange.max; level += 1) {
+      const attackValue = level * attackScale;
+      const elementalBase = elementalAdjustedDamage(attackValue, type, armorType);
+      const baseDamageRaw = Math.max(MIN_DAMAGE_FROM_OBSTACLES, elementalBase - armorBase);
+      const critDamageRaw = Math.max(MIN_DAMAGE_FROM_OBSTACLES, (elementalBase * 2) - armorBase);
 
-    const elementalMin = elementalAdjustedDamage(attackValueMin, type, armorType);
-    const elementalMax = elementalAdjustedDamage(attackValueMax, type, armorType);
+      const adjustedBase = applyNecklaceMitigation(baseDamageRaw, armorBase, armorType, neckItem);
+      const adjustedCrit = applyNecklaceMitigation(critDamageRaw, armorBase, armorType, neckItem);
 
-    const baseDamage = Math.max(MIN_DAMAGE_FROM_OBSTACLES, elementalMin - armorBase);
-    const critDamage = Math.max(MIN_DAMAGE_FROM_OBSTACLES, (elementalMin + elementalMin) - armorBase);
+      const finalBase = finaliseObstacleDamage(adjustedBase);
+      const finalCrit = finaliseObstacleDamage(adjustedCrit);
 
-    const baseDamageMax = Math.max(MIN_DAMAGE_FROM_OBSTACLES, elementalMax - armorBase);
-    const critDamageMax = Math.max(MIN_DAMAGE_FROM_OBSTACLES, (elementalMax + elementalMax) - armorBase);
+      if (dodgeProbability > 0) {
+        pushSample(obstacleId, 0, levelWeight * dodgeProbability);
+      }
 
-    const adjustedBase = applyNecklaceMitigation(baseDamage, armorBase, armorType, neckItem);
-    const adjustedCrit = applyNecklaceMitigation(critDamage, armorBase, armorType, neckItem);
-    const adjustedBaseMax = applyNecklaceMitigation(baseDamageMax, armorBase, armorType, neckItem);
-    const adjustedCritMax = applyNecklaceMitigation(critDamageMax, armorBase, armorType, neckItem);
+      const hitWeight = levelWeight * (1 - dodgeProbability);
+      if (hitWeight > 0) {
+        pushSample(obstacleId, finalBase, hitWeight * (1 - critChance));
+        pushSample(obstacleId, finalCrit, hitWeight * critChance);
 
-    const finalBase = finaliseObstacleDamage(adjustedBase, baseReduction, statsMode, adventurer);
-    const finalCrit = finaliseObstacleDamage(adjustedCrit, baseReduction, statsMode, adventurer);
-    const finalBaseMax = finaliseObstacleDamage(adjustedBaseMax, baseReduction, statsMode, adventurer);
-    const finalCritMax = finaliseObstacleDamage(adjustedCritMax, baseReduction, statsMode, adventurer);
-
-    pushSample(obstacleId, finalBase, baseWeight);
-    pushSample(obstacleId, finalCrit, critWeight);
-    pushSample(obstacleId, finalBaseMax, baseWeight);
-    pushSample(obstacleId, finalCritMax, critWeight);
-
-    minBase = Math.min(minBase, finalBase);
-    minCrit = Math.min(minCrit, finalCrit);
-    maxBase = Math.max(maxBase, finalBaseMax);
-    maxCrit = Math.max(maxCrit, finalCritMax);
+        minBase = Math.min(minBase, finalBase);
+        maxBase = Math.max(maxBase, finalBase);
+        minCrit = Math.min(minCrit, finalCrit);
+        maxCrit = Math.max(maxCrit, finalCrit);
+      }
+    }
   }
 
   if (!Number.isFinite(minBase)) {
@@ -523,29 +511,6 @@ const computeObstacleSlotSummary = (
   }
 
   const distribution = buildDamageDistribution(samples);
-  let threat:
-    | {
-        id: number;
-        damage: number;
-        slot: keyof Equipment;
-        chance: number;
-      }
-    | undefined;
-
-  if (totalWeight > 0) {
-    const threshold = 0.01;
-    for (const candidate of candidates) {
-      const chance = candidate.weight / totalWeight;
-      if (chance > threshold && (!threat || candidate.damage > threat.damage || (candidate.damage === threat.damage && chance > threat.chance))) {
-        threat = {
-          id: candidate.id,
-          damage: candidate.damage,
-          slot,
-          chance,
-        };
-      }
-    }
-  }
 
   return {
     summary: {
@@ -559,7 +524,6 @@ const computeObstacleSlotSummary = (
       maxCrit,
       distribution,
     },
-    threat,
     samples,
   };
 };
@@ -567,7 +531,8 @@ const computeObstacleSlotSummary = (
 const computeBeastRisk = (
   adventurer: Adventurer,
   levelRange: { min: number; max: number },
-  gameSettings: Settings,
+  _gameSettings: Settings,
+  isAmbush: boolean,
 ): BeastRiskSummary => {
   const tierCounts = { T1: 0, T2: 0, T3: 0, T4: 0, T5: 0 } as Record<'T1' | 'T2' | 'T3' | 'T4' | 'T5', number>;
   const typeCounts = { Magic: 0, Blade: 0, Bludgeon: 0 } as Record<'Magic' | 'Blade' | 'Bludgeon', number>;
@@ -579,34 +544,25 @@ const computeBeastRisk = (
     typeCounts[type] += 1;
   }
 
-  const baseReduction = gameSettings.base_damage_reduction ?? 0;
   const slotSummaries: SlotDamageSummary[] = [];
   const aggregatedSamples: WeightedSample[] = [];
-  let worstThreat: BeastRiskSummary['highestThreat'];
 
   for (const slot of SLOT_ORDER) {
-    const { summary, threat, samples } = computeBeastSlotSummary(slot, adventurer, levelRange, baseReduction, gameSettings.stats_mode);
+    const { summary, samples } = computeBeastSlotSummary(
+      slot,
+      adventurer,
+      levelRange,
+      isAmbush,
+    );
     slotSummaries.push(summary);
     aggregatedSamples.push(...samples);
-
-    if (threat && threat.chance > 0.01 && (!worstThreat || threat.damage > worstThreat.damage)) {
-      const beastName = BEAST_NAMES[threat.id] || 'Beast';
-      worstThreat = {
-        beastId: threat.id,
-        name: beastName,
-        slot: threat.slot,
-        damage: threat.damage,
-        chance: threat.chance,
-      };
-    }
   }
 
-  const avoidChance = ability_based_percentage(adventurer.xp, adventurer.stats.wisdom);
-  const ambushChance = gameSettings.stats_mode === 'Dodge'
-    ? Math.max(0, 100 - avoidChance)
-    : 100;
-  const critChance = Math.min(100, calculateLevel(adventurer.xp));
+  const ambushChance = isAmbush ? 100 : 0;
+  const adventurerLevel = Math.max(1, calculateLevel(adventurer.xp));
+  const critChance = Number((getBeastCriticalChance(adventurerLevel, isAmbush) * 100).toFixed(2));
   const damageDistribution = buildDamageDistribution(aggregatedSamples);
+  const medianDamage = computeMedianDamage(aggregatedSamples);
 
   return {
     ambushChance,
@@ -615,14 +571,14 @@ const computeBeastRisk = (
     typeDistribution: Object.fromEntries(Object.entries(typeCounts).map(([key, value]) => [key, Number(((value / BEAST_IDS.length) * 100).toFixed(2))])) as BeastRiskSummary['typeDistribution'],
     slotDamages: slotSummaries,
     damageDistribution,
-    highestThreat: worstThreat,
+    medianDamage,
   };
 };
 
 const computeObstacleRisk = (
   adventurer: Adventurer,
   levelRange: { min: number; max: number },
-  gameSettings: Settings,
+  _gameSettings: Settings,
 ): ObstacleRiskSummary => {
   const tierCounts = { T1: 0, T2: 0, T3: 0, T4: 0, T5: 0 } as Record<'T1' | 'T2' | 'T3' | 'T4' | 'T5', number>;
   const typeCounts = { Magic: 0, Blade: 0, Bludgeon: 0 } as Record<'Magic' | 'Blade' | 'Bludgeon', number>;
@@ -634,42 +590,34 @@ const computeObstacleRisk = (
     typeCounts[type] += 1;
   }
 
-  const baseReduction = gameSettings.base_damage_reduction ?? 0;
   const slotSummaries: SlotDamageSummary[] = [];
   const aggregatedSamples: WeightedSample[] = [];
-  let worstThreat: ObstacleRiskSummary['highestThreat'];
+  const dodgeProbability = 0;
 
   for (const slot of SLOT_ORDER) {
-    const { summary, threat, samples } = computeObstacleSlotSummary(slot, adventurer, levelRange, baseReduction, gameSettings.stats_mode);
+    const { summary, samples } = computeObstacleSlotSummary(
+      slot,
+      adventurer,
+      levelRange,
+      dodgeProbability,
+    );
     slotSummaries.push(summary);
     aggregatedSamples.push(...samples);
-
-    if (threat && threat.chance > 0.01 && (!worstThreat || threat.damage > worstThreat.damage)) {
-      const obstacleName = OBSTACLE_NAMES[threat.id as keyof typeof OBSTACLE_NAMES] || 'Obstacle';
-      worstThreat = {
-        obstacleId: threat.id,
-        name: obstacleName,
-        slot: threat.slot,
-        damage: threat.damage,
-        chance: threat.chance,
-      };
-    }
   }
 
-  const dodgeChance = gameSettings.stats_mode === 'Dodge'
-    ? ability_based_percentage(adventurer.xp, adventurer.stats.intelligence)
-    : 0;
-  const critChance = Math.min(100, calculateLevel(adventurer.xp));
+  const adventurerLevel = Math.max(1, calculateLevel(adventurer.xp));
+  const critChance = Number((getObstacleCriticalChance(adventurerLevel) * 100).toFixed(2));
   const damageDistribution = buildDamageDistribution(aggregatedSamples);
+  const medianDamage = computeMedianDamage(aggregatedSamples);
 
   return {
-    dodgeChance,
+    dodgeChance: 0,
     critChance,
     tierDistribution: Object.fromEntries(Object.entries(tierCounts).map(([key, value]) => [key, Number(((value / OBSTACLE_IDS.length) * 100).toFixed(2))])) as ObstacleRiskSummary['tierDistribution'],
     typeDistribution: Object.fromEntries(Object.entries(typeCounts).map(([key, value]) => [key, Number(((value / OBSTACLE_IDS.length) * 100).toFixed(2))])) as ObstacleRiskSummary['typeDistribution'],
     slotDamages: slotSummaries,
     damageDistribution,
-    highestThreat: worstThreat,
+    medianDamage,
   };
 };
 
@@ -729,6 +677,7 @@ export const getExplorationInsights = (
         typeDistribution: { Magic: 0, Blade: 0, Bludgeon: 0 },
         slotDamages: SLOT_ORDER.map(makeEmptySlotSummary),
         damageDistribution: [],
+        medianDamage: 0,
       },
       obstacles: {
         dodgeChance: 0,
@@ -737,6 +686,7 @@ export const getExplorationInsights = (
         typeDistribution: { Magic: 0, Blade: 0, Bludgeon: 0 },
         slotDamages: SLOT_ORDER.map(makeEmptySlotSummary),
         damageDistribution: [],
+        medianDamage: 0,
       },
       discoveries: {
         goldChance: 0,
@@ -752,7 +702,7 @@ export const getExplorationInsights = (
   const levelRange = getEncounterLevelRange(adventurerLevel);
 
   const encounterDistribution = computeEncounterDistribution();
-  const beasts = computeBeastRisk(adventurer, levelRange, gameSettings);
+  const beasts = computeBeastRisk(adventurer, levelRange, gameSettings, true);
   const obstacles = computeObstacleRisk(adventurer, levelRange, gameSettings);
   const discoveries = computeDiscoveries(adventurer);
 

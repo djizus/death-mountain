@@ -298,12 +298,11 @@ export default function MarketOverlay() {
       );
     }
 
-    const topBuckets = distribution.slice(0, 6);
-    const maxPercentage = Math.max(...topBuckets.map(bucket => bucket.percentage), 1);
+    const maxPercentage = Math.max(...distribution.map(bucket => bucket.percentage), 1);
 
     return (
       <Box sx={styles.distributionList}>
-        {topBuckets.map(bucket => (
+        {distribution.map(bucket => (
           <Box key={bucket.label} sx={styles.distributionItem}>
             <Typography sx={styles.distributionItemLabel}>{bucket.label}</Typography>
             <Box sx={styles.distributionBarTrack}>
@@ -342,11 +341,9 @@ export default function MarketOverlay() {
         <Typography sx={styles.sectionTitle}>Ambush Risk</Typography>
         <Typography sx={styles.subSectionTitle}>Overall damage mix</Typography>
         {renderDistributionList(beasts.damageDistribution)}
-        {beasts.highestThreat && (
-          <Typography sx={styles.sectionNote}>
-            Worst hit: {beasts.highestThreat.name} hit your {beasts.highestThreat.slot} for {Math.round(beasts.highestThreat.damage)} dmg (~{(beasts.highestThreat.chance * 100).toFixed(1)}% chance).
-          </Typography>
-        )}
+        <Typography sx={styles.sectionNote}>
+          Median hit: {Math.round(beasts.medianDamage)} dmg.
+        </Typography>
         <Box sx={styles.slotSection}>
           <Typography sx={styles.subSectionTitle}>Damage by slot</Typography>
           <ToggleButtonGroup
@@ -372,11 +369,9 @@ export default function MarketOverlay() {
         <Typography sx={styles.sectionTitle}>Trap Impact</Typography>
         <Typography sx={styles.subSectionTitle}>Overall damage mix</Typography>
         {renderDistributionList(obstacles.damageDistribution)}
-        {obstacles.highestThreat && (
-          <Typography sx={styles.sectionNote}>
-            Worst hit: {obstacles.highestThreat.name} hit your {obstacles.highestThreat.slot} for {Math.round(obstacles.highestThreat.damage)} dmg (~{(obstacles.highestThreat.chance * 100).toFixed(1)}% chance).
-          </Typography>
-        )}
+        <Typography sx={styles.sectionNote}>
+          Median hit: {Math.round(obstacles.medianDamage)} dmg.
+        </Typography>
         <Box sx={styles.slotSection}>
           <Typography sx={styles.subSectionTitle}>Damage by slot</Typography>
           <ToggleButtonGroup
