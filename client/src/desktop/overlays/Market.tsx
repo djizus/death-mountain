@@ -6,7 +6,7 @@ import { calculateLevel } from '@/utils/game';
 import { ItemUtils, slotIcons, typeIcons, Tier } from '@/utils/loot';
 import { MarketItem, generateMarketItems, potionPrice } from '@/utils/market';
 import { getEventIcon, getEventTitle } from '@/utils/events';
-import { getExplorationInsights, type SlotDamageSummary } from '@/utils/exploration';
+import { getExplorationInsights, type DamageBucket } from '@/utils/exploration';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
 import { Box, Button, IconButton, Modal, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
@@ -250,43 +250,35 @@ export default function MarketOverlay() {
 
   const explorationInsights = useMemo(() => getExplorationInsights(adventurer ?? null, gameSettings ?? null), [adventurer, gameSettings]);
 
-  const formatRange = useCallback((min: number, max: number) => {
-    if (min === max) {
-      return `${min}`;
+  const renderDistributionList = useCallback((distribution: DamageBucket[]) => {
+    if (!distribution.length) {
+      return (
+        <Typography sx={styles.distributionEmpty}>Not enough data yet.</Typography>
+      );
     }
-    return `${min} – ${max}`;
-  }, []);
 
-  const renderDistributionChips = useCallback((data: Record<string, number>) => (
-    <Box sx={styles.distributionRow}>
-      {Object.entries(data).map(([label, value]) => (
-        <Box key={label} sx={styles.distributionChip}>
-          <Typography sx={styles.distributionLabel}>{label}</Typography>
-          <Typography sx={styles.distributionValue}>{value.toFixed(2)}%</Typography>
-        </Box>
-      ))}
-    </Box>
-  ), []);
+    const topBuckets = distribution.slice(0, 6);
+    const maxPercentage = Math.max(...topBuckets.map(bucket => bucket.percentage), 1);
 
-  const renderDamageTable = useCallback((title: string, rows: SlotDamageSummary[]) => (
-    <Box sx={styles.tableContainer}>
-      <Typography sx={styles.tableTitle}>{title}</Typography>
-      <Box sx={styles.tableHeader}>
-        <Typography sx={styles.tableHeaderCellSlot}>Slot</Typography>
-        <Typography sx={styles.tableHeaderCell}>Base Damage</Typography>
-        <Typography sx={styles.tableHeaderCell}>Critical Damage</Typography>
-        <Typography sx={styles.tableHeaderCell}>Armor</Typography>
+    return (
+      <Box sx={styles.distributionList}>
+        {topBuckets.map(bucket => (
+          <Box key={bucket.label} sx={styles.distributionItem}>
+            <Typography sx={styles.distributionItemLabel}>{bucket.label}</Typography>
+            <Box sx={styles.distributionBarTrack}>
+              <Box
+                sx={{
+                  ...styles.distributionBarFill,
+                  width: `${Math.max((bucket.percentage / maxPercentage) * 100, 4)}%`,
+                }}
+              />
+            </Box>
+            <Typography sx={styles.distributionItemValue}>{bucket.percentage.toFixed(1)}%</Typography>
+          </Box>
+        ))}
       </Box>
-      {rows.map((row) => (
-        <Box key={row.slot} sx={styles.tableRow}>
-          <Typography sx={styles.tableCellSlot}>{row.slotLabel}</Typography>
-          <Typography sx={styles.tableCell}>{formatRange(row.minBase, row.maxBase)}</Typography>
-          <Typography sx={styles.tableCell}>{formatRange(row.minCrit, row.maxCrit)}</Typography>
-          <Typography sx={styles.tableCell}>{row.armorName || 'None'}</Typography>
-        </Box>
-      ))}
-    </Box>
-  ), [formatRange]);
+    );
+  }, []);
 
   const explorationSection = useMemo(() => {
     if (!explorationInsights.ready) {
@@ -300,90 +292,78 @@ export default function MarketOverlay() {
       );
     }
 
-    return (
-      <Box sx={styles.exploringContent}>
-        <Box sx={styles.exploringCard}>
-          <Typography sx={styles.sectionTitle}>Encounter Mix</Typography>
-          <Box sx={styles.probabilityRow}>
-            {[{ label: 'Beast', value: explorationInsights.encounterDistribution.baseMix.beast }, { label: 'Obstacle', value: explorationInsights.encounterDistribution.baseMix.obstacle }, { label: 'Discovery', value: explorationInsights.encounterDistribution.baseMix.discovery }].map(probability => (
-              <Box key={probability.label} sx={styles.probabilityCard}>
-                <Typography sx={styles.probabilityLabel}>{probability.label}</Typography>
-                <Typography sx={styles.probabilityValue}>{probability.value.toFixed(2)}%</Typography>
-              </Box>
-            ))}
-          </Box>
+    const { beasts, obstacles, discoveries } = explorationInsights;
 
-          <Box sx={styles.subSection}>
-            <Typography sx={styles.subSectionTitle}>Beast tiers</Typography>
-            {renderDistributionChips(explorationInsights.encounterDistribution.beastByTier)}
-            <Typography sx={styles.subSectionTitle}>Beast damage types</Typography>
-            {renderDistributionChips(explorationInsights.encounterDistribution.beastByType)}
-          </Box>
-
-          <Box sx={styles.subSection}>
-            <Typography sx={styles.subSectionTitle}>Trap tiers</Typography>
-            {renderDistributionChips(explorationInsights.encounterDistribution.obstacleByTier)}
-            <Typography sx={styles.subSectionTitle}>Trap damage types</Typography>
-            {renderDistributionChips(explorationInsights.encounterDistribution.obstacleByType)}
-          </Box>
+    const ambushCard = (
+      <Box sx={styles.exploringCard}>
+        <Typography sx={styles.sectionTitle}>Ambush Risk</Typography>
+        <Box sx={styles.metricRow}>
+          <Typography sx={styles.metricLabel}>Ambush chance</Typography>
+          <Typography sx={styles.metricValue}>{beasts.ambushChance.toFixed(1)}%</Typography>
         </Box>
-
-        <Box sx={styles.exploringCard}>
-          <Typography sx={styles.sectionTitle}>Beast Ambush Risk</Typography>
-          <Box sx={styles.metricRow}>
-            <Typography sx={styles.metricLabel}>Ambush chance</Typography>
-            <Typography sx={styles.metricValue}>{explorationInsights.beasts.ambushChance.toFixed(2)}%</Typography>
-          </Box>
-          <Box sx={styles.metricRow}>
-            <Typography sx={styles.metricLabel}>Critical chance</Typography>
-            <Typography sx={styles.metricValue}>{explorationInsights.beasts.critChance.toFixed(2)}%</Typography>
-          </Box>
-          {renderDamageTable('Potential damage by slot', explorationInsights.beasts.slotDamages)}
-          {explorationInsights.beasts.highestThreat && (
-            <Typography sx={styles.sectionNote}>
-              Highest spike: {explorationInsights.beasts.highestThreat.name} hitting your {explorationInsights.beasts.highestThreat.slot} for up to {explorationInsights.beasts.highestThreat.damage} damage.
-            </Typography>
-          )}
+        <Box sx={styles.metricRow}>
+          <Typography sx={styles.metricLabel}>Crit chance</Typography>
+          <Typography sx={styles.metricValue}>{beasts.critChance.toFixed(1)}%</Typography>
         </Box>
+        <Typography sx={styles.subSectionTitle}>Damage distribution</Typography>
+        {renderDistributionList(beasts.damageDistribution)}
+        {beasts.highestThreat && (
+          <Typography sx={styles.sectionNote}>
+            Worst hit: {beasts.highestThreat.name} hit your {beasts.highestThreat.slot} for {Math.round(beasts.highestThreat.damage)} dmg.
+          </Typography>
+        )}
+      </Box>
+    );
 
-        <Box sx={styles.exploringCard}>
-          <Typography sx={styles.sectionTitle}>Trap Impact</Typography>
-          <Box sx={styles.metricRow}>
-            <Typography sx={styles.metricLabel}>Dodge chance</Typography>
-            <Typography sx={styles.metricValue}>{explorationInsights.obstacles.dodgeChance.toFixed(2)}%</Typography>
-          </Box>
-          <Box sx={styles.metricRow}>
-            <Typography sx={styles.metricLabel}>Critical chance</Typography>
-            <Typography sx={styles.metricValue}>{explorationInsights.obstacles.critChance.toFixed(2)}%</Typography>
-          </Box>
-          {renderDamageTable('Trap damage by slot', explorationInsights.obstacles.slotDamages)}
-          {explorationInsights.obstacles.highestThreat && (
-            <Typography sx={styles.sectionNote}>
-              Highest spike: {explorationInsights.obstacles.highestThreat.name} targeting your {explorationInsights.obstacles.highestThreat.slot} for up to {explorationInsights.obstacles.highestThreat.damage} damage.
-            </Typography>
-          )}
+    const trapCard = (
+      <Box sx={styles.exploringCard}>
+        <Typography sx={styles.sectionTitle}>Trap Impact</Typography>
+        <Box sx={styles.metricRow}>
+          <Typography sx={styles.metricLabel}>Dodge chance</Typography>
+          <Typography sx={styles.metricValue}>{obstacles.dodgeChance.toFixed(1)}%</Typography>
         </Box>
+        <Box sx={styles.metricRow}>
+          <Typography sx={styles.metricLabel}>Crit chance</Typography>
+          <Typography sx={styles.metricValue}>{obstacles.critChance.toFixed(1)}%</Typography>
+        </Box>
+        <Typography sx={styles.subSectionTitle}>Damage distribution</Typography>
+        {renderDistributionList(obstacles.damageDistribution)}
+        {obstacles.highestThreat && (
+          <Typography sx={styles.sectionNote}>
+            Worst hit: {obstacles.highestThreat.name} hit your {obstacles.highestThreat.slot} for {Math.round(obstacles.highestThreat.damage)} dmg.
+          </Typography>
+        )}
+      </Box>
+    );
 
-        <Box sx={styles.exploringCard}>
-          <Typography sx={styles.sectionTitle}>Discovery Outcomes</Typography>
-          <Box sx={styles.discoveryRow}>
-            <Box sx={styles.discoveryCard}>
-              <Typography sx={styles.discoveryLabel}>Gold ({explorationInsights.discoveries.goldChance}%)</Typography>
-              <Typography sx={styles.discoveryValue}>+{explorationInsights.discoveries.goldRange.min} to +{explorationInsights.discoveries.goldRange.max}</Typography>
-            </Box>
-            <Box sx={styles.discoveryCard}>
-              <Typography sx={styles.discoveryLabel}>Health ({explorationInsights.discoveries.healthChance}%)</Typography>
-              <Typography sx={styles.discoveryValue}>+{explorationInsights.discoveries.healthRange.min} to +{explorationInsights.discoveries.healthRange.max}</Typography>
-            </Box>
-            <Box sx={styles.discoveryCard}>
-              <Typography sx={styles.discoveryLabel}>Loot ({explorationInsights.discoveries.lootChance}%)</Typography>
-              <Typography sx={styles.discoveryValue}>Random equipment drop</Typography>
-            </Box>
+    const discoveryCard = (
+      <Box sx={styles.exploringCard}>
+        <Typography sx={styles.sectionTitle}>Discovery Outcomes</Typography>
+        <Box sx={styles.discoveryRow}>
+          <Box sx={styles.discoveryCard}>
+            <Typography sx={styles.discoveryLabel}>Gold ({discoveries.goldChance}%)</Typography>
+            <Typography sx={styles.discoveryValue}>+{discoveries.goldRange.min} to +{discoveries.goldRange.max}</Typography>
+          </Box>
+          <Box sx={styles.discoveryCard}>
+            <Typography sx={styles.discoveryLabel}>Health ({discoveries.healthChance}%)</Typography>
+            <Typography sx={styles.discoveryValue}>+{discoveries.healthRange.min} to +{discoveries.healthRange.max}</Typography>
+          </Box>
+          <Box sx={styles.discoveryCard}>
+            <Typography sx={styles.discoveryLabel}>Loot ({discoveries.lootChance}%)</Typography>
+            <Typography sx={styles.discoveryValue}>Random equipment drop</Typography>
           </Box>
         </Box>
       </Box>
     );
-  }, [explorationInsights, renderDamageTable, renderDistributionChips]);
+
+    return (
+      <Box sx={styles.exploringContent}>
+        {ambushCard}
+        {trapCard}
+        {discoveryCard}
+      </Box>
+    );
+  }, [explorationInsights, renderDistributionList]);
 
   const eventLogSection = useMemo(() => (
     <Box sx={styles.eventLogContainer}>
@@ -493,7 +473,7 @@ export default function MarketOverlay() {
           aria-label="market sections"
           sx={styles.tabs}>
           <Tab value="market" label="Market" sx={styles.tab} />
-          <Tab value="exploring" label="Exploring" sx={styles.tab} />
+          <Tab value="exploring" label="Exploration" sx={styles.tab} />
           <Tab value="events" label="Event Log" sx={styles.tab} />
         </Tabs>
       </Box>
@@ -916,42 +896,14 @@ const styles = {
     minHeight: 0,
     overflowY: 'auto',
   },
-  probabilityRow: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '8px',
-  },
-  probabilityCard: {
-    flex: '1 1 120px',
-    background: 'rgba(24, 40, 24, 0.75)',
-    border: '1px solid rgba(215, 198, 41, 0.25)',
-    borderRadius: '8px',
-    padding: '8px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '4px',
-  },
-  probabilityLabel: {
-    color: '#d0c98d',
-    fontSize: '0.72rem',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    fontFamily: 'Cinzel, Georgia, serif',
-  },
-  probabilityValue: {
-    color: '#d7c529',
-    fontSize: '1.08rem',
-    fontWeight: 600,
-  },
   exploringCard: {
     background: 'rgba(24, 40, 24, 0.85)',
     border: '1px solid rgba(215, 198, 41, 0.25)',
     borderRadius: '10px',
-    padding: '12px',
+    padding: '10px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
+    gap: '10px',
   },
   sectionTitle: {
     color: '#d0c98d',
@@ -975,31 +927,44 @@ const styles = {
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
   },
-  distributionRow: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '6px',
-  },
-  distributionChip: {
-    padding: '6px 8px',
-    borderRadius: '6px',
-    border: '1px solid rgba(215, 198, 41, 0.2)',
-    background: 'rgba(24, 40, 24, 0.5)',
-    minWidth: '80px',
+  distributionList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '2px',
+    gap: '6px',
   },
-  distributionLabel: {
-    color: 'rgba(208, 201, 141, 0.75)',
+  distributionItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  distributionItemLabel: {
+    width: '72px',
+    color: 'rgba(208, 201, 141, 0.85)',
     fontSize: '0.68rem',
     textTransform: 'uppercase',
     letterSpacing: '0.4px',
   },
-  distributionValue: {
+  distributionBarTrack: {
+    flex: 1,
+    height: '8px',
+    borderRadius: '4px',
+    background: 'rgba(215, 198, 41, 0.12)',
+    overflow: 'hidden',
+  },
+  distributionBarFill: {
+    height: '100%',
+    borderRadius: '4px',
+    background: 'linear-gradient(90deg, rgba(215, 197, 41, 0.9), rgba(215, 197, 41, 0.4))',
+  },
+  distributionItemValue: {
+    width: '52px',
+    textAlign: 'right',
     color: '#f2edd0',
-    fontSize: '0.86rem',
-    fontWeight: 600,
+    fontSize: '0.68rem',
+  },
+  distributionEmpty: {
+    color: '#7f8572',
+    fontSize: '0.72rem',
   },
   metricRow: {
     display: 'flex',
@@ -1020,54 +985,6 @@ const styles = {
   sectionNote: {
     color: '#d0c98d',
     fontSize: '0.76rem',
-  },
-  tableContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-  },
-  tableTitle: {
-    color: '#d0c98d',
-    fontSize: '0.74rem',
-    textTransform: 'uppercase',
-    letterSpacing: '0.4px',
-  },
-  tableHeader: {
-    display: 'flex',
-    padding: '6px 8px',
-    borderRadius: '6px',
-    background: 'rgba(13, 40, 20, 0.6)',
-    border: '1px solid rgba(13, 80, 40, 0.35)',
-  },
-  tableHeaderCellSlot: {
-    flex: '0 0 70px',
-    color: 'rgba(208, 201, 141, 0.75)',
-    fontSize: '0.7rem',
-    textTransform: 'uppercase',
-  },
-  tableHeaderCell: {
-    flex: 1,
-    color: 'rgba(208, 201, 141, 0.75)',
-    fontSize: '0.7rem',
-    textTransform: 'uppercase',
-  },
-  tableRow: {
-    display: 'flex',
-    padding: '6px 8px',
-    borderRadius: '6px',
-    background: 'rgba(24, 40, 24, 0.5)',
-    border: '1px solid rgba(13, 80, 40, 0.2)',
-  },
-  tableCellSlot: {
-    flex: '0 0 70px',
-    color: '#f2edd0',
-    fontSize: '0.8rem',
-    fontWeight: 600,
-  },
-  tableCell: {
-    flex: 1,
-    color: '#f2edd0',
-    fontSize: '0.8rem',
   },
   discoveryRow: {
     display: 'flex',
