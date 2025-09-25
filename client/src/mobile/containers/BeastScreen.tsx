@@ -56,11 +56,6 @@ export default function BeastScreen() {
     onComplete: () => {
       setHealth(prev => Math.max(0, prev - battleEvent?.attack?.damage!));
       beastStrike.stop();
-      setEquipInProgress(false);
-      if (!untilDeath) {
-        setAttackInProgress(false);
-        setFleeInProgress(false);
-      }
     }
   });
 
@@ -105,6 +100,15 @@ export default function BeastScreen() {
       setCombatLog("");
     }
   }, [actionFailed]);
+
+  useEffect(() => {
+    setEquipInProgress(false);
+
+    if (!untilDeath) {
+      setAttackInProgress(false);
+      setFleeInProgress(false);
+    }
+  }, [adventurer!.action_count]);
 
   const handleAttack = () => {
     setShowBeastRewards(true);
