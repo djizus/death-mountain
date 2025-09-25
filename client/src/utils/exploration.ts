@@ -8,7 +8,7 @@ import type { Settings } from "@/dojo/useGameSettings";
 
 const BEAST_IDS = Array.from({ length: 75 }, (_, index) => index + 1);
 const OBSTACLE_IDS = Array.from({ length: 75 }, (_, index) => index + 1);
-const SLOT_ORDER: Array<keyof Equipment> = ['chest', 'head', 'waist', 'hand', 'foot'];
+const SLOT_ORDER: Array<keyof Equipment> = ['hand', 'head', 'chest', 'waist', 'foot'];
 const MIN_DAMAGE_FROM_BEASTS = 2;
 const MIN_DAMAGE_FROM_OBSTACLES = 4;
 const NECKLACE_ARMOR_BONUS = 3;
@@ -168,37 +168,62 @@ const buildDamageDistribution = (samples: WeightedSample[], maxBuckets = 6): Dam
 
   for (const { value, weight } of samples) {
     if (weight <= 0) continue;
-    const damage = Math.round(value);
-    totals.set(damage, (totals.get(damage) ?? 0) + weight);
+    const damage = Math.max(0, Math.round(value));
+    const current = totals.get(damage) ?? 0;
+    totals.set(damage, current + weight);
     totalWeight += weight;
   }
 
-  if (totalWeight === 0) return [];
-
-  const buckets = Array.from(totals.entries())
-    .map(([damage, weight]) => ({
-      start: damage,
-      end: damage,
-      percentage: Number(((weight / totalWeight) * 100).toFixed(2)),
-      label: `${damage} dmg`,
-      weight,
-    }))
-    .sort((a, b) => b.weight - a.weight || a.start - b.start);
-
-  if (buckets.length > maxBuckets) {
-    const top = buckets.slice(0, maxBuckets - 1);
-    const remainingWeight = buckets.slice(maxBuckets - 1).reduce((sum, bucket) => sum + bucket.weight, 0);
-    top.push({
-      start: top[top.length - 1].start,
-      end: top[top.length - 1].end,
-      percentage: Number(((remainingWeight / totalWeight) * 100).toFixed(2)),
-      label: 'Other',
-      weight: remainingWeight,
-    });
-    return top.map(({ weight, ...rest }) => rest);
+  if (totalWeight === 0 || totals.size === 0) {
+    return [];
   }
 
-  return buckets.map(({ weight, ...rest }) => rest);
+  const sortedEntries = Array.from(totals.entries()).sort((a, b) => a[0] - b[0]);
+  const minDamage = sortedEntries[0][0];
+  const maxDamage = sortedEntries[sortedEntries.length - 1][0];
+
+  if (minDamage === maxDamage) {
+    return [{
+      start: minDamage,
+      end: maxDamage,
+      percentage: 100,
+      label: `${minDamage}`,
+    }];
+  }
+
+  const bucketSize = Math.max(1, Math.ceil((maxDamage - minDamage + 1) / maxBuckets));
+  const bucketWeights = new Map<number, number>();
+
+  for (const [damage, weight] of sortedEntries) {
+    const bucketIndex = Math.min(
+      Math.floor((damage - minDamage) / bucketSize),
+      maxBuckets - 1,
+    );
+    const existing = bucketWeights.get(bucketIndex) ?? 0;
+    bucketWeights.set(bucketIndex, existing + weight);
+  }
+
+  const buckets: DamageBucket[] = [];
+
+  const bucketIndices = Array.from(bucketWeights.keys()).sort((a, b) => a - b);
+  for (const bucketIndex of bucketIndices) {
+    const bucketStart = minDamage + bucketIndex * bucketSize;
+    const bucketEnd = Math.min(bucketStart + bucketSize - 1, maxDamage);
+    const weight = bucketWeights.get(bucketIndex) ?? 0;
+    const percentage = Number(((weight / totalWeight) * 100).toFixed(2));
+    const label = bucketStart === bucketEnd
+      ? `${bucketStart}`
+      : `${bucketStart}-${bucketEnd}`;
+
+    buckets.push({
+      start: bucketStart,
+      end: bucketEnd,
+      percentage,
+      label,
+    });
+  }
+
+  return buckets;
 };
 
 export interface SlotDamageSummary {
@@ -225,6 +250,7 @@ export interface BeastRiskSummary {
     name: string;
     slot: keyof Equipment;
     damage: number;
+    chance: number;
   };
 }
 
@@ -240,6 +266,7 @@ export interface ObstacleRiskSummary {
     name: string;
     slot: keyof Equipment;
     damage: number;
+    chance: number;
   };
 }
 
@@ -285,7 +312,11 @@ const computeBeastSlotSummary = (
   levelRange: { min: number; max: number },
   baseReduction: number,
   statsMode: Settings['stats_mode'],
-): { summary: SlotDamageSummary; threat?: { id: number; damage: number; slot: keyof Equipment }; samples: WeightedSample[] } => {
+): {
+  summary: SlotDamageSummary;
+  threat?: { id: number; damage: number; slot: keyof Equipment; chance: number };
+  samples: WeightedSample[];
+} => {
   const armor = ensureItem(adventurer.equipment[slot]);
   const armorName = armor.id ? ItemUtils.getItemName(armor.id) : 'None';
   const armorLevel = calculateLevel(armor.xp);
@@ -297,12 +328,21 @@ const computeBeastSlotSummary = (
   let maxBase = 0;
   let minCrit = Number.POSITIVE_INFINITY;
   let maxCrit = 0;
-  let worst: { id: number; damage: number; slot: keyof Equipment } | undefined;
   const samples: WeightedSample[] = [];
   const critProbability = Math.min(100, calculateLevel(adventurer.xp)) / 100;
   const baseProbability = Math.max(0, 1 - critProbability);
   const baseWeight = Math.max(baseProbability, 0.0001);
   const critWeight = Math.max(critProbability, 0.0001);
+  let totalWeight = 0;
+  const candidates: Array<{ id: number; damage: number; weight: number }> = [];
+
+  const pushSample = (id: number, value: number, weight: number) => {
+    const safeWeight = Math.max(weight, 0);
+    if (safeWeight <= 0) return;
+    samples.push({ value, weight: safeWeight });
+    candidates.push({ id, damage: value, weight: safeWeight });
+    totalWeight += safeWeight;
+  };
 
   for (const beastId of BEAST_IDS) {
     const tier = BEAST_TIER_MAP[beastId];
@@ -343,19 +383,15 @@ const computeBeastSlotSummary = (
     const maxDamage = finaliseBeastDamage(maxDamageDetails.baseDamage, baseReduction, statsMode, adventurer);
     const maxCritDamage = finaliseBeastDamage(maxDamageDetails.criticalDamage, baseReduction, statsMode, adventurer);
 
-    samples.push({ value: baseDamage, weight: baseWeight });
-    samples.push({ value: baseCrit, weight: critWeight });
-    samples.push({ value: maxDamage, weight: baseWeight });
-    samples.push({ value: maxCritDamage, weight: critWeight });
+    pushSample(beastId, baseDamage, baseWeight);
+    pushSample(beastId, baseCrit, critWeight);
+    pushSample(beastId, maxDamage, baseWeight);
+    pushSample(beastId, maxCritDamage, critWeight);
 
     minBase = Math.min(minBase, baseDamage);
     minCrit = Math.min(minCrit, baseCrit);
     maxBase = Math.max(maxBase, maxDamage);
     maxCrit = Math.max(maxCrit, maxCritDamage);
-
-    if (!worst || maxDamage > worst.damage) {
-      worst = { id: beastId, damage: maxDamage, slot };
-    }
   }
 
   if (!Number.isFinite(minBase)) {
@@ -364,6 +400,29 @@ const computeBeastSlotSummary = (
   }
 
   const distribution = buildDamageDistribution(samples);
+  let threat:
+    | {
+        id: number;
+        damage: number;
+        slot: keyof Equipment;
+        chance: number;
+      }
+    | undefined;
+
+  if (totalWeight > 0) {
+    const threshold = 0.01;
+    for (const candidate of candidates) {
+      const chance = candidate.weight / totalWeight;
+      if (chance > threshold && (!threat || candidate.damage > threat.damage || (candidate.damage === threat.damage && chance > threat.chance))) {
+        threat = {
+          id: candidate.id,
+          damage: candidate.damage,
+          slot,
+          chance,
+        };
+      }
+    }
+  }
 
   return {
     summary: {
@@ -377,7 +436,7 @@ const computeBeastSlotSummary = (
       maxCrit,
       distribution,
     },
-    threat: worst,
+    threat,
     samples,
   };
 };
@@ -388,7 +447,11 @@ const computeObstacleSlotSummary = (
   levelRange: { min: number; max: number },
   baseReduction: number,
   statsMode: Settings['stats_mode'],
-): { summary: SlotDamageSummary; threat?: { id: number; damage: number; slot: keyof Equipment }; samples: WeightedSample[] } => {
+): {
+  summary: SlotDamageSummary;
+  threat?: { id: number; damage: number; slot: keyof Equipment; chance: number };
+  samples: WeightedSample[];
+} => {
   const armor = ensureItem(adventurer.equipment[slot]);
   const armorName = armor.id ? ItemUtils.getItemName(armor.id) : 'None';
   const armorLevel = calculateLevel(armor.xp);
@@ -401,12 +464,21 @@ const computeObstacleSlotSummary = (
   let maxBase = 0;
   let minCrit = Number.POSITIVE_INFINITY;
   let maxCrit = 0;
-  let worst: { id: number; damage: number; slot: keyof Equipment } | undefined;
   const samples: WeightedSample[] = [];
   const critProbability = Math.min(100, calculateLevel(adventurer.xp)) / 100;
   const baseProbability = Math.max(0, 1 - critProbability);
   const baseWeight = Math.max(baseProbability, 0.0001);
   const critWeight = Math.max(critProbability, 0.0001);
+  let totalWeight = 0;
+  const candidates: Array<{ id: number; damage: number; weight: number }> = [];
+
+  const pushSample = (id: number, value: number, weight: number) => {
+    const safeWeight = Math.max(weight, 0);
+    if (safeWeight <= 0) return;
+    samples.push({ value, weight: safeWeight });
+    candidates.push({ id, damage: value, weight: safeWeight });
+    totalWeight += safeWeight;
+  };
 
   for (const obstacleId of OBSTACLE_IDS) {
     const tier = OBSTACLE_TIER_MAP[obstacleId];
@@ -434,19 +506,15 @@ const computeObstacleSlotSummary = (
     const finalBaseMax = finaliseObstacleDamage(adjustedBaseMax, baseReduction, statsMode, adventurer);
     const finalCritMax = finaliseObstacleDamage(adjustedCritMax, baseReduction, statsMode, adventurer);
 
-    samples.push({ value: finalBase, weight: baseWeight });
-    samples.push({ value: finalCrit, weight: critWeight });
-    samples.push({ value: finalBaseMax, weight: baseWeight });
-    samples.push({ value: finalCritMax, weight: critWeight });
+    pushSample(obstacleId, finalBase, baseWeight);
+    pushSample(obstacleId, finalCrit, critWeight);
+    pushSample(obstacleId, finalBaseMax, baseWeight);
+    pushSample(obstacleId, finalCritMax, critWeight);
 
     minBase = Math.min(minBase, finalBase);
     minCrit = Math.min(minCrit, finalCrit);
     maxBase = Math.max(maxBase, finalBaseMax);
     maxCrit = Math.max(maxCrit, finalCritMax);
-
-    if (!worst || finalBaseMax > worst.damage) {
-      worst = { id: obstacleId, damage: finalBaseMax, slot };
-    }
   }
 
   if (!Number.isFinite(minBase)) {
@@ -455,6 +523,29 @@ const computeObstacleSlotSummary = (
   }
 
   const distribution = buildDamageDistribution(samples);
+  let threat:
+    | {
+        id: number;
+        damage: number;
+        slot: keyof Equipment;
+        chance: number;
+      }
+    | undefined;
+
+  if (totalWeight > 0) {
+    const threshold = 0.01;
+    for (const candidate of candidates) {
+      const chance = candidate.weight / totalWeight;
+      if (chance > threshold && (!threat || candidate.damage > threat.damage || (candidate.damage === threat.damage && chance > threat.chance))) {
+        threat = {
+          id: candidate.id,
+          damage: candidate.damage,
+          slot,
+          chance,
+        };
+      }
+    }
+  }
 
   return {
     summary: {
@@ -468,7 +559,7 @@ const computeObstacleSlotSummary = (
       maxCrit,
       distribution,
     },
-    threat: worst,
+    threat,
     samples,
   };
 };
@@ -498,13 +589,14 @@ const computeBeastRisk = (
     slotSummaries.push(summary);
     aggregatedSamples.push(...samples);
 
-    if (threat && (!worstThreat || threat.damage > worstThreat.damage)) {
+    if (threat && threat.chance > 0.01 && (!worstThreat || threat.damage > worstThreat.damage)) {
       const beastName = BEAST_NAMES[threat.id] || 'Beast';
       worstThreat = {
         beastId: threat.id,
         name: beastName,
         slot: threat.slot,
         damage: threat.damage,
+        chance: threat.chance,
       };
     }
   }
@@ -552,13 +644,14 @@ const computeObstacleRisk = (
     slotSummaries.push(summary);
     aggregatedSamples.push(...samples);
 
-    if (threat && (!worstThreat || threat.damage > worstThreat.damage)) {
+    if (threat && threat.chance > 0.01 && (!worstThreat || threat.damage > worstThreat.damage)) {
       const obstacleName = OBSTACLE_NAMES[threat.id as keyof typeof OBSTACLE_NAMES] || 'Obstacle';
       worstThreat = {
         obstacleId: threat.id,
         name: obstacleName,
         slot: threat.slot,
         damage: threat.damage,
+        chance: threat.chance,
       };
     }
   }

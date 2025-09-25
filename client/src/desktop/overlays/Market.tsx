@@ -6,7 +6,7 @@ import { calculateLevel } from '@/utils/game';
 import { ItemUtils, slotIcons, typeIcons, Tier } from '@/utils/loot';
 import { MarketItem, generateMarketItems, potionPrice } from '@/utils/market';
 import { getEventIcon, getEventTitle } from '@/utils/events';
-import { getExplorationInsights, type DamageBucket } from '@/utils/exploration';
+import { getExplorationInsights, type DamageBucket, type SlotDamageSummary } from '@/utils/exploration';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
 import { Box, Button, IconButton, Modal, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
@@ -98,10 +98,31 @@ export default function MarketOverlay() {
 
   const [showCart, setShowCart] = useState(false);
   const [activeTab, setActiveTab] = useState<'market' | 'exploring' | 'events'>('market');
+  const [explorationTab, setExplorationTab] = useState<'ambush' | 'trap' | 'discovery'>('ambush');
+  const [ambushSlot, setAmbushSlot] = useState<SlotDamageSummary['slot']>('chest');
+  const [trapSlot, setTrapSlot] = useState<SlotDamageSummary['slot']>('chest');
 
   const handleTabChange = (_: SyntheticEvent, newValue: 'market' | 'exploring' | 'events') => {
     setActiveTab(newValue);
   };
+
+  const handleExplorationTabChange = useCallback((_: SyntheticEvent, newValue: 'ambush' | 'trap' | 'discovery') => {
+    if (newValue) {
+      setExplorationTab(newValue);
+    }
+  }, [setExplorationTab]);
+
+  const handleAmbushSlotChange = useCallback((_: SyntheticEvent, newValue: SlotDamageSummary['slot'] | null) => {
+    if (newValue) {
+      setAmbushSlot(newValue);
+    }
+  }, [setAmbushSlot]);
+
+  const handleTrapSlotChange = useCallback((_: SyntheticEvent, newValue: SlotDamageSummary['slot'] | null) => {
+    if (newValue) {
+      setTrapSlot(newValue);
+    }
+  }, [setTrapSlot]);
 
   useEffect(() => {
     if (activeTab !== 'market') {
@@ -250,6 +271,26 @@ export default function MarketOverlay() {
 
   const explorationInsights = useMemo(() => getExplorationInsights(adventurer ?? null, gameSettings ?? null), [adventurer, gameSettings]);
 
+  useEffect(() => {
+    if (!explorationInsights.ready) return;
+    if (!explorationInsights.beasts.slotDamages.some(slot => slot.slot === ambushSlot)) {
+      const fallback = explorationInsights.beasts.slotDamages[0]?.slot;
+      if (fallback) {
+        setAmbushSlot(fallback);
+      }
+    }
+  }, [ambushSlot, explorationInsights, setAmbushSlot]);
+
+  useEffect(() => {
+    if (!explorationInsights.ready) return;
+    if (!explorationInsights.obstacles.slotDamages.some(slot => slot.slot === trapSlot)) {
+      const fallback = explorationInsights.obstacles.slotDamages[0]?.slot;
+      if (fallback) {
+        setTrapSlot(fallback);
+      }
+    }
+  }, [explorationInsights, setTrapSlot, trapSlot]);
+
   const renderDistributionList = useCallback((distribution: DamageBucket[]) => {
     if (!distribution.length) {
       return (
@@ -293,50 +334,70 @@ export default function MarketOverlay() {
     }
 
     const { beasts, obstacles, discoveries } = explorationInsights;
+    const selectedAmbushSlot = beasts.slotDamages.find(slot => slot.slot === ambushSlot) ?? beasts.slotDamages[0];
+    const selectedTrapSlot = obstacles.slotDamages.find(slot => slot.slot === trapSlot) ?? obstacles.slotDamages[0];
 
-    const ambushCard = (
+    const ambushContent = (
       <Box sx={styles.exploringCard}>
         <Typography sx={styles.sectionTitle}>Ambush Risk</Typography>
-        <Box sx={styles.metricRow}>
-          <Typography sx={styles.metricLabel}>Ambush chance</Typography>
-          <Typography sx={styles.metricValue}>{beasts.ambushChance.toFixed(1)}%</Typography>
-        </Box>
-        <Box sx={styles.metricRow}>
-          <Typography sx={styles.metricLabel}>Crit chance</Typography>
-          <Typography sx={styles.metricValue}>{beasts.critChance.toFixed(1)}%</Typography>
-        </Box>
-        <Typography sx={styles.subSectionTitle}>Damage distribution</Typography>
+        <Typography sx={styles.subSectionTitle}>Overall damage mix</Typography>
         {renderDistributionList(beasts.damageDistribution)}
         {beasts.highestThreat && (
           <Typography sx={styles.sectionNote}>
-            Worst hit: {beasts.highestThreat.name} hit your {beasts.highestThreat.slot} for {Math.round(beasts.highestThreat.damage)} dmg.
+            Worst hit: {beasts.highestThreat.name} hit your {beasts.highestThreat.slot} for {Math.round(beasts.highestThreat.damage)} dmg (~{(beasts.highestThreat.chance * 100).toFixed(1)}% chance).
           </Typography>
         )}
+        <Box sx={styles.slotSection}>
+          <Typography sx={styles.subSectionTitle}>Damage by slot</Typography>
+          <ToggleButtonGroup
+            value={selectedAmbushSlot?.slot ?? null}
+            exclusive
+            onChange={handleAmbushSlotChange}
+            sx={styles.slotToggleGroup}>
+            {beasts.slotDamages.map(slot => (
+              <ToggleButton key={slot.slot} value={slot.slot} sx={styles.slotToggle}>
+                <Typography sx={styles.slotToggleLabel}>{slot.slotLabel}</Typography>
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          {selectedAmbushSlot ? renderDistributionList(selectedAmbushSlot.distribution) : (
+            <Typography sx={styles.distributionEmpty}>Not enough data yet.</Typography>
+          )}
+        </Box>
       </Box>
     );
 
-    const trapCard = (
+    const trapContent = (
       <Box sx={styles.exploringCard}>
         <Typography sx={styles.sectionTitle}>Trap Impact</Typography>
-        <Box sx={styles.metricRow}>
-          <Typography sx={styles.metricLabel}>Dodge chance</Typography>
-          <Typography sx={styles.metricValue}>{obstacles.dodgeChance.toFixed(1)}%</Typography>
-        </Box>
-        <Box sx={styles.metricRow}>
-          <Typography sx={styles.metricLabel}>Crit chance</Typography>
-          <Typography sx={styles.metricValue}>{obstacles.critChance.toFixed(1)}%</Typography>
-        </Box>
-        <Typography sx={styles.subSectionTitle}>Damage distribution</Typography>
+        <Typography sx={styles.subSectionTitle}>Overall damage mix</Typography>
         {renderDistributionList(obstacles.damageDistribution)}
         {obstacles.highestThreat && (
           <Typography sx={styles.sectionNote}>
-            Worst hit: {obstacles.highestThreat.name} hit your {obstacles.highestThreat.slot} for {Math.round(obstacles.highestThreat.damage)} dmg.
+            Worst hit: {obstacles.highestThreat.name} hit your {obstacles.highestThreat.slot} for {Math.round(obstacles.highestThreat.damage)} dmg (~{(obstacles.highestThreat.chance * 100).toFixed(1)}% chance).
           </Typography>
         )}
+        <Box sx={styles.slotSection}>
+          <Typography sx={styles.subSectionTitle}>Damage by slot</Typography>
+          <ToggleButtonGroup
+            value={selectedTrapSlot?.slot ?? null}
+            exclusive
+            onChange={handleTrapSlotChange}
+            sx={styles.slotToggleGroup}>
+            {obstacles.slotDamages.map(slot => (
+              <ToggleButton key={slot.slot} value={slot.slot} sx={styles.slotToggle}>
+                <Typography sx={styles.slotToggleLabel}>{slot.slotLabel}</Typography>
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+          {selectedTrapSlot ? renderDistributionList(selectedTrapSlot.distribution) : (
+            <Typography sx={styles.distributionEmpty}>Not enough data yet.</Typography>
+          )}
+        </Box>
       </Box>
     );
 
-    const discoveryCard = (
+    const discoveryContent = (
       <Box sx={styles.exploringCard}>
         <Typography sx={styles.sectionTitle}>Discovery Outcomes</Typography>
         <Box sx={styles.discoveryRow}>
@@ -358,12 +419,32 @@ export default function MarketOverlay() {
 
     return (
       <Box sx={styles.exploringContent}>
-        {ambushCard}
-        {trapCard}
-        {discoveryCard}
+        <Box sx={styles.explorationTabsContainer}>
+          <Tabs
+            value={explorationTab}
+            onChange={handleExplorationTabChange}
+            aria-label="exploration sections"
+            sx={styles.explorationTabs}>
+            <Tab value="ambush" label="Ambush" sx={styles.explorationTab} />
+            <Tab value="trap" label="Trap" sx={styles.explorationTab} />
+            <Tab value="discovery" label="Discovery" sx={styles.explorationTab} />
+          </Tabs>
+        </Box>
+        {explorationTab === 'ambush' && ambushContent}
+        {explorationTab === 'trap' && trapContent}
+        {explorationTab === 'discovery' && discoveryContent}
       </Box>
     );
-  }, [explorationInsights, renderDistributionList]);
+  }, [
+    ambushSlot,
+    explorationInsights,
+    explorationTab,
+    handleAmbushSlotChange,
+    handleExplorationTabChange,
+    handleTrapSlotChange,
+    renderDistributionList,
+    trapSlot,
+  ]);
 
   const eventLogSection = useMemo(() => (
     <Box sx={styles.eventLogContainer}>
@@ -896,6 +977,32 @@ const styles = {
     minHeight: 0,
     overflowY: 'auto',
   },
+  explorationTabsContainer: {
+    padding: '0 4px',
+  },
+  explorationTabs: {
+    minHeight: 0,
+    '& .MuiTabs-flexContainer': {
+      gap: '6px',
+    },
+    '& .MuiTabs-indicator': {
+      backgroundColor: '#d7c529',
+      height: '2px',
+    },
+  },
+  explorationTab: {
+    minHeight: 0,
+    minWidth: 0,
+    flex: 1,
+    color: 'rgba(215, 198, 41, 0.6)',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.74rem',
+    letterSpacing: '0.5px',
+    padding: '4px 0',
+    '&.Mui-selected': {
+      color: '#d7c529',
+    },
+  },
   exploringCard: {
     background: 'rgba(24, 40, 24, 0.85)',
     border: '1px solid rgba(215, 198, 41, 0.25)',
@@ -966,25 +1073,32 @@ const styles = {
     color: '#7f8572',
     fontSize: '0.72rem',
   },
-  metricRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  metricLabel: {
-    color: '#d0c98d',
-    fontSize: '0.78rem',
-    textTransform: 'uppercase',
-    letterSpacing: '0.4px',
-  },
-  metricValue: {
-    color: '#d7c529',
-    fontSize: '0.9rem',
-    fontWeight: 600,
-  },
   sectionNote: {
     color: '#d0c98d',
     fontSize: '0.76rem',
+  },
+  slotSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  slotToggleGroup: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px',
+  },
+  slotToggle: {
+    padding: '4px 8px',
+    minWidth: 0,
+    borderColor: 'rgba(215, 198, 41, 0.25) !important',
+    '&.Mui-selected': {
+      backgroundColor: 'rgba(215, 198, 41, 0.18)',
+    },
+  },
+  slotToggleLabel: {
+    color: '#d0c98d',
+    fontSize: '0.7rem',
+    letterSpacing: '0.4px',
   },
   discoveryRow: {
     display: 'flex',
