@@ -51,7 +51,7 @@ export default function DeathOverlay() {
   };
 
   const continueToRewards = () => {
-    if (currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT) {
+    if (currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT && adventurer?.xp! >= 9) {
       setShowRewards(true);
     } else {
       backToMenu();
@@ -78,10 +78,6 @@ export default function DeathOverlay() {
     mintedByAddress: currentNetworkConfig.chainId === ChainId.WP_PG_SLOT ? GAME_TOKEN_ADDRESS : addAddressPadding(currentNetworkConfig.dungeon),
     settings_id: currentNetworkConfig.chainId === ChainId.WP_PG_SLOT ? 0 : undefined
   });
-
-  const handleRewardsClose = () => {
-    setShowRewards(false);
-  };
 
   if (
     !spectating &&
@@ -144,7 +140,7 @@ export default function DeathOverlay() {
             onClick={continueToRewards}
             sx={styles.restartButton}
           >
-            {currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT ? "Claim Reward" : "Play Again"}
+            {(currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT && adventurer?.xp! >= 9) ? "Claim Reward" : "Play Again"}
           </Button>
         </Box>
       </Box>
