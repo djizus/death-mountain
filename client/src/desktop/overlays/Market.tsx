@@ -9,6 +9,7 @@ import { getEventIcon, getEventTitle } from '@/utils/events';
 import { getExplorationInsights, type DamageBucket, type SlotDamageSummary } from '@/utils/exploration';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
 import { Box, Button, IconButton, Modal, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { keyframes } from '@emotion/react';
 import { SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import JewelryTooltip from '@/components/JewelryTooltip';
 
@@ -62,6 +63,21 @@ const renderTierToggleButton = (tier: Tier) => (
 
 const STAT_FILTER_OPTIONS = ['Strength', 'Vitality', 'Charisma', 'Dexterity', 'Intelligence', 'Wisdom'];
 
+const highlightPulse = keyframes`
+  0% {
+    border-color: rgba(215, 198, 41, 0.4);
+    box-shadow: 0 0 0 rgba(215, 198, 41, 0.25);
+  }
+  50% {
+    border-color: rgba(215, 198, 41, 0.85);
+    box-shadow: 0 0 14px rgba(215, 198, 41, 0.45);
+  }
+  100% {
+    border-color: rgba(215, 198, 41, 0.4);
+    box-shadow: 0 0 0 rgba(215, 198, 41, 0.25);
+  }
+`;
+
 export default function MarketOverlay() {
   const {
     adventurer,
@@ -99,8 +115,8 @@ export default function MarketOverlay() {
   const [showCart, setShowCart] = useState(false);
   const [activeTab, setActiveTab] = useState<'market' | 'exploring' | 'events'>('market');
   const [explorationTab, setExplorationTab] = useState<'ambush' | 'trap' | 'discovery'>('ambush');
-  const [ambushSlot, setAmbushSlot] = useState<SlotDamageSummary['slot']>('chest');
-  const [trapSlot, setTrapSlot] = useState<SlotDamageSummary['slot']>('chest');
+  const [ambushSlot, setAmbushSlot] = useState<SlotDamageSummary['slot']>('hand');
+  const [trapSlot, setTrapSlot] = useState<SlotDamageSummary['slot']>('hand');
 
   const handleTabChange = (_: SyntheticEvent, newValue: 'market' | 'exploring' | 'events') => {
     setActiveTab(newValue);
@@ -291,7 +307,7 @@ export default function MarketOverlay() {
     }
   }, [explorationInsights, setTrapSlot, trapSlot]);
 
-  const renderDistributionList = useCallback((distribution: DamageBucket[]) => {
+  const renderDistributionList = useCallback((distribution: DamageBucket[], highlightValue: number | null = null) => {
     if (!distribution.length) {
       return (
         <Typography sx={styles.distributionEmpty}>Not enough data yet.</Typography>
@@ -302,20 +318,48 @@ export default function MarketOverlay() {
 
     return (
       <Box sx={styles.distributionList}>
-        {distribution.map(bucket => (
-          <Box key={bucket.label} sx={styles.distributionItem}>
-            <Typography sx={styles.distributionItemLabel}>{bucket.label}</Typography>
-            <Box sx={styles.distributionBarTrack}>
+        {distribution.map(bucket => {
+          const isHighlighted = highlightValue !== null
+            && highlightValue >= bucket.start
+            && highlightValue <= bucket.end;
+
+          return (
+            <Box
+              key={bucket.label}
+              sx={{
+                ...styles.distributionItem,
+                ...(isHighlighted ? styles.distributionItemHighlighted : {}),
+              }}>
+              <Typography
+                sx={{
+                  ...styles.distributionItemLabel,
+                  ...(isHighlighted ? styles.distributionItemLabelHighlighted : {}),
+                }}>
+                {bucket.label}
+              </Typography>
               <Box
                 sx={{
-                  ...styles.distributionBarFill,
-                  width: `${Math.max((bucket.percentage / maxPercentage) * 100, 4)}%`,
-                }}
-              />
+                  ...styles.distributionBarTrack,
+                  ...(isHighlighted ? styles.distributionBarTrackHighlighted : {}),
+                }}>
+                <Box
+                  sx={{
+                    ...styles.distributionBarFill,
+                    width: `${Math.max((bucket.percentage / maxPercentage) * 100, 4)}%`,
+                    ...(isHighlighted ? styles.distributionBarFillHighlighted : {}),
+                  }}
+                />
+              </Box>
+              <Typography
+                sx={{
+                  ...styles.distributionItemValue,
+                  ...(isHighlighted ? styles.distributionItemValueHighlighted : {}),
+                }}>
+                {bucket.percentage.toFixed(1)}%
+              </Typography>
             </Box>
-            <Typography sx={styles.distributionItemValue}>{bucket.percentage.toFixed(1)}%</Typography>
-          </Box>
-        ))}
+          );
+        })}
       </Box>
     );
   }, []);
@@ -333,6 +377,7 @@ export default function MarketOverlay() {
     }
 
     const { beasts, obstacles, discoveries } = explorationInsights;
+    const playerHealth = adventurer?.health ?? null;
     const selectedAmbushSlot = beasts.slotDamages.find(slot => slot.slot === ambushSlot) ?? beasts.slotDamages[0];
     const selectedTrapSlot = obstacles.slotDamages.find(slot => slot.slot === trapSlot) ?? obstacles.slotDamages[0];
 
@@ -340,10 +385,7 @@ export default function MarketOverlay() {
       <Box sx={styles.exploringCard}>
         <Typography sx={styles.sectionTitle}>Ambush Risk</Typography>
         <Typography sx={styles.subSectionTitle}>Overall damage mix</Typography>
-        {renderDistributionList(beasts.damageDistribution)}
-        <Typography sx={styles.sectionNote}>
-          Median hit: {Math.round(beasts.medianDamage)} dmg.
-        </Typography>
+        {renderDistributionList(beasts.damageDistribution, playerHealth)}
         <Box sx={styles.slotSection}>
           <Typography sx={styles.subSectionTitle}>Damage by slot</Typography>
           <ToggleButtonGroup
@@ -357,7 +399,7 @@ export default function MarketOverlay() {
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
-          {selectedAmbushSlot ? renderDistributionList(selectedAmbushSlot.distribution) : (
+          {selectedAmbushSlot ? renderDistributionList(selectedAmbushSlot.distribution, playerHealth) : (
             <Typography sx={styles.distributionEmpty}>Not enough data yet.</Typography>
           )}
         </Box>
@@ -368,10 +410,7 @@ export default function MarketOverlay() {
       <Box sx={styles.exploringCard}>
         <Typography sx={styles.sectionTitle}>Trap Impact</Typography>
         <Typography sx={styles.subSectionTitle}>Overall damage mix</Typography>
-        {renderDistributionList(obstacles.damageDistribution)}
-        <Typography sx={styles.sectionNote}>
-          Median hit: {Math.round(obstacles.medianDamage)} dmg.
-        </Typography>
+        {renderDistributionList(obstacles.damageDistribution, playerHealth)}
         <Box sx={styles.slotSection}>
           <Typography sx={styles.subSectionTitle}>Damage by slot</Typography>
           <ToggleButtonGroup
@@ -385,7 +424,7 @@ export default function MarketOverlay() {
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
-          {selectedTrapSlot ? renderDistributionList(selectedTrapSlot.distribution) : (
+          {selectedTrapSlot ? renderDistributionList(selectedTrapSlot.distribution, playerHealth) : (
             <Typography sx={styles.distributionEmpty}>Not enough data yet.</Typography>
           )}
         </Box>
@@ -1046,6 +1085,16 @@ const styles = {
     textTransform: 'uppercase',
     letterSpacing: '0.4px',
   },
+  distributionItemHighlighted: {
+    border: '2px solid rgba(215, 198, 41, 0.45)',
+    borderRadius: '7px',
+    padding: '2px 10px',
+    margin: '0 -10px',
+    animation: `${highlightPulse} 2.2s ease-in-out infinite`,
+  },
+  distributionItemLabelHighlighted: {
+    color: '#fff7c2',
+  },
   distributionBarTrack: {
     flex: 1,
     height: '8px',
@@ -1053,16 +1102,25 @@ const styles = {
     background: 'rgba(215, 198, 41, 0.12)',
     overflow: 'hidden',
   },
+  distributionBarTrackHighlighted: {
+    background: 'rgba(215, 198, 41, 0.22)',
+  },
   distributionBarFill: {
     height: '100%',
     borderRadius: '4px',
     background: 'linear-gradient(90deg, rgba(215, 197, 41, 0.9), rgba(215, 197, 41, 0.4))',
+  },
+  distributionBarFillHighlighted: {
+    background: 'linear-gradient(90deg, rgba(215, 198, 41, 1), rgba(215, 198, 41, 0.6))',
   },
   distributionItemValue: {
     width: '52px',
     textAlign: 'right',
     color: '#f2edd0',
     fontSize: '0.68rem',
+  },
+  distributionItemValueHighlighted: {
+    color: '#fff7c2',
   },
   distributionEmpty: {
     color: '#7f8572',
