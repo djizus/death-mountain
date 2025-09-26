@@ -249,6 +249,7 @@ export interface SlotDamageSummary {
   minCrit: number;
   maxCrit: number;
   distribution: DamageBucket[];
+  lethalChance: number;
 }
 
 export interface BeastRiskSummary {
@@ -305,6 +306,7 @@ const makeEmptySlotSummary = (slot: keyof Equipment): SlotDamageSummary => ({
   minCrit: 0,
   maxCrit: 0,
   distribution: [],
+  lethalChance: 0,
 });
 
 const computeBeastSlotSummary = (
@@ -408,6 +410,16 @@ const computeBeastSlotSummary = (
   }
 
   const distribution = buildDamageDistribution(samples);
+  const healthThreshold = Math.max(0, adventurer.health ?? 0);
+  let lethalChance = 0;
+
+  if (healthThreshold > 0 && totalWeight > 0) {
+    const lethalWeight = samples.reduce((sum, sample) => (
+      sample.value >= healthThreshold ? sum + sample.weight : sum
+    ), 0);
+
+    lethalChance = Number(((lethalWeight / totalWeight) * 100).toFixed(2));
+  }
   let threat:
     | {
         id: number;
@@ -428,6 +440,7 @@ const computeBeastSlotSummary = (
       minCrit,
       maxCrit,
       distribution,
+      lethalChance,
     },
     samples,
   };
@@ -511,6 +524,16 @@ const computeObstacleSlotSummary = (
   }
 
   const distribution = buildDamageDistribution(samples);
+  const healthThreshold = Math.max(0, adventurer.health ?? 0);
+  let lethalChance = 0;
+
+  if (healthThreshold > 0 && totalWeight > 0) {
+    const lethalWeight = samples.reduce((sum, sample) => (
+      sample.value >= healthThreshold ? sum + sample.weight : sum
+    ), 0);
+
+    lethalChance = Number(((lethalWeight / totalWeight) * 100).toFixed(2));
+  }
 
   return {
     summary: {
@@ -523,6 +546,7 @@ const computeObstacleSlotSummary = (
       minCrit,
       maxCrit,
       distribution,
+      lethalChance,
     },
     samples,
   };

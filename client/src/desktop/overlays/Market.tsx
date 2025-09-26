@@ -8,7 +8,9 @@ import { MarketItem, generateMarketItems, potionPrice } from '@/utils/market';
 import { getEventIcon, getEventTitle } from '@/utils/events';
 import { getExplorationInsights, type DamageBucket, type SlotDamageSummary } from '@/utils/exploration';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
-import { Box, Button, IconButton, Modal, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { Box, Button, Collapse, IconButton, Modal, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { keyframes } from '@emotion/react';
 import { SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import JewelryTooltip from '@/components/JewelryTooltip';
@@ -117,6 +119,8 @@ export default function MarketOverlay() {
   const [explorationTab, setExplorationTab] = useState<'ambush' | 'trap' | 'discovery'>('ambush');
   const [ambushSlot, setAmbushSlot] = useState<SlotDamageSummary['slot']>('hand');
   const [trapSlot, setTrapSlot] = useState<SlotDamageSummary['slot']>('hand');
+  const [ambushSlotExpanded, setAmbushSlotExpanded] = useState(false);
+  const [trapSlotExpanded, setTrapSlotExpanded] = useState(false);
 
   const handleTabChange = (_: SyntheticEvent, newValue: 'market' | 'exploring' | 'events') => {
     setActiveTab(newValue);
@@ -139,6 +143,14 @@ export default function MarketOverlay() {
       setTrapSlot(newValue);
     }
   }, [setTrapSlot]);
+
+  const toggleAmbushSlotSection = useCallback(() => {
+    setAmbushSlotExpanded(prev => !prev);
+  }, []);
+
+  const toggleTrapSlotSection = useCallback(() => {
+    setTrapSlotExpanded(prev => !prev);
+  }, []);
 
   useEffect(() => {
     if (activeTab !== 'market') {
@@ -380,28 +392,52 @@ export default function MarketOverlay() {
     const playerHealth = adventurer?.health ?? null;
     const selectedAmbushSlot = beasts.slotDamages.find(slot => slot.slot === ambushSlot) ?? beasts.slotDamages[0];
     const selectedTrapSlot = obstacles.slotDamages.find(slot => slot.slot === trapSlot) ?? obstacles.slotDamages[0];
+    const ambushLethalText = selectedAmbushSlot
+      ? `Lethal: ${selectedAmbushSlot.lethalChance.toFixed(1)}% chance`
+      : 'Lethal: --';
+    const trapLethalText = selectedTrapSlot
+      ? `Lethal: ${selectedTrapSlot.lethalChance.toFixed(1)}% chance`
+      : 'Lethal: --';
 
     const ambushContent = (
       <Box sx={styles.exploringCard}>
-        <Typography sx={styles.sectionTitle}>Ambush Risk</Typography>
-        <Typography sx={styles.subSectionTitle}>Overall damage mix</Typography>
+        <Typography sx={styles.sectionTitle}>Ambush Impact</Typography>
+        <Typography sx={styles.subSectionTitle}>Overall damage</Typography>
         {renderDistributionList(beasts.damageDistribution, playerHealth)}
         <Box sx={styles.slotSection}>
-          <Typography sx={styles.subSectionTitle}>Damage by slot</Typography>
-          <ToggleButtonGroup
-            value={selectedAmbushSlot?.slot ?? null}
-            exclusive
-            onChange={handleAmbushSlotChange}
-            sx={styles.slotToggleGroup}>
-            {beasts.slotDamages.map(slot => (
-              <ToggleButton key={slot.slot} value={slot.slot} sx={styles.slotToggle}>
-                <Typography sx={styles.slotToggleLabel}>{slot.slotLabel}</Typography>
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-          {selectedAmbushSlot ? renderDistributionList(selectedAmbushSlot.distribution, playerHealth) : (
-            <Typography sx={styles.distributionEmpty}>Not enough data yet.</Typography>
-          )}
+          <Box
+            component="button"
+            type="button"
+            sx={styles.slotHeaderButton}
+            onClick={toggleAmbushSlotSection}>
+            <Box sx={styles.slotHeaderContent}>
+              <Typography sx={styles.lethalChance}>{ambushLethalText}</Typography>
+              <Typography sx={styles.subSectionTitle}>Damage by slot</Typography>
+            </Box>
+            {ambushSlotExpanded ? (
+              <ExpandLessIcon sx={styles.slotHeaderIcon} />
+            ) : (
+              <ExpandMoreIcon sx={styles.slotHeaderIcon} />
+            )}
+          </Box>
+          <Collapse in={ambushSlotExpanded} timeout="auto">
+            <Box sx={styles.slotSectionContent}>
+              <ToggleButtonGroup
+                value={selectedAmbushSlot?.slot ?? null}
+                exclusive
+                onChange={handleAmbushSlotChange}
+                sx={styles.slotToggleGroup}>
+                {beasts.slotDamages.map(slot => (
+                  <ToggleButton key={slot.slot} value={slot.slot} sx={styles.slotToggle}>
+                    <Typography sx={styles.slotToggleLabel}>{slot.slotLabel}</Typography>
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+              {selectedAmbushSlot ? renderDistributionList(selectedAmbushSlot.distribution, playerHealth) : (
+                <Typography sx={styles.distributionEmpty}>Not enough data yet.</Typography>
+              )}
+            </Box>
+          </Collapse>
         </Box>
       </Box>
     );
@@ -409,24 +445,42 @@ export default function MarketOverlay() {
     const trapContent = (
       <Box sx={styles.exploringCard}>
         <Typography sx={styles.sectionTitle}>Trap Impact</Typography>
-        <Typography sx={styles.subSectionTitle}>Overall damage mix</Typography>
+        <Typography sx={styles.subSectionTitle}>Overall damage</Typography>
         {renderDistributionList(obstacles.damageDistribution, playerHealth)}
         <Box sx={styles.slotSection}>
-          <Typography sx={styles.subSectionTitle}>Damage by slot</Typography>
-          <ToggleButtonGroup
-            value={selectedTrapSlot?.slot ?? null}
-            exclusive
-            onChange={handleTrapSlotChange}
-            sx={styles.slotToggleGroup}>
-            {obstacles.slotDamages.map(slot => (
-              <ToggleButton key={slot.slot} value={slot.slot} sx={styles.slotToggle}>
-                <Typography sx={styles.slotToggleLabel}>{slot.slotLabel}</Typography>
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-          {selectedTrapSlot ? renderDistributionList(selectedTrapSlot.distribution, playerHealth) : (
-            <Typography sx={styles.distributionEmpty}>Not enough data yet.</Typography>
-          )}
+          <Box
+            component="button"
+            type="button"
+            sx={styles.slotHeaderButton}
+            onClick={toggleTrapSlotSection}>
+            <Box sx={styles.slotHeaderContent}>
+              <Typography sx={styles.lethalChance}>{trapLethalText}</Typography>
+              <Typography sx={styles.subSectionTitle}>Damage by slot</Typography>
+            </Box>
+            {trapSlotExpanded ? (
+              <ExpandLessIcon sx={styles.slotHeaderIcon} />
+            ) : (
+              <ExpandMoreIcon sx={styles.slotHeaderIcon} />
+            )}
+          </Box>
+          <Collapse in={trapSlotExpanded} timeout="auto">
+            <Box sx={styles.slotSectionContent}>
+              <ToggleButtonGroup
+                value={selectedTrapSlot?.slot ?? null}
+                exclusive
+                onChange={handleTrapSlotChange}
+                sx={styles.slotToggleGroup}>
+                {obstacles.slotDamages.map(slot => (
+                  <ToggleButton key={slot.slot} value={slot.slot} sx={styles.slotToggle}>
+                    <Typography sx={styles.slotToggleLabel}>{slot.slotLabel}</Typography>
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+              {selectedTrapSlot ? renderDistributionList(selectedTrapSlot.distribution, playerHealth) : (
+                <Typography sx={styles.distributionEmpty}>Not enough data yet.</Typography>
+              )}
+            </Box>
+          </Collapse>
         </Box>
       </Box>
     );
@@ -470,6 +524,7 @@ export default function MarketOverlay() {
       </Box>
     );
   }, [
+    ambushSlotExpanded,
     ambushSlot,
     explorationInsights,
     explorationTab,
@@ -477,7 +532,10 @@ export default function MarketOverlay() {
     handleExplorationTabChange,
     handleTrapSlotChange,
     renderDistributionList,
+    toggleAmbushSlotSection,
+    toggleTrapSlotSection,
     trapSlot,
+    trapSlotExpanded,
   ]);
 
   const eventLogSection = useMemo(() => (
@@ -1134,6 +1192,47 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '10px',
+  },
+  lethalChance: {
+    color: '#f2edd0',
+    fontSize: '0.7rem',
+    letterSpacing: '0.3px',
+  },
+  slotHeaderButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    margin: 0,
+    cursor: 'pointer',
+    textAlign: 'left',
+    color: 'inherit',
+    gap: '12px',
+    '&:focus-visible': {
+      outline: '2px solid rgba(215, 198, 41, 0.5)',
+      outlineOffset: '3px',
+    },
+  },
+  slotHeaderContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '2px',
+    flex: 1,
+  },
+  slotHeaderIcon: {
+    color: '#d0c98d',
+    fontSize: '1.2rem',
+    flexShrink: 0,
+  },
+  slotSectionContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    marginTop: '6px',
   },
   slotToggleGroup: {
     display: 'flex',
