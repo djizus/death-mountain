@@ -260,6 +260,7 @@ export interface BeastRiskSummary {
   slotDamages: SlotDamageSummary[];
   damageDistribution: DamageBucket[];
   medianDamage: number;
+  overallLethalChance: number;
 }
 
 export interface ObstacleRiskSummary {
@@ -270,6 +271,7 @@ export interface ObstacleRiskSummary {
   slotDamages: SlotDamageSummary[];
   damageDistribution: DamageBucket[];
   medianDamage: number;
+  overallLethalChance: number;
 }
 
 export interface DiscoverySummary {
@@ -587,6 +589,19 @@ const computeBeastRisk = (
   const critChance = Number((getBeastCriticalChance(adventurerLevel, isAmbush) * 100).toFixed(2));
   const damageDistribution = buildDamageDistribution(aggregatedSamples);
   const medianDamage = computeMedianDamage(aggregatedSamples);
+  const playerHealth = Math.max(0, adventurer.health ?? 0);
+  let overallLethalChance = 0;
+
+  if (playerHealth > 0) {
+    const totalWeight = aggregatedSamples.reduce((sum, sample) => sum + sample.weight, 0);
+    if (totalWeight > 0) {
+      const lethalWeight = aggregatedSamples.reduce((sum, sample) => (
+        sample.value >= playerHealth ? sum + sample.weight : sum
+      ), 0);
+
+      overallLethalChance = Number(((lethalWeight / totalWeight) * 100).toFixed(2));
+    }
+  }
 
   return {
     ambushChance,
@@ -596,6 +611,7 @@ const computeBeastRisk = (
     slotDamages: slotSummaries,
     damageDistribution,
     medianDamage,
+    overallLethalChance,
   };
 };
 
@@ -633,6 +649,19 @@ const computeObstacleRisk = (
   const critChance = Number((getObstacleCriticalChance(adventurerLevel) * 100).toFixed(2));
   const damageDistribution = buildDamageDistribution(aggregatedSamples);
   const medianDamage = computeMedianDamage(aggregatedSamples);
+  const playerHealth = Math.max(0, adventurer.health ?? 0);
+  let overallLethalChance = 0;
+
+  if (playerHealth > 0) {
+    const totalWeight = aggregatedSamples.reduce((sum, sample) => sum + sample.weight, 0);
+    if (totalWeight > 0) {
+      const lethalWeight = aggregatedSamples.reduce((sum, sample) => (
+        sample.value >= playerHealth ? sum + sample.weight : sum
+      ), 0);
+
+      overallLethalChance = Number(((lethalWeight / totalWeight) * 100).toFixed(2));
+    }
+  }
 
   return {
     dodgeChance: 0,
@@ -642,6 +671,7 @@ const computeObstacleRisk = (
     slotDamages: slotSummaries,
     damageDistribution,
     medianDamage,
+    overallLethalChance,
   };
 };
 
@@ -702,6 +732,7 @@ export const getExplorationInsights = (
         slotDamages: SLOT_ORDER.map(makeEmptySlotSummary),
         damageDistribution: [],
         medianDamage: 0,
+        overallLethalChance: 0,
       },
       obstacles: {
         dodgeChance: 0,
@@ -711,6 +742,7 @@ export const getExplorationInsights = (
         slotDamages: SLOT_ORDER.map(makeEmptySlotSummary),
         damageDistribution: [],
         medianDamage: 0,
+        overallLethalChance: 0,
       },
       discoveries: {
         goldChance: 0,

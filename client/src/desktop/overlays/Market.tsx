@@ -140,18 +140,6 @@ export default function MarketOverlay() {
     }
   }, [setTrapSlot]);
 
-  const getLethalChance = useCallback((distribution: DamageBucket[], health: number | null) => {
-    if (!distribution.length || health === null || health <= 0) {
-      return null;
-    }
-
-    const lethal = distribution.reduce((sum, bucket) => (
-      bucket.end >= health ? sum + bucket.percentage : sum
-    ), 0);
-
-    return Number(lethal.toFixed(2));
-  }, []);
-
   useEffect(() => {
     if (activeTab !== 'market') {
       setShowCart(false);
@@ -392,8 +380,13 @@ export default function MarketOverlay() {
     const playerHealth = adventurer?.health ?? null;
     const selectedAmbushSlot = beasts.slotDamages.find(slot => slot.slot === ambushSlot) ?? beasts.slotDamages[0];
     const selectedTrapSlot = obstacles.slotDamages.find(slot => slot.slot === trapSlot) ?? obstacles.slotDamages[0];
-    const ambushOverallLethal = getLethalChance(beasts.damageDistribution, playerHealth);
-    const trapOverallLethal = getLethalChance(obstacles.damageDistribution, playerHealth);
+    const hasPlayerHealth = playerHealth !== null && playerHealth > 0;
+    const ambushOverallLethal = hasPlayerHealth && beasts.damageDistribution.length > 0
+      ? beasts.overallLethalChance
+      : null;
+    const trapOverallLethal = hasPlayerHealth && obstacles.damageDistribution.length > 0
+      ? obstacles.overallLethalChance
+      : null;
 
 
     const overallContent = (
@@ -504,7 +497,6 @@ export default function MarketOverlay() {
     ambushSlot,
     explorationInsights,
     explorationTab,
-    getLethalChance,
     handleAmbushSlotChange,
     handleExplorationTabChange,
     handleTrapSlotChange,
