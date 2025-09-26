@@ -281,6 +281,7 @@ export default function WatchPage() {
         processEvent(event, true);
       });
     } else {
+      console.log('events', events);
       setReplayEvents(events);
     }
 
