@@ -219,14 +219,9 @@ const styles = {
     boxShadow: '0 0 8px #000a',
     transition: 'all 0.3s ease-in-out',
   },
-  statsPanelCombatVariant: {
-    height: '310px',
-    width: '185px',
-    flexShrink: 0,
-  },
   statsPanelStatsVariant: {
     width: '100%',
-    height: '410px',
+    height: '450px',
     flex: 1,
     minWidth: 0,
   },
