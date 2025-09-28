@@ -111,7 +111,7 @@ export default function AdventurerStats({ variant }: AdventurerStatsProps) {
   const renderStatsView = () => (
     <>
       <Box sx={styles.statGrid}>
-        {['strength', 'dexterity', 'vitality', 'intelligence', 'charisma', 'wisdom'].map((stat) => {
+        {['strength', 'vitality', 'dexterity', 'intelligence', 'wisdom', 'charisma'].map((stat) => {
           const totalStatValue = adventurer?.stats?.[stat as keyof typeof STAT_DESCRIPTIONS]! + selectedStats[stat as keyof typeof STAT_DESCRIPTIONS]!;
           const effectText = STAT_HELPER_TEXT(stat, totalStatValue);
 
@@ -222,10 +222,13 @@ const styles = {
   statsPanelCombatVariant: {
     height: '310px',
     width: '185px',
+    flexShrink: 0,
   },
   statsPanelStatsVariant: {
     width: '100%',
-    height: 'auto',
+    height: '410px',
+    flex: 1,
+    minWidth: 0,
   },
   statsPanelHighlighted: {
     border: '1px solid #d7c529',
@@ -279,8 +282,8 @@ const styles = {
   },
   statGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    columnGap: 0.75,
+    gridTemplateColumns: '1fr',
+    columnGap: 0,
     rowGap: 0.75,
   },
   statInfo: {

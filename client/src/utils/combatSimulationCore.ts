@@ -10,10 +10,13 @@ export interface CombatSimulationResult {
   lethalRate: number;
   modeDamageDealt: number;
   modeDamageTaken: number;
+  modeRounds: number;
   minDamageDealt: number;
   maxDamageDealt: number;
   minDamageTaken: number;
   maxDamageTaken: number;
+  minRounds: number;
+  maxRounds: number;
 }
 
 export const defaultSimulationResult: CombatSimulationResult = {
@@ -26,6 +29,9 @@ export const defaultSimulationResult: CombatSimulationResult = {
   maxDamageDealt: 0,
   minDamageTaken: 0,
   maxDamageTaken: 0,
+  modeRounds: 0,
+  minRounds: 0,
+  maxRounds: 0,
 };
 
 interface DamageOption {
@@ -38,6 +44,7 @@ interface StateOutcome {
   lethalProbability: number;
   damageDealtDistribution: Map<number, number>;
   damageTakenDistribution: Map<number, number>;
+  roundsDistribution: Map<number, number>;
 }
 
 const PROBABILITY_EPSILON = 1e-12;
@@ -213,6 +220,7 @@ export const calculateDeterministicCombatResult = (
         lethalProbability: 1,
         damageDealtDistribution: new Map([[0, 1]]),
         damageTakenDistribution: new Map([[0, 1]]),
+        roundsDistribution: new Map([[0, 1]]),
       };
     }
 
@@ -222,6 +230,7 @@ export const calculateDeterministicCombatResult = (
         lethalProbability: 0,
         damageDealtDistribution: new Map([[0, 1]]),
         damageTakenDistribution: new Map([[0, 1]]),
+        roundsDistribution: new Map([[0, 1]]),
       };
     }
 
@@ -231,6 +240,7 @@ export const calculateDeterministicCombatResult = (
         lethalProbability: 1,
         damageDealtDistribution: new Map([[0, 1]]),
         damageTakenDistribution: new Map([[0, 1]]),
+        roundsDistribution: new Map([[0, 1]]),
       };
     }
 
@@ -244,6 +254,7 @@ export const calculateDeterministicCombatResult = (
     let lethalProbability = 0;
     const damageDealtDistribution = new Map<number, number>();
     const damageTakenDistribution = new Map<number, number>();
+    const roundsDistribution = new Map<number, number>();
 
     heroDamageOptions.forEach(({ damage: heroDamage, probability: heroProbability }) => {
       if (heroProbability <= PROBABILITY_EPSILON) {
@@ -256,6 +267,7 @@ export const calculateDeterministicCombatResult = (
         winProbability += heroProbability;
         addProbability(damageDealtDistribution, heroDamage, heroProbability);
         addProbability(damageTakenDistribution, 0, heroProbability);
+        addProbability(roundsDistribution, rounds + 1, heroProbability);
         return;
       }
 
@@ -272,6 +284,7 @@ export const calculateDeterministicCombatResult = (
           lethalProbability += branchProbability;
           addProbability(damageDealtDistribution, heroDamage, branchProbability);
           addProbability(damageTakenDistribution, beastDamage, branchProbability);
+          addProbability(roundsDistribution, rounds + 1, branchProbability);
           return;
         }
 
@@ -282,6 +295,7 @@ export const calculateDeterministicCombatResult = (
 
         combineDistributions(damageDealtDistribution, nextState.damageDealtDistribution, heroDamage, branchProbability);
         combineDistributions(damageTakenDistribution, nextState.damageTakenDistribution, beastDamage, branchProbability);
+        combineDistributions(roundsDistribution, nextState.roundsDistribution, 0, branchProbability);
       });
     });
 
@@ -290,6 +304,7 @@ export const calculateDeterministicCombatResult = (
       lethalProbability,
       damageDealtDistribution,
       damageTakenDistribution,
+      roundsDistribution,
     };
 
     memo.set(memoKey, outcome);
@@ -308,10 +323,13 @@ export const calculateDeterministicCombatResult = (
 
   const damageDealtMode = getModeFromDistribution(rootOutcome.damageDealtDistribution);
   const damageTakenMode = getModeFromDistribution(rootOutcome.damageTakenDistribution);
+  const modeRounds = getModeFromDistribution(rootOutcome.roundsDistribution);
   const minDamageDealt = getMinFromDistribution(rootOutcome.damageDealtDistribution);
   const maxDamageDealt = getMaxFromDistribution(rootOutcome.damageDealtDistribution);
   const minDamageTaken = getMinFromDistribution(rootOutcome.damageTakenDistribution);
   const maxDamageTaken = getMaxFromDistribution(rootOutcome.damageTakenDistribution);
+  const minRounds = getMinFromDistribution(rootOutcome.roundsDistribution);
+  const maxRounds = getMaxFromDistribution(rootOutcome.roundsDistribution);
 
   return {
     hasOutcome: true,
@@ -319,9 +337,12 @@ export const calculateDeterministicCombatResult = (
     lethalRate,
     modeDamageDealt: Math.round(damageDealtMode),
     modeDamageTaken: Math.round(damageTakenMode),
+    modeRounds: Math.round(modeRounds),
     minDamageDealt: Math.round(minDamageDealt),
     maxDamageDealt: Math.round(maxDamageDealt),
     minDamageTaken: Math.round(minDamageTaken),
     maxDamageTaken: Math.round(maxDamageTaken),
+    minRounds: Math.round(minRounds),
+    maxRounds: Math.round(maxRounds),
   };
 };

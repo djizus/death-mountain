@@ -5,7 +5,7 @@ import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
 import { calculateAttackDamage, calculateBeastDamage, calculateBeastDamageDetails, calculateCombatStats, calculateLevel } from '@/utils/game';
-import { ItemUtils, Tier } from '@/utils/loot';
+import { ItemType, ItemUtils, Tier } from '@/utils/loot';
 import { keyframes } from '@emotion/react';
 import { DeleteOutline, Star } from '@mui/icons-material';
 import { Box, Button, Tooltip, Typography } from '@mui/material';
@@ -296,6 +296,237 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
   const combatStats = beast ? calculateCombatStats(adventurer!, bag, beast) : null;
   const bestItemIds = combatStats?.bestItems.map((item: Item) => item.id) || [];
 
+  const slotPriority: Record<string, number> = {
+    weapon: 0,
+    head: 1,
+    chest: 2,
+    waist: 3,
+    foot: 4,
+    hand: 5,
+    neck: 6,
+    ring: 7,
+  };
+
+  const weaponTypePriority = [ItemType.Magic, ItemType.Blade, ItemType.Bludgeon];
+  const armorTypePriority = [ItemType.Cloth, ItemType.Hide, ItemType.Metal];
+
+  const getWeaponPriority = (item: Item) => {
+    const itemType = ItemUtils.getItemType(item.id);
+    const index = weaponTypePriority.indexOf(itemType);
+    return index === -1 ? weaponTypePriority.length : index;
+  };
+
+  const getArmorPriority = (item: Item) => {
+    const itemType = ItemUtils.getItemType(item.id);
+    const index = armorTypePriority.indexOf(itemType);
+    if (index === -1) {
+      // Treat jewellery and other types as lowest priority within their slot
+      return armorTypePriority.length;
+    }
+    return index;
+  };
+
+  const getSlotPriority = (slot: string) => {
+    return slotPriority[slot] ?? Number.MAX_SAFE_INTEGER;
+  };
+
+  const sortedItems = [...(bag ?? [])].sort((a, b) => {
+    const slotA = ItemUtils.getItemSlot(a.id).toLowerCase();
+    const slotB = ItemUtils.getItemSlot(b.id).toLowerCase();
+    const isWeaponA = slotA === 'weapon';
+    const isWeaponB = slotB === 'weapon';
+
+    if (isWeaponA !== isWeaponB) {
+      return isWeaponA ? -1 : 1;
+    }
+
+    if (isWeaponA && isWeaponB) {
+      const weaponPriorityDiff = getWeaponPriority(a) - getWeaponPriority(b);
+      if (weaponPriorityDiff !== 0) {
+        return weaponPriorityDiff;
+      }
+      // Fallback to tier then id for deterministic ordering
+      const tierDiff = ItemUtils.getItemTier(b.id) - ItemUtils.getItemTier(a.id);
+      if (tierDiff !== 0) {
+        return tierDiff;
+      }
+      return a.id - b.id;
+    }
+
+    const slotDiff = getSlotPriority(slotA) - getSlotPriority(slotB);
+    if (slotDiff !== 0) {
+      return slotDiff;
+    }
+
+    const armorDiff = getArmorPriority(a) - getArmorPriority(b);
+    if (armorDiff !== 0) {
+      return armorDiff;
+    }
+
+    const tierDiff = ItemUtils.getItemTier(b.id) - ItemUtils.getItemTier(a.id);
+    if (tierDiff !== 0) {
+      return tierDiff;
+    }
+
+    return a.id - b.id;
+  });
+
+  const remainingSlots = Math.max(0, 15 - (bag?.length || 0));
+  const emptySlots = Array.from({ length: remainingSlots }).map((_, index) => (
+    <Box key={`empty-${index}`} sx={[styles.bagSlot, styles.emptyBagSlot]}>
+      <Box sx={styles.emptySlot}></Box>
+    </Box>
+  ));
+
+  const renderBagItem = (item: Item) => {
+    const metadata = ItemUtils.getMetadata(item.id);
+    const isSelected = itemsToDrop.includes(item.id);
+    const highlight = isDropMode && itemsToDrop.length === 0;
+    const isNew = newItems.includes(item.id);
+    const tier = ItemUtils.getItemTier(item.id);
+    const tierColor = ItemUtils.getTierColor(tier);
+    const level = calculateLevel(item.xp);
+    const slot = ItemUtils.getItemSlot(item.id).toLowerCase();
+    const isArmorSlot = ['head', 'chest', 'foot', 'hand', 'waist'].includes(slot);
+    const isWeaponSlot = slot === 'weapon';
+    const isNameMatch = beast ? ItemUtils.isNameMatch(item.id, level, adventurer!.item_specials_seed, beast) : false;
+    const isNameMatchDanger = isNameMatch && isArmorSlot;
+    const isNameMatchPower = isNameMatch && isWeaponSlot;
+    const isDefenseItem = bestItemIds.includes(item.id);
+    const hasSpecials = level >= 15;
+    const hasGoldSpecials = level >= 20;
+
+    let damage = 0;
+    let critDamage = 0;
+    let damageTaken = 0;
+    let critDamageTaken = 0;
+    if (beast) {
+      if (isArmorSlot) {
+        const damageSummary = calculateBeastDamageDetails(beast, adventurer!, item);
+        damageTaken = damageSummary.baseDamage;
+        critDamageTaken = damageSummary.criticalDamage;
+      } else if (isWeaponSlot) {
+        const attackSummary = calculateAttackDamage(item, adventurer!, beast);
+        damage = attackSummary.baseDamage;
+        critDamage = attackSummary.criticalDamage;
+      }
+    }
+
+    if (isNew && isWeaponSlot && [Tier.T1, Tier.T2, Tier.T3].includes(tier)
+      && ItemUtils.getItemTier(adventurer?.equipment.weapon.id!) === Tier.T5) {
+      onItemClick(item);
+    }
+
+    const hasDamageOverlay = (damage > 0 || damageTaken > 0) && !!beast;
+    const baseOverlayValue = isArmorSlot ? damageTaken : damage;
+    const critOverlayValue = isArmorSlot ? critDamageTaken : critDamage;
+
+    return (
+      <Tooltip
+        key={item.id}
+        title={<ItemTooltip item={item} itemSpecialsSeed={adventurer?.item_specials_seed || 0} style={styles.bagTooltipContainer} />}
+        placement="auto-end"
+        slotProps={{
+          popper: {
+            modifiers: [
+              {
+                name: 'offset',
+                options: { offset: [0, -20] },
+              },
+              {
+                name: 'preventOverflow',
+                enabled: true,
+                options: { rootBoundary: 'viewport' },
+              },
+            ],
+          },
+          tooltip: {
+            sx: {
+              bgcolor: 'transparent',
+              border: 'none',
+            },
+          },
+        }}
+      >
+        <Box
+          sx={[
+            styles.bagSlot,
+            ...(isSelected ? [styles.selectedItem] : []),
+            ...(highlight ? [styles.highlight] : []),
+            ...(isNew ? [styles.newItem] : []),
+            ...(isNameMatchDanger ? [styles.nameMatchDangerSlot] : []),
+            ...(isNameMatchPower ? [styles.nameMatchPowerSlot] : []),
+            ...(isDefenseItem ? [styles.defenseItemSlot] : [])
+          ]}
+          onClick={() => onItemClick(item)}
+          onMouseEnter={() => onItemHover(item.id)}
+        >
+          <Box sx={styles.itemImageContainer}>
+            <Box
+              sx={[
+                styles.itemGlow,
+                { backgroundColor: tierColor }
+              ]}
+            />
+            {(isNameMatchDanger || isNameMatchPower) && (
+              <Box
+                sx={[
+                  styles.nameMatchGlow,
+                  isNameMatchDanger ? styles.nameMatchDangerGlow : styles.nameMatchPowerGlow
+                ]}
+              />
+            )}
+            <img
+              src={metadata.imageUrl}
+              alt={metadata.name}
+              style={{ ...styles.bagIcon, position: 'relative' }}
+            />
+            {hasSpecials && (
+              <Box sx={[styles.starOverlay, hasGoldSpecials ? styles.goldStarOverlay : styles.silverStarOverlay]}>
+                <Star sx={[styles.starIcon, hasGoldSpecials ? styles.goldStarIcon : styles.silverStarIcon]} />
+              </Box>
+            )}
+            {hasDamageOverlay && (
+              <>
+                <Box sx={[
+                  styles.damageIndicator,
+                  styles.damageIndicatorTop,
+                  isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
+                ]}>
+                  <Typography sx={[
+                    styles.damageIndicatorText,
+                    isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                  ]}>
+                    {isArmorSlot ? `-${baseOverlayValue}` : `+${baseOverlayValue}`}
+                  </Typography>
+                </Box>
+                {critOverlayValue > 0 && (
+                  <Box sx={[
+                    styles.damageIndicator,
+                    styles.damageIndicatorBottom,
+                    isArmorSlot ? styles.damageIndicatorCritRed : styles.damageIndicatorCritGreen
+                  ]}>
+                    <Typography sx={[
+                      styles.damageIndicatorText,
+                      isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                    ]}>
+                      {isArmorSlot ? `-${critOverlayValue}` : `+${critOverlayValue}`}
+                    </Typography>
+                  </Box>
+                )}
+              </>
+            )}
+          </Box>
+          <Box sx={styles.itemLevelBadge}>
+            <Typography sx={styles.itemLevelText}>Lv {level}</Typography>
+          </Box>
+        </Box>
+      </Tooltip>
+    );
+  };
+
+  const showDropButton = !isDropMode && !beast;
+
   return (
     <Box sx={styles.bagPanel}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
@@ -304,157 +535,13 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
       </Box>
 
       <Box sx={styles.bagGrid}>
-        {bag?.map((item) => {
-          const metadata = ItemUtils.getMetadata(item.id);
-          const isSelected = itemsToDrop.includes(item.id);
-          const highlight = isDropMode && itemsToDrop.length === 0;
-          const isNew = newItems.includes(item.id);
-          const tier = ItemUtils.getItemTier(item.id);
-          const tierColor = ItemUtils.getTierColor(tier);
-          const level = calculateLevel(item.xp);
-          const isNameMatch = beast ? ItemUtils.isNameMatch(item.id, level, adventurer!.item_specials_seed, beast) : false;
-          const isArmorSlot = ['head', 'chest', 'foot', 'hand', 'waist'].includes(ItemUtils.getItemSlot(item.id).toLowerCase());
-          const isWeaponSlot = ItemUtils.getItemSlot(item.id).toLowerCase() === 'weapon';
-          const isNameMatchDanger = isNameMatch && isArmorSlot;
-          const isNameMatchPower = isNameMatch && isWeaponSlot;
-          const isDefenseItem = bestItemIds.includes(item.id);
-          const hasSpecials = level >= 15;
-          const hasGoldSpecials = level >= 20;
+        {sortedItems.map(renderBagItem)}
+        {emptySlots}
 
-          // Calculate damage values for bag items
-          let damage = 0;
-          let critDamage = 0;
-          let damageTaken = 0;
-          let critDamageTaken = 0;
-          if (beast) {
-            if (isArmorSlot) {
-              const damageSummary = calculateBeastDamageDetails(beast, adventurer!, item);
-              damageTaken = damageSummary.baseDamage;
-              critDamageTaken = damageSummary.criticalDamage;
-            } else if (isWeaponSlot) {
-              const attackSummary = calculateAttackDamage(item, adventurer!, beast);
-              damage = attackSummary.baseDamage;
-              critDamage = attackSummary.criticalDamage;
-            }
-          }
-
-          if (isNew && isWeaponSlot && [Tier.T1, Tier.T2, Tier.T3].includes(tier) && ItemUtils.getItemTier(adventurer?.equipment.weapon.id!) === Tier.T5) {
-            onItemClick(item);
-          }
-
-          const hasDamageOverlay = (damage > 0 || damageTaken > 0) && !!beast;
-          const baseOverlayValue = isArmorSlot ? damageTaken : damage;
-          const critOverlayValue = isArmorSlot ? critDamageTaken : critDamage;
-
-          return (
-            <Tooltip
-              key={item.id}
-              title={<ItemTooltip item={item} itemSpecialsSeed={adventurer?.item_specials_seed || 0} style={styles.bagTooltipContainer} />}
-              placement="auto-end"
-              slotProps={{
-                popper: {
-                  modifiers: [
-                    {
-                      name: 'offset',
-                      options: { offset: [0, -20] },
-                    },
-                    {
-                      name: 'preventOverflow',
-                      enabled: true,
-                      options: { rootBoundary: 'viewport' },
-                    },
-                  ],
-                },
-                tooltip: {
-                  sx: {
-                    bgcolor: 'transparent',
-                    border: 'none',
-                  },
-                },
-              }}
-            >
-              <Box
-                sx={[
-                  styles.bagSlot,
-                  ...(isSelected ? [styles.selectedItem] : []),
-                  ...(highlight ? [styles.highlight] : []),
-                  ...(isNew ? [styles.newItem] : []),
-                  ...(isNameMatchDanger ? [styles.nameMatchDangerSlot] : []),
-                  ...(isNameMatchPower ? [styles.nameMatchPowerSlot] : []),
-                  ...(isDefenseItem ? [styles.defenseItemSlot] : [])
-                ]}
-                onClick={() => onItemClick(item)}
-                onMouseEnter={() => onItemHover(item.id)}
-              >
-                <Box sx={styles.itemImageContainer}>
-                  <Box
-                    sx={[
-                      styles.itemGlow,
-                      { backgroundColor: tierColor }
-                    ]}
-                  />
-                  {(isNameMatchDanger || isNameMatchPower) && (
-                    <Box
-                      sx={[
-                        styles.nameMatchGlow,
-                        isNameMatchDanger ? styles.nameMatchDangerGlow : styles.nameMatchPowerGlow
-                      ]}
-                    />
-                  )}
-                  <img
-                    src={metadata.imageUrl}
-                    alt={metadata.name}
-                    style={{ ...styles.bagIcon, position: 'relative' }}
-                  />
-                  {hasSpecials && (
-                    <Box sx={[styles.starOverlay, hasGoldSpecials ? styles.goldStarOverlay : styles.silverStarOverlay]}>
-                      <Star sx={[styles.starIcon, hasGoldSpecials ? styles.goldStarIcon : styles.silverStarIcon]} />
-                    </Box>
-                  )}
-                  {/* Damage Indicator Overlay for Bag Items */}
-                  {hasDamageOverlay && (
-                    <>
-                      <Box sx={[
-                        styles.damageIndicator,
-                        styles.damageIndicatorTop,
-                        isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
-                      ]}>
-                        <Typography sx={[
-                          styles.damageIndicatorText,
-                          isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
-                        ]}>
-                          {isArmorSlot ? `-${baseOverlayValue}` : `+${baseOverlayValue}`}
-                        </Typography>
-                      </Box>
-                      {critOverlayValue > 0 && (
-                        <Box sx={[
-                          styles.damageIndicator,
-                          styles.damageIndicatorBottom,
-                          isArmorSlot ? styles.damageIndicatorCritRed : styles.damageIndicatorCritGreen
-                        ]}>
-                          <Typography sx={[
-                            styles.damageIndicatorText,
-                            isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
-                          ]}>
-                            {isArmorSlot ? `-${critOverlayValue}` : `+${critOverlayValue}`}
-                          </Typography>
-                        </Box>
-                      )}
-                    </>
-                  )}
-                </Box>
-              </Box>
-            </Tooltip>
-          );
-        })}
-        {Array(15 - (bag?.length || 0)).fill(null).map((_, idx) => (
-          <Box key={`empty-${idx}`} sx={styles.bagSlot}>
-            <Box sx={styles.emptySlot}></Box>
-          </Box>
-        ))}
-        {(!isDropMode && !beast) && (
+        {showDropButton && (
           <Box
-            sx={styles.dropButtonSlot}
+            key="drop-button"
+            sx={[styles.bagSlot, styles.dropButtonSlot]}
             onClick={onDropModeToggle}
           >
             <DeleteOutline sx={styles.dropIcon} />
@@ -546,10 +633,6 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
                 onItemHover={handleItemHover}
               />
               {/* Right: Stats */}
-              <AdventurerStats variant="combat" />
-            </Box>
-
-            <Box sx={styles.statsSection}>
               <AdventurerStats variant="stats" />
             </Box>
 
@@ -636,7 +719,7 @@ const styles = {
     position: 'absolute',
     top: '120px',
     left: '24px',
-    width: '450px',
+    width: '470px',
     maxHeight: '90vh',
     background: 'rgba(24, 40, 24, 0.55)',
     border: '2px solid #083e22',
@@ -653,18 +736,14 @@ const styles = {
   inventoryRoot: {
     display: 'flex',
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
     gap: 1,
     mb: 1
   },
-  statsSection: {
-    width: '100%',
-    mb: 1,
-  },
   equipmentPanel: {
-    height: '280px',
-    width: '250px',
+    height: '382px',
+    width: '230px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -678,8 +757,8 @@ const styles = {
   },
   characterPortraitWrapper: {
     position: 'relative',
-    width: 240,
-    height: 260,
+    width: 220,
+    height: 280,
     margin: '0 auto',
     background: 'rgba(20, 20, 20, 0.7)',
     borderRadius: '8px',
@@ -702,8 +781,8 @@ const styles = {
     padding: '1%',
   },
   characterPortrait: {
-    width: 110,
-    height: 160,
+    width: 100,
+    height: 150,
   },
   equipmentSlot: {
     background: 'rgba(24, 40, 24, 0.95)',
@@ -745,9 +824,14 @@ const styles = {
     height: '80%',
     zIndex: 2,
   },
+  bagIcon: {
+    width: '70%',
+    height: '70%',
+    zIndex: 2,
+  },
   emptySlot: {
-    width: '80%',
-    height: '80%',
+    width: '88%',
+    height: '88%',
     border: '1.5px dashed #666',
     borderRadius: 0,
     background: 'rgba(80,80,80,0.2)',
@@ -759,7 +843,7 @@ const styles = {
     width: '100%',
     background: 'rgba(24, 40, 24, 0.98)',
     border: '2px solid #083e22',
-    padding: '8px',
+    padding: '12px 12px 10px',
     boxShadow: '0 0 8px #000a',
     boxSizing: 'border-box',
     borderRadius: '8px',
@@ -768,10 +852,14 @@ const styles = {
     display: 'flex',
     flexWrap: 'wrap',
     gap: 0.5,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
   },
   bagSlot: {
-    width: 38,
-    height: 38,
+    width: 65,
+    height: 65,
+    minWidth: 54,
+    minHeight: 54,
     background: 'rgba(24, 40, 24, 0.95)',
     border: '2px solid #083e22',
     borderRadius: 0,
@@ -780,16 +868,18 @@ const styles = {
     justifyContent: 'center',
     boxShadow: '0 0 4px #000a',
     cursor: 'pointer',
-    overflow: 'hidden'
+    overflow: 'hidden',
+    flexShrink: 0,
+    position: 'relative',
   },
-  bagIcon: {
-    width: 34,
-    height: 34,
-    zIndex: 2,
+  emptyBagSlot: {
+    cursor: 'default',
+    pointerEvents: 'none',
+    opacity: 0.45,
   },
   dropButtonSlot: {
-    width: 42,
-    height: 42,
+    width: 70,
+    height: 70,
     background: 'rgba(255, 0, 0, 0.1)',
     border: '2px solid rgba(255, 0, 0, 0.2)',
     boxShadow: '0 0 4px #000a',
