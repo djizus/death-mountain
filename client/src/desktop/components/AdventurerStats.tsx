@@ -221,7 +221,7 @@ const styles = {
   },
   statsPanelCombatVariant: {
     height: '310px',
-    width: '185px',
+    width: '100%',
     flexShrink: 0,
   },
   statsPanelStatsVariant: {
