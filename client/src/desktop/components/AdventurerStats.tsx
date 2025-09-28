@@ -226,7 +226,7 @@ const styles = {
   },
   statsPanelStatsVariant: {
     width: '100%',
-    height: '450px',
+    height: '440px',
     flex: 1,
     minWidth: 0,
   },

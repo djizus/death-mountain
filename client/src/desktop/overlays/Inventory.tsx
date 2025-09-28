@@ -742,7 +742,7 @@ const styles = {
     mb: 1
   },
   equipmentPanel: {
-    height: '422px',
+    height: '412px',
     width: '230px',
     display: 'flex',
     flexDirection: 'column',
