@@ -238,11 +238,6 @@ const styles = {
     justifyContent: "flex-end",
     gap: 0.5,
   },
-  statusLabel: {
-    fontSize: "13px",
-    color: "#fff",
-    opacity: 0.8,
-  },
   watchButton: {
     width: "50px",
     height: "34px",

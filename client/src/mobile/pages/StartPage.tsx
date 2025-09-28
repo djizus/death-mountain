@@ -401,7 +401,7 @@ export default function LandingPage() {
                 </Box>
               </Box>
 
-              <ReplayGamesList />
+              <ReplayGamesList onBack={() => setShowReplays(false)} />
             </>
           )}
 
