@@ -29,19 +29,6 @@ export default function CombatOverlay() {
   const [combatLog, setCombatLog] = useState("");
   const [simulationResult, setSimulationResult] = useState(defaultSimulationResult);
   const formatNumber = (value: number) => value.toLocaleString();
-  const formatCompactNumber = (value: number) => {
-    const absValue = Math.abs(value);
-
-    if (absValue < 1000) {
-      return formatNumber(value);
-    }
-
-    const compact = absValue / 1000;
-    const formatted = compact % 1 === 0 ? compact.toFixed(0) : compact.toFixed(1);
-    const suffixValue = formatted.replace(/\.0$/, '');
-
-    return `${value < 0 ? '-' : ''}${suffixValue}k`;
-  };
   const formatRange = (minValue: number, maxValue: number) => {
     if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
       return '-';
@@ -186,7 +173,7 @@ export default function CombatOverlay() {
     }
 
     const runSimulation = async () => {
-      const result = await simulateCombatOutcomes(adventurer, beast, 10000, beastCombatSummary.goldReward);
+      const result = await simulateCombatOutcomes(adventurer, beast);
       if (!cancelled) {
         setSimulationResult(result);
       }
@@ -253,7 +240,7 @@ export default function CombatOverlay() {
   }, [beastCombatSummary?.goldReward, potionCost]);
 
   const potentialHealthChange = useMemo(() => {
-    if (simulationResult.totalFights === 0) {
+    if (!simulationResult.hasOutcome) {
       return 0;
     }
 
@@ -263,19 +250,19 @@ export default function CombatOverlay() {
     }
 
     return potionCoverage.coverage - damageTaken;
-  }, [simulationResult.totalFights, simulationResult.modeDamageTaken, potionCoverage.coverage]);
+  }, [simulationResult.hasOutcome, simulationResult.modeDamageTaken, potionCoverage.coverage]);
 
-  const isPotentialHealthNegative = simulationResult.totalFights > 0
+  const isPotentialHealthNegative = simulationResult.hasOutcome
     && Number.isFinite(potentialHealthChange)
     && potentialHealthChange < 0;
-  const isPotentialHealthPositive = simulationResult.totalFights > 0
+  const isPotentialHealthPositive = simulationResult.hasOutcome
     && (potentialHealthChange === Number.POSITIVE_INFINITY || potentialHealthChange > 0);
-  const shouldForceGamble = simulationResult.totalFights > 0
+  const shouldForceGamble = simulationResult.hasOutcome
     && simulationResult.winRate > 50
     && isPotentialHealthNegative;
 
   const { tipLabel, tipStyles, tipReason } = useMemo(() => {
-    if (simulationResult.totalFights === 0) {
+    if (!simulationResult.hasOutcome) {
       return {
         tipLabel: '—',
         tipStyles: styles.simulationTipNeutral,
@@ -312,10 +299,10 @@ export default function CombatOverlay() {
       tipStyles: styles.simulationTipGamble,
       tipReason: 'Even odds',
     };
-  }, [simulationResult.totalFights, simulationResult.winRate, shouldForceGamble]);
+  }, [simulationResult.hasOutcome, simulationResult.winRate, shouldForceGamble]);
 
   const potentialHealthChangeText = (() => {
-    if (simulationResult.totalFights === 0) {
+    if (!simulationResult.hasOutcome) {
       return '-';
     }
 
@@ -352,7 +339,7 @@ export default function CombatOverlay() {
             </Box>
           </Box>
 
-          {simulationResult.totalFights > 0 && (
+          {simulationResult.hasOutcome && (
             <>
               <Box sx={styles.simulationSection}>
                 <Typography sx={styles.simulationTitle}>Simulated Outcomes</Typography>
@@ -366,35 +353,28 @@ export default function CombatOverlay() {
                   <Box sx={[styles.simulationChip, styles.simulationChipWin]}>
                     <Typography sx={styles.simulationChipLabel}>Win</Typography>
                     <Typography sx={styles.simulationChipValue}>{simulationResult.winRate}%</Typography>
-                    <Typography sx={styles.simulationChipSubValue}>{`${formatCompactNumber(simulationResult.wins)}/${formatCompactNumber(simulationResult.totalFights)}`}</Typography>
+                    <Typography sx={styles.simulationChipSubValue}>chance</Typography>
                   </Box>
                   <Box sx={[styles.simulationChip, styles.simulationChipLoss]}>
-                    <Typography sx={styles.simulationChipLabel}>Loss</Typography>
-                    <Typography sx={styles.simulationChipValue}>{simulationResult.lossRate}%</Typography>
-                    <Typography sx={styles.simulationChipSubValue}>{`${formatCompactNumber(simulationResult.losses)}/${formatCompactNumber(simulationResult.totalFights)}`}</Typography>
+                    <Typography sx={styles.simulationChipLabel}>Lethal</Typography>
+                    <Typography sx={styles.simulationChipValue}>{simulationResult.lethalRate}%</Typography>
+                    <Typography sx={styles.simulationChipSubValue}>chance</Typography>
                   </Box>
                 </Box>
 
                 <Box sx={styles.simulationStatsGrid}>
-                  <Box sx={[styles.simulationStatCard, styles.simulationStatCardNeutral]}>
-                    <Typography sx={styles.simulationStatLabel}>Rounds</Typography>
-                    <Typography sx={styles.simulationStatValue}>{formatNumber(simulationResult.modeRounds)}</Typography>
-                    <Typography sx={styles.simulationStatSubValue}>
-                      {formatRange(simulationResult.minRounds, simulationResult.maxRounds)}
-                    </Typography>
-                  </Box>
                   <Box sx={[styles.simulationStatCard, styles.simulationStatCardPositive]}>
                     <Typography sx={styles.simulationStatLabel}>Dmg Dealt</Typography>
                     <Typography sx={styles.simulationStatValue}>{formatNumber(simulationResult.modeDamageDealt)}</Typography>
                     <Typography sx={styles.simulationStatSubValue}>
-                      {formatRange(Math.round(simulationResult.minDamageDealt), Math.round(simulationResult.maxDamageDealt))}
+                      {formatRange(simulationResult.minDamageDealt, simulationResult.maxDamageDealt)}
                     </Typography>
                   </Box>
                   <Box sx={[styles.simulationStatCard, styles.simulationStatCardNegative]}>
                     <Typography sx={styles.simulationStatLabel}>Dmg Taken</Typography>
                     <Typography sx={styles.simulationStatValue}>{formatNumber(Math.round(simulationResult.modeDamageTaken))}</Typography>
                     <Typography sx={styles.simulationStatSubValue}>
-                      {formatRange(Math.round(simulationResult.minDamageTaken), Math.round(simulationResult.maxDamageTaken))}
+                      {formatRange(simulationResult.minDamageTaken, simulationResult.maxDamageTaken)}
                     </Typography>
                   </Box>
                 </Box>
@@ -405,7 +385,7 @@ export default function CombatOverlay() {
           <Box sx={styles.beastStatsSeparator} />
 
           <Box sx={styles.beastStatsList}>
-            {simulationResult.totalFights > 0 && (
+            {simulationResult.hasOutcome && (
               <Box sx={styles.beastStatRow}>
                 <Typography sx={styles.beastStatLabel}>Potential Health Change</Typography>
                 <Typography sx={[
@@ -828,7 +808,7 @@ const styles = {
   },
   simulationStatsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
     gap: '6px',
   },
   simulationStatCard: {

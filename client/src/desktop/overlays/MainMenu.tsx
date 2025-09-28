@@ -4,6 +4,7 @@ import { useDynamicConnector } from "@/contexts/starknet";
 import { OPENING_TIME } from "@/contexts/Statistics";
 import discordIcon from "@/desktop/assets/images/discord.png";
 import AdventurersList from "@/desktop/components/AdventurersList";
+import ReplayGamesList from "@/desktop/components/ReplayGamesList";
 import Settings from "@/desktop/components/Settings";
 import DungeonRewards from "@/dungeons/beasts/DungeonRewards";
 import {
@@ -17,6 +18,7 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import TokenIcon from "@mui/icons-material/Token";
 import XIcon from "@mui/icons-material/X";
@@ -45,6 +47,7 @@ export default function MainMenu() {
   const [showAdventurers, setShowAdventurers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showReplays, setShowReplays] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [left, setLeft] = useState(getMenuLeftOffset());
@@ -92,7 +95,21 @@ export default function MainMenu() {
       return;
     }
 
+    setShowReplays(false);
     setShowAdventurers(true);
+  };
+
+  const handleShowReplays = () => {
+    if (
+      currentNetworkConfig.chainId === import.meta.env.VITE_PUBLIC_CHAIN &&
+      !account
+    ) {
+      login();
+      return;
+    }
+
+    setShowAdventurers(false);
+    setShowReplays(true);
   };
 
   const switchMode = () => {
@@ -133,12 +150,15 @@ export default function MainMenu() {
           {showAdventurers && (
             <AdventurersList onBack={() => setShowAdventurers(false)} />
           )}
+          {showReplays && (
+            <ReplayGamesList onBack={() => setShowReplays(false)} />
+          )}
           {showLeaderboard && (
             <Leaderboard onBack={() => setShowLeaderboard(false)} />
           )}
           {showSettings && <Settings onBack={() => setShowSettings(false)} />}
 
-          {!showAdventurers && !showSettings && !showLeaderboard && (
+          {!showAdventurers && !showReplays && !showSettings && !showLeaderboard && (
             <>
               <Box sx={styles.headerBox}>
                 <Typography sx={styles.gameTitle}>LOOT SURVIVOR 2</Typography>
@@ -215,6 +235,29 @@ export default function MainMenu() {
                     </Typography>
                   )}
                 </Box>
+              </Button>
+
+              <Button
+                variant="outlined"
+                fullWidth
+                size="large"
+                onClick={handleShowReplays}
+                disabled={disableGameButtons}
+                sx={{ pl: 1, height: "36px" }}
+              >
+                <VisibilityIcon sx={{ fontSize: 20, mr: 1 }} />
+                <Typography
+                  sx={{
+                    fontSize: "0.85rem",
+                    fontWeight: 500,
+                    letterSpacing: 0.5,
+                    color: disableGameButtons
+                      ? "rgba(208, 201, 141, 0.3)"
+                      : "#d0c98d",
+                  }}
+                >
+                  Replay Games
+                </Typography>
               </Button>
 
               <Button

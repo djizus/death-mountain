@@ -5,113 +5,177 @@ export const ARMOR_TARGET_SLOTS: Array<keyof Equipment> = ['chest', 'head', 'wai
 export const MAX_ROUNDS_PER_FIGHT = 500;
 
 export interface CombatSimulationResult {
-  totalFights: number;
-  wins: number;
-  losses: number;
+  hasOutcome: boolean;
   winRate: number;
-  lossRate: number;
-  averageRounds: number;
-  averageDamageDealt: number;
-  averageDamageTaken: number;
-  modeDamageTaken: number;
+  lethalRate: number;
   modeDamageDealt: number;
-  modeRounds: number;
-  minRounds: number;
-  maxRounds: number;
+  modeDamageTaken: number;
   minDamageDealt: number;
   maxDamageDealt: number;
   minDamageTaken: number;
   maxDamageTaken: number;
-  goldRiskRatio: number;
 }
 
 export const defaultSimulationResult: CombatSimulationResult = {
-  totalFights: 0,
-  wins: 0,
-  losses: 0,
+  hasOutcome: false,
   winRate: 0,
-  lossRate: 0,
-  averageRounds: 0,
-  averageDamageDealt: 0,
-  averageDamageTaken: 0,
-  modeDamageTaken: 0,
+  lethalRate: 0,
   modeDamageDealt: 0,
-  modeRounds: 0,
-  minRounds: 0,
-  maxRounds: 0,
+  modeDamageTaken: 0,
   minDamageDealt: 0,
   maxDamageDealt: 0,
   minDamageTaken: 0,
   maxDamageTaken: 0,
-  goldRiskRatio: 0,
 };
 
-export interface SimulationTotals {
-  fightsSimulated: number;
-  wins: number;
-  totalRounds: number;
-  totalDamageDealt: number;
-  totalDamageTaken: number;
-  minDamageDealt: number;
-  maxDamageDealt: number;
-  minDamageTaken: number;
-  maxDamageTaken: number;
-  minRounds: number;
-  maxRounds: number;
-  damageTakenCounts: Record<string, number>;
-  damageDealtCounts: Record<string, number>;
-  roundsCounts: Record<string, number>;
+interface DamageOption {
+  damage: number;
+  probability: number;
 }
 
-export interface SimulationChunkArgs {
-  adventurer: Adventurer;
-  beast: Beast;
-  iterations: number;
+interface StateOutcome {
+  winProbability: number;
+  lethalProbability: number;
+  damageDealtDistribution: Map<number, number>;
+  damageTakenDistribution: Map<number, number>;
 }
+
+const PROBABILITY_EPSILON = 1e-12;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
-const rollCritical = (chance: number) => Math.random() * 100 < chance;
-const pickRandomArmorSlot = () => ARMOR_TARGET_SLOTS[Math.floor(Math.random() * ARMOR_TARGET_SLOTS.length)];
 
-// Approximate beast critical chance using adventurer level as the driver.
-const getBeastCriticalChance = (adventurer: Adventurer) => clamp(calculateLevel(adventurer.xp) * 2, 5, 35);
+const addProbability = (distribution: Map<number, number>, value: number, probability: number) => {
+  if (probability <= PROBABILITY_EPSILON) {
+    return;
+  }
 
-export const createEmptyTotals = (): SimulationTotals => ({
-  fightsSimulated: 0,
-  wins: 0,
-  totalRounds: 0,
-  totalDamageDealt: 0,
-  totalDamageTaken: 0,
-  minDamageDealt: Number.POSITIVE_INFINITY,
-  maxDamageDealt: 0,
-  minDamageTaken: Number.POSITIVE_INFINITY,
-  maxDamageTaken: 0,
-  minRounds: Number.POSITIVE_INFINITY,
-  maxRounds: 0,
-  damageTakenCounts: {},
-  damageDealtCounts: {},
-  roundsCounts: {},
-});
-
-const incrementCount = (counts: Record<string, number>, value: number) => {
-  const key = value.toString();
-  counts[key] = (counts[key] ?? 0) + 1;
+  const existing = distribution.get(value) ?? 0;
+  distribution.set(value, existing + probability);
 };
 
-export const runSimulationChunk = ({ adventurer, beast, iterations }: SimulationChunkArgs): SimulationTotals => {
-  if (!adventurer || !beast || adventurer.health <= 0 || beast.health <= 0 || iterations <= 0) {
-    return createEmptyTotals();
+const combineDistributions = (
+  target: Map<number, number>,
+  source: Map<number, number>,
+  offset: number,
+  weight: number,
+) => {
+  if (weight <= PROBABILITY_EPSILON) {
+    return;
+  }
+
+  source.forEach((probability, value) => {
+    addProbability(target, value + offset, probability * weight);
+  });
+};
+
+const getBeastCriticalChance = (adventurer: Adventurer) => clamp(calculateLevel(adventurer.xp) * 2, 5, 35) / 100;
+
+const buildHeroDamageOptions = (baseDamage: number, criticalDamage: number, critChancePercent: number): DamageOption[] => {
+  const criticalChance = clamp(critChancePercent, 0, 100) / 100;
+  const baseChance = 1 - criticalChance;
+
+  const aggregated = new Map<number, number>();
+  addProbability(aggregated, baseDamage, baseChance);
+  addProbability(aggregated, criticalDamage, criticalChance);
+
+  if (aggregated.size === 0) {
+    aggregated.set(baseDamage, 1);
+  }
+
+  return Array.from(aggregated.entries()).map(([damage, probability]) => ({ damage, probability }));
+};
+
+const buildBeastDamageOptions = (
+  adventurer: Adventurer,
+  beast: Beast,
+  beastDamageBySlot: Record<string, ReturnType<typeof calculateBeastDamageDetails> | undefined>,
+  beastCritChance: number,
+): DamageOption[] => {
+  const slotSummaries = ARMOR_TARGET_SLOTS.map((slot) => beastDamageBySlot[slot] ?? undefined).filter(
+    (summary): summary is ReturnType<typeof calculateBeastDamageDetails> => !!summary,
+  );
+
+  if (slotSummaries.length === 0) {
+    const fallback = calculateBeastDamageDetails(beast, adventurer, adventurer.equipment.chest);
+    return [{ damage: fallback.baseDamage, probability: 1 }];
+  }
+
+  const slotProbability = 1 / slotSummaries.length;
+  const aggregated = new Map<number, number>();
+  const criticalChance = clamp(beastCritChance, 0, 1);
+  const baseChance = 1 - criticalChance;
+
+  slotSummaries.forEach((summary) => {
+    addProbability(aggregated, summary.baseDamage, baseChance * slotProbability);
+    addProbability(aggregated, summary.criticalDamage, criticalChance * slotProbability);
+  });
+
+  if (aggregated.size === 0) {
+    aggregated.set(slotSummaries[0]!.baseDamage, 1);
+  }
+
+  return Array.from(aggregated.entries()).map(([damage, probability]) => ({ damage, probability }));
+};
+
+const getModeFromDistribution = (distribution: Map<number, number>) => {
+  let modeValue = 0;
+  let highestProbability = 0;
+
+  distribution.forEach((probability, value) => {
+    if (
+      probability > highestProbability + PROBABILITY_EPSILON
+      || (Math.abs(probability - highestProbability) <= PROBABILITY_EPSILON && value < modeValue)
+    ) {
+      highestProbability = probability;
+      modeValue = value;
+    }
+  });
+
+  if (highestProbability <= PROBABILITY_EPSILON) {
+    return 0;
+  }
+
+  return modeValue;
+};
+
+const getMinFromDistribution = (distribution: Map<number, number>) => {
+  let minValue = Infinity;
+
+  distribution.forEach((probability, value) => {
+    if (probability > PROBABILITY_EPSILON && value < minValue) {
+      minValue = value;
+    }
+  });
+
+  return Number.isFinite(minValue) ? minValue : 0;
+};
+
+const getMaxFromDistribution = (distribution: Map<number, number>) => {
+  let maxValue = 0;
+
+  distribution.forEach((probability, value) => {
+    if (probability > PROBABILITY_EPSILON && value > maxValue) {
+      maxValue = value;
+    }
+  });
+
+  return maxValue;
+};
+
+export const calculateDeterministicCombatResult = (
+  adventurer: Adventurer,
+  beast: Beast,
+): CombatSimulationResult => {
+  if (!adventurer || !beast || adventurer.health <= 0 || beast.health <= 0) {
+    return defaultSimulationResult;
   }
 
   const weaponDamage = calculateAttackDamage(adventurer.equipment.weapon, adventurer, beast);
-  const playerCritChance = clamp(adventurer.stats.luck ?? 0, 0, 100);
-  const beastCritChance = getBeastCriticalChance(adventurer);
-  const startingBeastHp = Math.max(0, adventurer.beast_health ?? 0);
-  const effectiveBeastHp = startingBeastHp > 0 ? startingBeastHp : beast.health;
-
-  if (effectiveBeastHp <= 0) {
-    return createEmptyTotals();
-  }
+  const heroDamageOptions = buildHeroDamageOptions(
+    weaponDamage.baseDamage,
+    weaponDamage.criticalDamage,
+    adventurer.stats.luck ?? 0,
+  );
 
   const beastDamageBySlot = ARMOR_TARGET_SLOTS.reduce<Record<string, ReturnType<typeof calculateBeastDamageDetails>>>(
     (acc, slot) => {
@@ -121,154 +185,143 @@ export const runSimulationChunk = ({ adventurer, beast, iterations }: Simulation
     },
     {},
   );
-  const defaultBeastDamage = beastDamageBySlot[ARMOR_TARGET_SLOTS[0]];
 
-  const totals = createEmptyTotals();
+  const beastDamageOptions = buildBeastDamageOptions(
+    adventurer,
+    beast,
+    beastDamageBySlot,
+    getBeastCriticalChance(adventurer),
+  );
 
-  const runFight = () => {
-    let heroHp = adventurer.health;
-    let beastHp = effectiveBeastHp;
-    let rounds = 0;
-    let damageDealt = 0;
-    let damageTaken = 0;
-
-    while (heroHp > 0 && beastHp > 0 && rounds < MAX_ROUNDS_PER_FIGHT) {
-      rounds += 1;
-
-      const heroCritical = rollCritical(playerCritChance);
-      const heroDamage = heroCritical ? weaponDamage.criticalDamage : weaponDamage.baseDamage;
-      beastHp -= heroDamage;
-      damageDealt += heroDamage;
-
-      if (beastHp <= 0) {
-        break;
-      }
-
-      const slot = pickRandomArmorSlot();
-      const beastDamageSummary = beastDamageBySlot[slot] ?? defaultBeastDamage ?? weaponDamage;
-      const beastCritical = rollCritical(beastCritChance);
-      const beastDamage = beastCritical ? beastDamageSummary.criticalDamage : beastDamageSummary.baseDamage;
-      heroHp -= beastDamage;
-      damageTaken += beastDamage;
-    }
-
-    return { rounds, damageDealt, damageTaken, heroHp, beastHp };
-  };
-
-  for (let i = 0; i < iterations; i += 1) {
-    const { rounds, damageDealt, damageTaken, heroHp, beastHp } = runFight();
-
-    totals.fightsSimulated += 1;
-    totals.totalRounds += rounds;
-    totals.totalDamageDealt += damageDealt;
-    totals.totalDamageTaken += damageTaken;
-    totals.minDamageDealt = Math.min(totals.minDamageDealt, damageDealt);
-    totals.maxDamageDealt = Math.max(totals.maxDamageDealt, damageDealt);
-    totals.minDamageTaken = Math.min(totals.minDamageTaken, damageTaken);
-    totals.maxDamageTaken = Math.max(totals.maxDamageTaken, damageTaken);
-    totals.minRounds = Math.min(totals.minRounds, rounds);
-    totals.maxRounds = Math.max(totals.maxRounds, rounds);
-
-    incrementCount(totals.damageTakenCounts, damageTaken);
-    incrementCount(totals.damageDealtCounts, damageDealt);
-    incrementCount(totals.roundsCounts, rounds);
-
-    if (heroHp > 0 && beastHp <= 0) {
-      totals.wins += 1;
-    }
-  }
-
-  return totals;
-};
-
-export const mergeSimulationTotals = (target: SimulationTotals, addition: SimulationTotals): SimulationTotals => {
-  const merged: SimulationTotals = {
-    ...target,
-    damageTakenCounts: { ...target.damageTakenCounts },
-    damageDealtCounts: { ...target.damageDealtCounts },
-    roundsCounts: { ...target.roundsCounts },
-  };
-
-  merged.fightsSimulated += addition.fightsSimulated;
-  merged.wins += addition.wins;
-  merged.totalRounds += addition.totalRounds;
-  merged.totalDamageDealt += addition.totalDamageDealt;
-  merged.totalDamageTaken += addition.totalDamageTaken;
-  merged.minDamageDealt = Math.min(merged.minDamageDealt, addition.minDamageDealt);
-  merged.maxDamageDealt = Math.max(merged.maxDamageDealt, addition.maxDamageDealt);
-  merged.minDamageTaken = Math.min(merged.minDamageTaken, addition.minDamageTaken);
-  merged.maxDamageTaken = Math.max(merged.maxDamageTaken, addition.maxDamageTaken);
-  merged.minRounds = Math.min(merged.minRounds, addition.minRounds);
-  merged.maxRounds = Math.max(merged.maxRounds, addition.maxRounds);
-
-  const mergeCounts = (destination: Record<string, number>, source: Record<string, number>) => {
-    Object.entries(source).forEach(([key, value]) => {
-      destination[key] = (destination[key] ?? 0) + value;
-    });
-  };
-
-  mergeCounts(merged.damageTakenCounts, addition.damageTakenCounts);
-  mergeCounts(merged.damageDealtCounts, addition.damageDealtCounts);
-  mergeCounts(merged.roundsCounts, addition.roundsCounts);
-
-  return merged;
-};
-
-const getModeFromCounts = (counts: Record<string, number>) => {
-  let modeValue = 0;
-  let highestCount = 0;
-
-  Object.entries(counts).forEach(([key, count]) => {
-    const value = Number(key);
-
-    if (Number.isNaN(value)) {
-      return;
-    }
-
-    if (count > highestCount || (count === highestCount && value < modeValue)) {
-      modeValue = value;
-      highestCount = count;
-    }
-  });
-
-  if (highestCount === 0) {
-    return 0;
-  }
-
-  return modeValue;
-};
-
-export const totalsToResult = (totals: SimulationTotals, goldReward: number): CombatSimulationResult => {
-  if (totals.fightsSimulated === 0) {
+  if (heroDamageOptions.length === 0 || beastDamageOptions.length === 0) {
     return defaultSimulationResult;
   }
 
-  const fights = totals.fightsSimulated;
-  const wins = totals.wins;
-  const losses = fights - wins;
+  const startingBeastHp = Math.max(0, adventurer.beast_health ?? 0);
+  const effectiveBeastHp = startingBeastHp > 0 ? startingBeastHp : beast.health;
 
-  const modeDamageTaken = getModeFromCounts(totals.damageTakenCounts);
-  const modeDamageDealt = getModeFromCounts(totals.damageDealtCounts);
-  const modeRounds = getModeFromCounts(totals.roundsCounts);
+  if (effectiveBeastHp <= 0) {
+    return defaultSimulationResult;
+  }
+
+  const memo = new Map<string, StateOutcome>();
+
+  const solve = (heroHp: number, beastHp: number, rounds: number): StateOutcome => {
+    if (heroHp <= 0) {
+      return {
+        winProbability: 0,
+        lethalProbability: 1,
+        damageDealtDistribution: new Map([[0, 1]]),
+        damageTakenDistribution: new Map([[0, 1]]),
+      };
+    }
+
+    if (beastHp <= 0) {
+      return {
+        winProbability: 1,
+        lethalProbability: 0,
+        damageDealtDistribution: new Map([[0, 1]]),
+        damageTakenDistribution: new Map([[0, 1]]),
+      };
+    }
+
+    if (rounds >= MAX_ROUNDS_PER_FIGHT) {
+      return {
+        winProbability: 0,
+        lethalProbability: 1,
+        damageDealtDistribution: new Map([[0, 1]]),
+        damageTakenDistribution: new Map([[0, 1]]),
+      };
+    }
+
+    const memoKey = `${heroHp}|${beastHp}|${rounds}`;
+    const cached = memo.get(memoKey);
+    if (cached) {
+      return cached;
+    }
+
+    let winProbability = 0;
+    let lethalProbability = 0;
+    const damageDealtDistribution = new Map<number, number>();
+    const damageTakenDistribution = new Map<number, number>();
+
+    heroDamageOptions.forEach(({ damage: heroDamage, probability: heroProbability }) => {
+      if (heroProbability <= PROBABILITY_EPSILON) {
+        return;
+      }
+
+      const remainingBeastHp = beastHp - heroDamage;
+
+      if (remainingBeastHp <= 0) {
+        winProbability += heroProbability;
+        addProbability(damageDealtDistribution, heroDamage, heroProbability);
+        addProbability(damageTakenDistribution, 0, heroProbability);
+        return;
+      }
+
+      beastDamageOptions.forEach(({ damage: beastDamage, probability: beastProbability }) => {
+        const branchProbability = heroProbability * beastProbability;
+
+        if (branchProbability <= PROBABILITY_EPSILON) {
+          return;
+        }
+
+        const remainingHeroHp = heroHp - beastDamage;
+
+        if (remainingHeroHp <= 0 || rounds + 1 >= MAX_ROUNDS_PER_FIGHT) {
+          lethalProbability += branchProbability;
+          addProbability(damageDealtDistribution, heroDamage, branchProbability);
+          addProbability(damageTakenDistribution, beastDamage, branchProbability);
+          return;
+        }
+
+        const nextState = solve(remainingHeroHp, remainingBeastHp, rounds + 1);
+
+        winProbability += branchProbability * nextState.winProbability;
+        lethalProbability += branchProbability * nextState.lethalProbability;
+
+        combineDistributions(damageDealtDistribution, nextState.damageDealtDistribution, heroDamage, branchProbability);
+        combineDistributions(damageTakenDistribution, nextState.damageTakenDistribution, beastDamage, branchProbability);
+      });
+    });
+
+    const outcome: StateOutcome = {
+      winProbability,
+      lethalProbability,
+      damageDealtDistribution,
+      damageTakenDistribution,
+    };
+
+    memo.set(memoKey, outcome);
+    return outcome;
+  };
+
+  const rootOutcome = solve(adventurer.health, effectiveBeastHp, 0);
+  const totalProbability = rootOutcome.winProbability + rootOutcome.lethalProbability;
+
+  if (totalProbability <= PROBABILITY_EPSILON) {
+    return defaultSimulationResult;
+  }
+
+  const winRate = Number(((rootOutcome.winProbability / totalProbability) * 100).toFixed(1));
+  const lethalRate = Number(((rootOutcome.lethalProbability / totalProbability) * 100).toFixed(1));
+
+  const damageDealtMode = getModeFromDistribution(rootOutcome.damageDealtDistribution);
+  const damageTakenMode = getModeFromDistribution(rootOutcome.damageTakenDistribution);
+  const minDamageDealt = getMinFromDistribution(rootOutcome.damageDealtDistribution);
+  const maxDamageDealt = getMaxFromDistribution(rootOutcome.damageDealtDistribution);
+  const minDamageTaken = getMinFromDistribution(rootOutcome.damageTakenDistribution);
+  const maxDamageTaken = getMaxFromDistribution(rootOutcome.damageTakenDistribution);
 
   return {
-    totalFights: fights,
-    wins,
-    losses,
-    winRate: Number(((wins / fights) * 100).toFixed(1)),
-    lossRate: Number(((losses / fights) * 100).toFixed(1)),
-    averageRounds: Number((totals.totalRounds / fights).toFixed(1)),
-    averageDamageDealt: Number((totals.totalDamageDealt / fights).toFixed(1)),
-    averageDamageTaken: Number((totals.totalDamageTaken / fights).toFixed(1)),
-    modeDamageTaken,
-    modeDamageDealt,
-    modeRounds,
-    minRounds: Number.isFinite(totals.minRounds) ? totals.minRounds : 0,
-    maxRounds: totals.maxRounds,
-    minDamageDealt: Number.isFinite(totals.minDamageDealt) ? Math.round(totals.minDamageDealt) : 0,
-    maxDamageDealt: Math.round(totals.maxDamageDealt),
-    minDamageTaken: Number.isFinite(totals.minDamageTaken) ? Math.round(totals.minDamageTaken) : 0,
-    maxDamageTaken: Math.round(totals.maxDamageTaken),
-    goldRiskRatio: goldReward > 0 ? Number((modeDamageTaken / goldReward).toFixed(2)) : modeDamageTaken,
+    hasOutcome: true,
+    winRate,
+    lethalRate,
+    modeDamageDealt: Math.round(damageDealtMode),
+    modeDamageTaken: Math.round(damageTakenMode),
+    minDamageDealt: Math.round(minDamageDealt),
+    maxDamageDealt: Math.round(maxDamageDealt),
+    minDamageTaken: Math.round(minDamageTaken),
+    maxDamageTaken: Math.round(maxDamageTaken),
   };
 };

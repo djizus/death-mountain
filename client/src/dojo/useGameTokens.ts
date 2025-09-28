@@ -82,9 +82,13 @@ export const useGameTokens = () => {
         return {
           ...adventurer,
           adventurer_id: tokenId,
+          game_id: game.game_id,
           player_name: game.player_name,
           settings_id: game.settings_id,
           minted_by: game.minted_by,
+          game_over: game.game_over,
+          lifecycle: game.lifecycle,
+          score: game.score,
           expires_at,
           available_at,
           expired: expires_at !== 0 && expires_at < Date.now(),

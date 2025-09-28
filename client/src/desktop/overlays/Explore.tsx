@@ -221,22 +221,39 @@ export default function ExploreOverlay() {
           )}
         </Box>}
 
-        <Box sx={styles.deathCheckboxContainer} onClick={() => {
-          if (!isExploring && !inProgress && cart.items.length === 0 && cart.potions === 0 && adventurer?.stat_upgrades_available! === 0) {
-            setUntilBeast(!untilBeast);
-          }
-        }}>
-          <Typography sx={styles.deathCheckboxLabel}>
-            until beast
-          </Typography>
-          <Checkbox
-            checked={untilBeast}
-            disabled={isExploring || inProgress || cart.items.length > 0 || cart.potions > 0 || adventurer?.stat_upgrades_available! > 0}
-            onChange={(e) => setUntilBeast(e.target.checked)}
-            size="medium"
-            sx={styles.deathCheckbox}
-          />
-        </Box>
+        {!spectating && (
+          <Box
+            sx={styles.deathCheckboxContainer}
+            onClick={() => {
+              if (
+                !isExploring &&
+                !inProgress &&
+                cart.items.length === 0 &&
+                cart.potions === 0 &&
+                adventurer?.stat_upgrades_available! === 0
+              ) {
+                setUntilBeast(!untilBeast);
+              }
+            }}
+          >
+            <Typography sx={styles.deathCheckboxLabel}>
+              until beast
+            </Typography>
+            <Checkbox
+              checked={untilBeast}
+              disabled={
+                isExploring ||
+                inProgress ||
+                cart.items.length > 0 ||
+                cart.potions > 0 ||
+                adventurer?.stat_upgrades_available! > 0
+              }
+              onChange={(e) => setUntilBeast(e.target.checked)}
+              size="medium"
+              sx={styles.deathCheckbox}
+            />
+          </Box>
+        )}
       </Box>
 
       {claimInProgress && (

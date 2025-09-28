@@ -8,11 +8,13 @@ import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import { Box, Button, Divider, Typography } from "@mui/material";
 import { useAccount } from "@starknet-react/core";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import GameTokensList from "../components/GameTokensList";
+import ReplayGamesList from "../components/ReplayGamesList";
 import CountdownMobile from "../components/CountdownMobile";
 import PaymentOptionsModal from "@/components/PaymentOptionsModal";
 import Leaderboard from "../components/Leaderboard";
@@ -29,6 +31,7 @@ export default function LandingPage() {
     useDynamicConnector();
   const navigate = useNavigate();
   const [showAdventurers, setShowAdventurers] = useState(false);
+  const [showReplays, setShowReplays] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showDungeonRewards, setShowDungeonRewards] = useState(false);
@@ -68,7 +71,21 @@ export default function LandingPage() {
       return;
     }
 
+    setShowReplays(false);
     setShowAdventurers(true);
+  };
+
+  const handleShowReplays = () => {
+    if (
+      currentNetworkConfig.chainId === import.meta.env.VITE_PUBLIC_CHAIN &&
+      !account
+    ) {
+      login();
+      return;
+    }
+
+    setShowAdventurers(false);
+    setShowReplays(true);
   };
 
   const switchMode = () => {
@@ -115,7 +132,10 @@ export default function LandingPage() {
             position: "relative",
           }}
         >
-          {!showAdventurers && !showLeaderboard && !showDungeonRewards && (
+          {!showAdventurers &&
+            !showReplays &&
+            !showLeaderboard &&
+            !showDungeonRewards && (
             <>
               <Box sx={styles.headerBox}>
                 <Typography sx={styles.gameTitle}>LOOT SURVIVOR 2</Typography>
@@ -220,6 +240,45 @@ export default function LandingPage() {
                 variant="contained"
                 size="large"
                 color="secondary"
+                onClick={handleShowReplays}
+                disabled={disableGameButtons}
+                sx={{
+                  height: "36px",
+                  mt: 1,
+                  "&.Mui-disabled": {
+                    backgroundColor: "rgba(208, 201, 141, 0.12)",
+                    color: "rgba(208, 201, 141, 0.4)",
+                  },
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "100%",
+                  }}
+                >
+                  <VisibilityIcon
+                    sx={{ opacity: disableGameButtons ? 0.4 : 1, mr: 1 }}
+                  />
+                  <Typography
+                    variant="h5"
+                    color={
+                      disableGameButtons
+                        ? "rgba(208, 201, 141, 0.4)"
+                        : "#111111"
+                    }
+                  >
+                    Replay Games
+                  </Typography>
+                </Box>
+              </Button>
+              <Button
+                fullWidth
+                variant="contained"
+                size="large"
+                color="secondary"
                 onClick={switchMode}
                 sx={{ height: "36px", mt: 1, mb: 1 }}
               >
@@ -312,6 +371,37 @@ export default function LandingPage() {
               </Box>
 
               <GameTokensList />
+            </>
+          )}
+
+          {showReplays && (
+            <>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  justifyContent: "center",
+                }}
+              >
+                <Box sx={styles.adventurersHeader}>
+                  <Button
+                    variant="text"
+                    size="large"
+                    onClick={() => setShowReplays(false)}
+                    sx={styles.backButton}
+                    startIcon={
+                      <ArrowBackIcon fontSize="large" sx={{ mr: 1 }} />
+                    }
+                  >
+                    <Typography variant="h4" color="primary">
+                      Replay Games
+                    </Typography>
+                  </Button>
+                </Box>
+              </Box>
+
+              <ReplayGamesList />
             </>
           )}
 
