@@ -878,8 +878,8 @@ const styles = {
     opacity: 0.45,
   },
   dropButtonSlot: {
-    width: 70,
-    height: 70,
+    width: 65,
+    height: 65,
     background: 'rgba(255, 0, 0, 0.1)',
     border: '2px solid rgba(255, 0, 0, 0.2)',
     boxShadow: '0 0 4px #000a',
