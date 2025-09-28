@@ -1500,6 +1500,7 @@ mod game_systems {
 
             // get item id
             let item_id = *items.at(i);
+            let item_suffix = game_libs.loot.get_suffix(item_id, adventurer.item_specials_seed);
 
             // if item is equipped
             if adventurer.equipment.is_equipped(item_id) {
@@ -1508,14 +1509,7 @@ mod game_systems {
 
                 // if the item was providing a stat boosts
                 if item.get_greatness() >= SUFFIX_UNLOCK_GREATNESS {
-                    // remove it
-                    let item_suffix = game_libs.loot.get_suffix(item.id, adventurer.item_specials_seed);
                     adventurer.stats.remove_suffix_boost(item_suffix);
-                    adventurer.stats.remove_bag_boost(item_suffix);
-                    let max_health = adventurer.stats.get_max_health();
-                    if adventurer.health > max_health {
-                        adventurer.health = max_health;
-                    }
                 }
 
                 // drop the item
@@ -1530,6 +1524,15 @@ mod game_systems {
                 } else {
                     panic_with_felt252('Item not owned by adventurer');
                 }
+            }
+
+            if item.get_greatness() >= SUFFIX_UNLOCK_GREATNESS {
+                adventurer.stats.remove_bag_boost(item_suffix);
+            }
+
+            let max_health = adventurer.stats.get_max_health();
+            if adventurer.health > max_health {
+                adventurer.health = max_health;
             }
 
             game_libs.adventurer.record_item_drop(adventurer_id, item);
@@ -2604,6 +2607,82 @@ mod tests {
         let (contains, _) = game_libs.adventurer.bag_contains(bag, purchased_item_id);
         assert(!contains, 'item should not be in bag');
     }
+
+    #[test]
+    fn drop_item_removes_bag_boost_and_caps_health() {
+        let (mut world, game, game_libs, _) = deploy_dungeon();
+        let adventurer_id = new_game(world, game);
+
+        game.attack(adventurer_id, false);
+
+        let adventurer_packed: AdventurerPacked = world.read_model(adventurer_id);
+        let mut stored_adventurer = ImplAdventurer::unpack(adventurer_packed.packed);
+        let bag_packed: BagPacked = world.read_model(adventurer_id);
+        let mut stored_bag = ImplBag::unpack(bag_packed.packed);
+
+        let suffix_unlock: u8 = death_mountain::constants::loot::SUFFIX_UNLOCK_GREATNESS;
+        let suffix_unlock_xp: u16 = (suffix_unlock * suffix_unlock).into();
+
+        let mut candidate_item_id: u8 = 1;
+        let mut selected_item_id: u8 = 0;
+        let mut selected_suffix: u8 = 0;
+        loop {
+            if candidate_item_id == 102 {
+                break ();
+            }
+
+            let suffix = game_libs.loot.get_suffix(candidate_item_id, stored_adventurer.item_specials_seed);
+            if suffix == death_mountain::constants::loot::ItemSuffix::of_Giant
+                || suffix == death_mountain::constants::loot::ItemSuffix::of_Perfection
+                || suffix == death_mountain::constants::loot::ItemSuffix::of_Protection
+                || suffix == death_mountain::constants::loot::ItemSuffix::of_Fury {
+                selected_item_id = candidate_item_id;
+                selected_suffix = suffix;
+                break ();
+            }
+
+            candidate_item_id += 1;
+        };
+
+        assert(selected_item_id != 0, 'expected vitality suffix');
+
+        stored_bag.item_1 = Item { id: selected_item_id, xp: suffix_unlock_xp };
+        stored_bag.mutated = false;
+
+        stored_adventurer.stat_upgrades_available = 0;
+        stored_adventurer.beast_health = 0;
+
+        let base_stats = stored_adventurer.stats;
+        let mut boosted_stats = base_stats;
+        boosted_stats.apply_bag_boost(selected_suffix);
+        assert(boosted_stats.vitality > base_stats.vitality, 'setup should boost vitality');
+
+        let boosted_max_health = boosted_stats.get_max_health();
+        stored_adventurer.health = boosted_max_health;
+
+        let packed_adventurer = game_libs.adventurer.pack_adventurer(stored_adventurer);
+        world.write_model_test(@AdventurerPacked { adventurer_id, packed: packed_adventurer });
+        let packed_bag = game_libs.adventurer.pack_bag(stored_bag);
+        world.write_model_test(@BagPacked { adventurer_id, packed: packed_bag });
+
+        let (adventurer_before_drop, _) = game_libs.adventurer.load_assets(adventurer_id);
+        assert(adventurer_before_drop.stats.vitality == boosted_stats.vitality, 'pre-drop stats mismatch');
+        assert(adventurer_before_drop.health == boosted_max_health, 'pre-drop health mismatch');
+
+        let mut items_to_drop = ArrayTrait::<u8>::new();
+        items_to_drop.append(selected_item_id);
+        game.drop(adventurer_id, items_to_drop);
+
+        let (adventurer_after_drop, bag_after_drop) = game_libs.adventurer.load_assets(adventurer_id);
+        let (owns_item, _) = game_libs.adventurer.bag_contains(bag_after_drop, selected_item_id);
+        assert(!owns_item, 'item should be removed');
+        assert(adventurer_after_drop.stats.vitality == base_stats.vitality, 'bag boost still applied');
+
+        let base_max_health = base_stats.get_max_health();
+        assert(adventurer_after_drop.health == base_max_health, 'health not capped');
+        assert(adventurer_after_drop.stats.get_max_health() == base_max_health, 'max health mismatch');
+    }
+
 
     #[test]
     fn upgrade_stats() {
