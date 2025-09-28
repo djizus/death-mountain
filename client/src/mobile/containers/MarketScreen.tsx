@@ -4,10 +4,11 @@ import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { calculateLevel } from '@/utils/game';
 import { ItemUtils, slotIcons, typeIcons, Tier } from '@/utils/loot';
-import { MarketItem, generateMarketItems, potionPrice } from '@/utils/market';
+import { MarketItem, generateMarketItems, getTierOneArmorSetStats, potionPrice, STAT_FILTER_OPTIONS, type ArmorSetStatSummary, type StatDisplayName } from '@/utils/market';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
+import PersonIcon from '@mui/icons-material/Person';
 import { Box, Button, IconButton, Modal, Paper, Slider, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import JewelryTooltip from '@/components/JewelryTooltip';
 
 const renderSlotToggleButton = (slot: keyof typeof slotIcons) => (
@@ -59,7 +60,14 @@ const renderTierToggleButton = (tier: Tier) => (
   </ToggleButton>
 );
 
-const STAT_FILTER_OPTIONS = ['Strength', 'Vitality', 'Charisma', 'Dexterity', 'Intelligence', 'Wisdom'];
+const STAT_ABBREVIATIONS: Record<StatDisplayName, string> = {
+  Strength: 'STR',
+  Vitality: 'VIT',
+  Dexterity: 'DEX',
+  Intelligence: 'INT',
+  Wisdom: 'WIS',
+  Charisma: 'CHA',
+};
 
 export default function MarketScreen() {
   const { adventurer, bag, marketItemIds } = useGameStore();
@@ -84,6 +92,9 @@ export default function MarketScreen() {
   } = useMarketStore();
 
   const [showCart, setShowCart] = useState(false);
+  const [showSetStats, setShowSetStats] = useState(false);
+
+  const specialsUnlocked = Boolean(adventurer?.item_specials_seed);
 
   // Function to check if an item is already owned (in equipment or bag)
   const isItemOwned = useCallback((itemId: number) => {
@@ -135,6 +146,18 @@ export default function MarketScreen() {
       }
     });
   }, [marketItemIds, adventurer?.gold, adventurer?.stats?.charisma, adventurer?.item_specials_seed, isItemOwned]);
+
+  useEffect(() => {
+    if (!specialsUnlocked && statFilter) {
+      setStatFilter(null);
+    }
+  }, [specialsUnlocked, statFilter, setStatFilter]);
+
+  useEffect(() => {
+    if (!specialsUnlocked && showSetStats) {
+      setShowSetStats(false);
+    }
+  }, [specialsUnlocked, showSetStats]);
 
   const handleBuyItem = (item: MarketItem) => {
     addToCart(item);
@@ -201,6 +224,14 @@ export default function MarketScreen() {
     if (statFilter && (!item.futureStatTags.length || !item.futureStatTags.includes(statFilter))) return false;
     return true;
   });
+
+  const setStatsSummaries = useMemo<ArmorSetStatSummary[]>(() => {
+    if (!specialsUnlocked) {
+      return [];
+    }
+
+    return getTierOneArmorSetStats(adventurer?.item_specials_seed || 0);
+  }, [specialsUnlocked, adventurer?.item_specials_seed]);
 
   return (
     <Box sx={styles.container}>
@@ -368,6 +399,51 @@ export default function MarketScreen() {
         </Box>
       </Modal>
 
+      {specialsUnlocked && (
+        <Modal
+          open={showSetStats}
+          onClose={() => setShowSetStats(false)}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Box sx={styles.setStatsModal}>
+            <Box sx={styles.setStatsHeader}>
+              <Typography sx={styles.setStatsTitle}>Level 15+ Armor Set Stats</Typography>
+              <Button onClick={() => setShowSetStats(false)} sx={styles.setStatsCloseButton}>x</Button>
+            </Box>
+            {setStatsSummaries.length === 0 ? (
+              <Typography sx={styles.setStatsEmpty}>No armor stats available.</Typography>
+            ) : (
+              <Box sx={styles.setStatsContent}>
+                {setStatsSummaries.map((summary) => (
+                  <Box key={summary.type} sx={styles.setStatsColumn}>
+                    <Typography sx={styles.setStatsColumnTitle}>{summary.type.toUpperCase()}</Typography>
+                    <Box sx={styles.setStatsItems}>
+                      {summary.items.map((item) => (
+                        <Box key={item.slot} sx={styles.setStatsItemRow}>
+                          <Typography sx={styles.setStatsItemSlot}>{item.slot}</Typography>
+                          <Typography sx={styles.setStatsItemBonus}>{item.statBonus ?? '—'}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                    <Box sx={styles.setStatsTotals}>
+                      {STAT_FILTER_OPTIONS.map((stat) => (
+                        <Typography key={stat} sx={styles.setStatsTotalValue}>
+                          {`+${summary.totals[stat]} ${STAT_ABBREVIATIONS[stat]}`}
+                        </Typography>
+                      ))}
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </Box>
+        </Modal>
+      )}
+
       {/* Main Content */}
       <Box sx={styles.mainContent}>
         {/* Potions Section */}
@@ -446,21 +522,33 @@ export default function MarketScreen() {
               </ToggleButtonGroup>
             </Box>
 
-            <Box sx={styles.filterGroup}>
-              <ToggleButtonGroup
-                value={statFilter}
-                exclusive
-                onChange={handleStatFilter}
-                aria-label="item stat"
-                sx={styles.filterButtons}
-              >
-                {STAT_FILTER_OPTIONS.map((stat) => (
-                  <ToggleButton key={stat} value={stat} aria-label={stat}>
-                    <Typography sx={styles.statFilterLabel}>{stat.slice(0, 3).toUpperCase()}</Typography>
-                  </ToggleButton>
-                ))}
-              </ToggleButtonGroup>
-            </Box>
+            {specialsUnlocked && (
+              <Box sx={styles.filterGroup}>
+                <Box sx={styles.statFilterRow}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => setShowSetStats(true)}
+                    sx={styles.setStatsButton}
+                    aria-label="Show level 15 armor set stats"
+                  >
+                    <PersonIcon sx={{ fontSize: 18 }} />
+                  </Button>
+                  <ToggleButtonGroup
+                    value={statFilter}
+                    exclusive
+                    onChange={handleStatFilter}
+                    aria-label="item stat"
+                    sx={[styles.filterButtons, styles.statFilterButtons]}
+                  >
+                    {STAT_FILTER_OPTIONS.map((stat) => (
+                      <ToggleButton key={stat} value={stat} aria-label={stat}>
+                        <Typography sx={styles.statFilterLabel}>{STAT_ABBREVIATIONS[stat]}</Typography>
+                      </ToggleButton>
+                    ))}
+                  </ToggleButtonGroup>
+                </Box>
+              </Box>
+            )}
           </Box>
         )}
 
@@ -529,9 +617,6 @@ export default function MarketScreen() {
 
                   {item.futureStatBonus && (
                     <Box sx={styles.itemBonusRow}>
-                      <Typography sx={styles.itemBonusLabel}>
-                        Unlocks at 15
-                      </Typography>
                       <Typography sx={styles.itemBonusValue}>
                         {item.futureStatBonus}
                       </Typography>
@@ -826,13 +911,6 @@ const styles = {
     padding: '4px',
     gap: '2px',
   },
-  itemBonusLabel: {
-    color: 'rgba(128, 255, 0, 0.7)',
-    fontSize: '0.7rem',
-    fontFamily: 'VT323, monospace',
-    textTransform: 'uppercase',
-    letterSpacing: '0.08em',
-  },
   itemBonusValue: {
     color: '#80FF00',
     fontSize: '0.7rem',
@@ -1018,6 +1096,16 @@ const styles = {
       },
     },
   },
+  statFilterRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexWrap: 'wrap',
+    width: '100%',
+  },
+  statFilterButtons: {
+    flex: 1,
+  },
   filterToggleButton: {
     width: 36,
     height: 36,
@@ -1041,6 +1129,113 @@ const styles = {
     '&:hover': {
       background: 'rgba(255, 165, 0, 0.2)',
     },
+  },
+  setStatsButton: {
+    minWidth: '36px',
+    height: '36px',
+    borderColor: 'rgba(128, 255, 0, 0.4)',
+    color: '#80FF00',
+    padding: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    '&:hover': {
+      borderColor: 'rgba(128, 255, 0, 0.6)',
+      background: 'rgba(128, 255, 0, 0.1)',
+    },
+  },
+  setStatsModal: {
+    background: 'rgba(17, 17, 17, 0.98)',
+    borderRadius: '10px',
+    padding: '16px',
+    width: 'min(92vw, 480px)',
+    maxHeight: '80dvh',
+    border: '1px solid rgba(128, 255, 0, 0.2)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+  setStatsHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  setStatsTitle: {
+    color: '#80FF00',
+    fontFamily: 'VT323, monospace',
+    fontSize: '1.2rem',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+  },
+  setStatsCloseButton: {
+    minWidth: '32px',
+    height: '32px',
+    padding: 0,
+    fontSize: '24px',
+    color: 'rgba(255, 255, 255, 0.9)',
+    '&:hover': {
+      color: '#80FF00',
+    },
+  },
+  setStatsEmpty: {
+    color: 'rgba(128, 255, 0, 0.8)',
+    fontFamily: 'VT323, monospace',
+    textAlign: 'center',
+  },
+  setStatsContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    overflowY: 'auto',
+  },
+  setStatsColumn: {
+    border: '1px solid rgba(128, 255, 0, 0.25)',
+    borderRadius: '6px',
+    padding: '12px',
+    background: 'rgba(0, 0, 0, 0.35)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  setStatsColumnTitle: {
+    color: '#EDCF33',
+    fontFamily: 'VT323, monospace',
+    fontSize: '1rem',
+    letterSpacing: '0.08em',
+  },
+  setStatsItems: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  setStatsItemRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '12px',
+  },
+  setStatsItemSlot: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.95rem',
+  },
+  setStatsItemBonus: {
+    color: '#80FF00',
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.9rem',
+    textAlign: 'right',
+  },
+  setStatsTotals: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px',
+    borderTop: '1px solid rgba(128, 255, 0, 0.2)',
+    paddingTop: '8px',
+  },
+  setStatsTotalValue: {
+    color: '#EDCF33',
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.95rem',
+    fontWeight: 'bold',
   },
   itemUnaffordable: {
     opacity: 0.5,
