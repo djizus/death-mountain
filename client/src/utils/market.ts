@@ -1,4 +1,5 @@
 import { NUM_ITEMS, SUFFIX_UNLOCK_GREATNESS } from '@/constants/game';
+import { ItemId } from '@/constants/loot';
 import { ItemType, ItemUtils, Tier } from './loot';
 
 export interface MarketItem {
@@ -59,6 +60,7 @@ export type StatDisplayName = 'Strength' | 'Vitality' | 'Dexterity' | 'Intellige
 export const STAT_FILTER_OPTIONS: StatDisplayName[] = ['Strength', 'Vitality', 'Dexterity', 'Intelligence', 'Wisdom', 'Charisma'];
 
 type ArmorCategory = Extract<ItemType, ItemType.Cloth | ItemType.Hide | ItemType.Metal>;
+type ArmorSetGroup = ArmorCategory | 'Weapons' | 'Rings';
 
 export interface ArmorSetItemStats {
   id: number;
@@ -67,13 +69,34 @@ export interface ArmorSetItemStats {
 }
 
 export interface ArmorSetStatSummary {
-  type: ArmorCategory;
+  type: ArmorSetGroup;
+  category: 'Armor' | 'Weapon' | 'Ring';
   items: ArmorSetItemStats[];
   totals: Record<StatDisplayName, number>;
 }
 
 const ARMOR_TYPES: ArmorCategory[] = [ItemType.Cloth, ItemType.Hide, ItemType.Metal];
 const ARMOR_SLOTS = ['Head', 'Chest', 'Waist', 'Foot', 'Hand'];
+const JEWELRY_BY_ARMOR: Record<ArmorCategory, { id: number; label: string }> = {
+  [ItemType.Cloth]: { id: ItemId.Amulet, label: 'Amulet' },
+  [ItemType.Hide]: { id: ItemId.Pendant, label: 'Pendant' },
+  [ItemType.Metal]: { id: ItemId.Necklace, label: 'Necklace' },
+};
+
+const WEAPON_SET_ITEM_IDS = [
+  ItemId.Grimoire,
+  ItemId.GhostWand,
+  ItemId.Katana,
+  ItemId.Warhammer,
+];
+
+const RING_SET_ITEM_IDS = [
+  ItemId.GoldRing,
+  ItemId.PlatinumRing,
+  ItemId.TitaniumRing,
+  ItemId.SilverRing,
+  ItemId.BronzeRing,
+];
 
 const STAT_CODE_TO_NAME: Record<string, StatDisplayName> = {
   STR: 'Strength',
@@ -122,11 +145,37 @@ export function getTierOneArmorSetStats(itemSpecialsSeed: number): ArmorSetStatS
   const summaries: Record<ArmorCategory, ArmorSetStatSummary> = ARMOR_TYPES.reduce((acc, type) => {
     acc[type] = {
       type,
+      category: 'Armor',
       items: ARMOR_SLOTS.map((slot) => ({ id: 0, slot, statBonus: null })),
       totals: createEmptyTotals(),
     };
     return acc;
   }, {} as Record<ArmorCategory, ArmorSetStatSummary>);
+
+  const applyBonusTotals = (
+    summary: ArmorSetStatSummary,
+    bonusTotals: Partial<Record<StatDisplayName, number>>,
+  ) => {
+    Object.entries(bonusTotals).forEach(([stat, value]) => {
+      if (value) {
+        summary.totals[stat as StatDisplayName] += value;
+      }
+    });
+  };
+
+  const createItemStatsEntry = (itemId: number, label: string) => {
+    const specials = ItemUtils.getSpecials(itemId, SUFFIX_UNLOCK_GREATNESS, itemSpecialsSeed);
+    const statBonus = specials.special1 ? ItemUtils.getStatBonus(specials.special1) ?? null : null;
+    const bonusTotals = parseStatBonus(statBonus);
+    return {
+      item: {
+        id: itemId,
+        slot: label,
+        statBonus,
+      },
+      bonusTotals,
+    };
+  };
 
   for (let id = 1; id <= NUM_ITEMS; id += 1) {
     const itemType = ItemUtils.getItemType(id) as ItemType;
@@ -145,25 +194,56 @@ export function getTierOneArmorSetStats(itemSpecialsSeed: number): ArmorSetStatS
       continue;
     }
 
-    const specials = ItemUtils.getSpecials(id, SUFFIX_UNLOCK_GREATNESS, itemSpecialsSeed);
-    const statBonus = specials.special1 ? ItemUtils.getStatBonus(specials.special1) ?? null : null;
     const summary = summaries[itemType as ArmorCategory];
     const slotIndex = ARMOR_SLOTS.indexOf(slot);
 
     if (slotIndex >= 0) {
-      summary.items[slotIndex] = {
-        id,
-        slot,
-        statBonus,
-      };
+      const { item, bonusTotals } = createItemStatsEntry(id, slot);
+      summary.items[slotIndex] = item;
+      applyBonusTotals(summary, bonusTotals);
     }
-
-    const bonusTotals = parseStatBonus(statBonus);
-
-    Object.entries(bonusTotals).forEach(([stat, value]) => {
-      summary.totals[stat as StatDisplayName] += value;
-    });
   }
 
-  return ARMOR_TYPES.map((type) => summaries[type]);
+  ARMOR_TYPES.forEach((armorType) => {
+    const summary = summaries[armorType];
+    const jewelryConfig = JEWELRY_BY_ARMOR[armorType];
+    if (jewelryConfig) {
+      const jewelryLabel = ItemUtils.getItemName(jewelryConfig.id);
+      const { item, bonusTotals } = createItemStatsEntry(jewelryConfig.id, jewelryLabel);
+      summary.items = [item, ...summary.items.filter((entry) => entry.id !== 0)];
+      applyBonusTotals(summary, bonusTotals);
+    } else {
+      summary.items = summary.items.filter((entry) => entry.id !== 0);
+    }
+  });
+
+  const weaponSummary: ArmorSetStatSummary = {
+    type: 'Weapons',
+    category: 'Weapon',
+    items: [],
+    totals: createEmptyTotals(),
+  };
+
+  WEAPON_SET_ITEM_IDS.forEach((itemId) => {
+    const label = ItemUtils.getItemName(itemId);
+    const { item } = createItemStatsEntry(itemId, label);
+    weaponSummary.items.push(item);
+  });
+
+  const ringSummary: ArmorSetStatSummary = {
+    type: 'Rings',
+    category: 'Ring',
+    items: [],
+    totals: createEmptyTotals(),
+  };
+
+  RING_SET_ITEM_IDS.forEach((itemId) => {
+    const label = ItemUtils.getItemName(itemId);
+    const { item } = createItemStatsEntry(itemId, label);
+    ringSummary.items.push(item);
+  });
+
+  const armorSummaries = ARMOR_TYPES.map((type) => summaries[type]);
+
+  return [weaponSummary, ringSummary, ...armorSummaries];
 }

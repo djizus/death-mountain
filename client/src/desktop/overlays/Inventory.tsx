@@ -298,13 +298,13 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
 
   const slotPriority: Record<string, number> = {
     weapon: 0,
-    head: 1,
-    chest: 2,
-    waist: 3,
-    foot: 4,
+    neck: 1,
+    ring: 2,
+    head: 3,
+    chest: 4,
     hand: 5,
-    neck: 6,
-    ring: 7,
+    waist: 6,
+    foot: 7,
   };
 
   const weaponTypePriority = [ItemType.Magic, ItemType.Blade, ItemType.Bludgeon];
@@ -346,7 +346,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
         return weaponPriorityDiff;
       }
       // Fallback to tier then id for deterministic ordering
-      const tierDiff = ItemUtils.getItemTier(b.id) - ItemUtils.getItemTier(a.id);
+      const tierDiff = ItemUtils.getItemTier(a.id) - ItemUtils.getItemTier(b.id);
       if (tierDiff !== 0) {
         return tierDiff;
       }
@@ -358,12 +358,17 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
       return slotDiff;
     }
 
-    const armorDiff = getArmorPriority(a) - getArmorPriority(b);
-    if (armorDiff !== 0) {
-      return armorDiff;
+    const isArmorSlotA = ['head', 'chest', 'hand', 'waist', 'foot'].includes(slotA);
+    const isArmorSlotB = ['head', 'chest', 'hand', 'waist', 'foot'].includes(slotB);
+
+    if (isArmorSlotA && isArmorSlotB) {
+      const armorDiff = getArmorPriority(a) - getArmorPriority(b);
+      if (armorDiff !== 0) {
+        return armorDiff;
+      }
     }
 
-    const tierDiff = ItemUtils.getItemTier(b.id) - ItemUtils.getItemTier(a.id);
+    const tierDiff = ItemUtils.getItemTier(a.id) - ItemUtils.getItemTier(b.id);
     if (tierDiff !== 0) {
       return tierDiff;
     }

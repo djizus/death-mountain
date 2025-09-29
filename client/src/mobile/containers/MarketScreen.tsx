@@ -3,7 +3,7 @@ import { useGameDirector } from '@/mobile/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { calculateLevel } from '@/utils/game';
-import { ItemUtils, slotIcons, typeIcons, Tier } from '@/utils/loot';
+import { ItemUtils, ItemType, slotIcons, typeIcons, Tier } from '@/utils/loot';
 import { MarketItem, generateMarketItems, getTierOneArmorSetStats, potionPrice, STAT_FILTER_OPTIONS, type ArmorSetStatSummary, type StatDisplayName } from '@/utils/market';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
 import PersonIcon from '@mui/icons-material/Person';
@@ -411,33 +411,57 @@ export default function MarketScreen() {
         >
           <Box sx={styles.setStatsModal}>
             <Box sx={styles.setStatsHeader}>
-              <Typography sx={styles.setStatsTitle}>Level 15+ Armor Set Stats</Typography>
+              <Typography sx={styles.setStatsTitle}>Level 15+ Bonus Stats</Typography>
               <Button onClick={() => setShowSetStats(false)} sx={styles.setStatsCloseButton}>x</Button>
             </Box>
             {setStatsSummaries.length === 0 ? (
               <Typography sx={styles.setStatsEmpty}>No armor stats available.</Typography>
             ) : (
               <Box sx={styles.setStatsContent}>
-                {setStatsSummaries.map((summary) => (
-                  <Box key={summary.type} sx={styles.setStatsColumn}>
-                    <Typography sx={styles.setStatsColumnTitle}>{summary.type.toUpperCase()}</Typography>
-                    <Box sx={styles.setStatsItems}>
-                      {summary.items.map((item) => (
-                        <Box key={item.slot} sx={styles.setStatsItemRow}>
-                          <Typography sx={styles.setStatsItemSlot}>{item.slot}</Typography>
+                {setStatsSummaries.map((summary) => {
+                  const columnPlacement = (() => {
+                    switch (summary.type) {
+                      case 'Weapons':
+                        return styles.setStatsColumnWeapons;
+                      case 'Rings':
+                        return styles.setStatsColumnRings;
+                      case ItemType.Cloth:
+                        return styles.setStatsColumnCloth;
+                      case ItemType.Hide:
+                        return styles.setStatsColumnHide;
+                      case ItemType.Metal:
+                        return styles.setStatsColumnMetal;
+                      default:
+                        return {};
+                    }
+                  })();
+
+                  return (
+                    <Box
+                      key={summary.type}
+                      sx={[styles.setStatsColumn, columnPlacement]}
+                    >
+                      <Typography sx={styles.setStatsColumnTitle}>{summary.type.toUpperCase()}</Typography>
+                      <Box sx={styles.setStatsItems}>
+                        {summary.items.map((item) => (
+                          <Box key={item.slot} sx={styles.setStatsItemRow}>
+                            <Typography sx={styles.setStatsItemSlot}>{item.slot}</Typography>
                           <Typography sx={styles.setStatsItemBonus}>{item.statBonus ?? '—'}</Typography>
                         </Box>
                       ))}
                     </Box>
-                    <Box sx={styles.setStatsTotals}>
-                      {STAT_FILTER_OPTIONS.map((stat) => (
-                        <Typography key={stat} sx={styles.setStatsTotalValue}>
-                          {`+${summary.totals[stat]} ${STAT_ABBREVIATIONS[stat]}`}
-                        </Typography>
-                      ))}
+                    {summary.category === 'Armor' && (
+                      <Box sx={styles.setStatsTotals}>
+                        {STAT_FILTER_OPTIONS.map((stat) => (
+                          <Typography key={stat} sx={styles.setStatsTotalValue}>
+                            {`+${summary.totals[stat]} ${STAT_ABBREVIATIONS[stat]}`}
+                          </Typography>
+                        ))}
+                      </Box>
+                    )}
                     </Box>
-                  </Box>
-                ))}
+                  );
+                })}
               </Box>
             )}
           </Box>
@@ -1183,10 +1207,11 @@ const styles = {
     textAlign: 'center',
   },
   setStatsContent: {
-    display: 'flex',
-    flexDirection: 'column',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gridAutoRows: '1fr',
     gap: '12px',
-    overflowY: 'auto',
+    width: '100%',
   },
   setStatsColumn: {
     border: '1px solid rgba(128, 255, 0, 0.25)',
@@ -1196,6 +1221,26 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
+  },
+  setStatsColumnWeapons: {
+    gridColumn: '1',
+    gridRow: '2',
+  },
+  setStatsColumnRings: {
+    gridColumn: '2',
+    gridRow: '2',
+  },
+  setStatsColumnCloth: {
+    gridColumn: '1',
+    gridRow: '1',
+  },
+  setStatsColumnHide: {
+    gridColumn: '2',
+    gridRow: '1',
+  },
+  setStatsColumnMetal: {
+    gridColumn: '3',
+    gridRow: '1',
   },
   setStatsColumnTitle: {
     color: '#EDCF33',
@@ -1230,6 +1275,8 @@ const styles = {
     gap: '6px',
     borderTop: '1px solid rgba(128, 255, 0, 0.2)',
     paddingTop: '8px',
+    justifyContent: 'flex-end',
+    textAlign: 'right',
   },
   setStatsTotalValue: {
     color: '#EDCF33',

@@ -156,7 +156,7 @@ export default function CombatOverlay() {
   const hasNewItemsEquipped = useMemo(() => {
     if (!adventurer?.equipment || !adventurerState?.equipment) return false;
     return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
-  }, [adventurer?.equipment]);
+  }, [adventurer?.equipment, adventurerState?.equipment]);
 
   const isJackpot = useMemo(() => {
     return currentNetworkConfig.beasts && JACKPOT_BEASTS.includes(beast?.name!);
@@ -220,7 +220,9 @@ export default function CombatOverlay() {
     }
 
     const runSimulation = async () => {
-      const result = await simulateCombatOutcomes(adventurer, beast);
+      const result = await simulateCombatOutcomes(adventurer, beast, {
+        initialBeastStrike: hasNewItemsEquipped,
+      });
       if (!cancelled) {
         setSimulationResult(result);
       }
@@ -260,6 +262,7 @@ export default function CombatOverlay() {
     beast?.specialPrefix,
     beast?.specialSuffix,
     combatOverview?.goldReward,
+    hasNewItemsEquipped,
   ]);
 
   const potionCost = useMemo(() => {
@@ -389,10 +392,10 @@ export default function CombatOverlay() {
                     </Typography>
                   </Box>
                   <Box sx={[styles.infoTile, styles.fightTileLethal]}>
-                    <Typography sx={styles.tileLabel}>Lethal %</Typography>
-                    <Typography sx={styles.tileValue}>{formatPercent(simulationResult.lethalRate)}</Typography>
+                    <Typography sx={styles.tileLabel}>OTK Chance</Typography>
+                    <Typography sx={styles.tileValue}>{formatPercent(simulationResult.otkRate)}</Typography>
                     <Typography sx={styles.tileSubValue}>
-                      {`${formatNumber(Math.round(simulationResult.lethalRate))}/100`}
+                      {`${formatNumber(Math.round(simulationResult.otkRate))}/100`}
                     </Typography>
                   </Box>
                 </Box>

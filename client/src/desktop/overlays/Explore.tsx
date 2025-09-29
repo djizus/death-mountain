@@ -5,7 +5,7 @@ import { streamIds } from '@/utils/cloudflare';
 import { getEventTitle } from '@/utils/events';
 import { ItemUtils } from '@/utils/loot';
 import { Box, Button, Checkbox, Typography } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import BeastCollectedPopup from '../../components/BeastCollectedPopup';
 import Adventurer from './Adventurer';
 import InventoryOverlay from './Inventory';
@@ -13,10 +13,11 @@ import MarketOverlay from './Market';
 import SettingsOverlay from './Settings';
 import { useUIStore } from '@/stores/uiStore';
 import { useSnackbar } from 'notistack';
+import { getExplorationInsights } from '@/utils/exploration';
 
 export default function ExploreOverlay() {
   const { executeGameAction, actionFailed, setVideoQueue, spectating } = useGameDirector();
-  const { exploreLog, adventurer, setShowOverlay, collectable, collectableTokenURI,
+  const { exploreLog, adventurer, gameSettings, setShowOverlay, collectable, collectableTokenURI,
     setCollectable, selectedStats, setSelectedStats, claimInProgress } = useGameStore();
   const { cart, inProgress, setInProgress } = useMarketStore();
   const { skipAllAnimations } = useUIStore();
@@ -25,6 +26,22 @@ export default function ExploreOverlay() {
 
   const [isExploring, setIsExploring] = useState(false);
   const [isSelectingStats, setIsSelectingStats] = useState(false);
+
+  const explorationInsights = useMemo(
+    () => getExplorationInsights(adventurer ?? null, gameSettings ?? null),
+    [adventurer, gameSettings],
+  );
+
+  const formatPercent = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return '-';
+    }
+
+    return `${value.toFixed(1)}%`;
+  };
+
+  const ambushLethalChance = explorationInsights.ready ? explorationInsights.beasts.overallLethalChance : null;
+  const trapLethalChance = explorationInsights.ready ? explorationInsights.obstacles.overallLethalChance : null;
 
   useEffect(() => {
     setIsExploring(false);
@@ -172,7 +189,22 @@ export default function ExploreOverlay() {
 
       {/* Bottom Buttons */}
       <Box sx={styles.buttonContainer}>
-        {!spectating && <Box sx={styles.buttonContainer}>
+        {!spectating && (
+          <Box sx={styles.primaryActionContainer}>
+            <Box sx={styles.lethalChancesContainer}>
+              <Typography sx={styles.lethalChanceLabel}>
+                Ambush Lethal Chance
+                <Typography component="span" sx={styles.lethalChanceValue}>
+                  {formatPercent(ambushLethalChance)}
+              </Typography>
+            </Typography>
+            <Typography sx={styles.lethalChanceLabel}>
+              Trap Lethal Chance
+              <Typography component="span" sx={styles.lethalChanceValue}>
+                {formatPercent(trapLethalChance)}
+              </Typography>
+            </Typography>
+          </Box>
           {adventurer?.stat_upgrades_available! > 0 ? (
             <Button
               variant="contained"
@@ -192,67 +224,67 @@ export default function ExploreOverlay() {
               }
             </Button>
           ) : (
-            <Button
-              variant="contained"
-              onClick={cart.items.length > 0 || cart.potions > 0 ? handleCheckout : handleExplore}
-              sx={styles.exploreButton}
-              disabled={inProgress || isExploring}
-            >
-              {inProgress ? (
-                <Box display={'flex'} alignItems={'baseline'}>
-                  <Typography sx={styles.buttonText}>Processing</Typography>
-                  <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
-                </Box>
-              ) : isExploring ? (
-                <Box display={'flex'} alignItems={'baseline'}>
-                  <Typography sx={styles.buttonText}>Exploring</Typography>
-                  <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
-                </Box>
-              ) : cart.items.length > 0 || cart.potions > 0 ? (
-                <Typography sx={styles.buttonText}>
-                  BUY ITEMS
+            <Box sx={styles.exploreControlsRow}>
+              <Button
+                variant="contained"
+                onClick={cart.items.length > 0 || cart.potions > 0 ? handleCheckout : handleExplore}
+                sx={styles.exploreButton}
+                disabled={inProgress || isExploring}
+              >
+                {inProgress ? (
+                  <Box display={'flex'} alignItems={'baseline'}>
+                    <Typography sx={styles.buttonText}>Processing</Typography>
+                    <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
+                  </Box>
+                ) : isExploring ? (
+                  <Box display={'flex'} alignItems={'baseline'}>
+                    <Typography sx={styles.buttonText}>Exploring</Typography>
+                    <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
+                  </Box>
+                ) : cart.items.length > 0 || cart.potions > 0 ? (
+                  <Typography sx={styles.buttonText}>
+                    BUY ITEMS
+                  </Typography>
+                ) : (
+                  <Typography sx={styles.buttonText}>
+                    EXPLORE
+                  </Typography>
+                )}
+              </Button>
+              <Box
+                sx={styles.deathCheckboxContainer}
+                onClick={() => {
+                  if (
+                    !isExploring &&
+                    !inProgress &&
+                    cart.items.length === 0 &&
+                    cart.potions === 0 &&
+                    adventurer?.stat_upgrades_available! === 0
+                  ) {
+                    setUntilBeast(!untilBeast);
+                  }
+                }}
+              >
+                <Typography sx={styles.deathCheckboxLabel}>
+                  until beast
                 </Typography>
-              ) : (
-                <Typography sx={styles.buttonText}>
-                  EXPLORE
-                </Typography>
-              )}
-            </Button>
+                <Checkbox
+                  checked={untilBeast}
+                  disabled={
+                    isExploring ||
+                    inProgress ||
+                    cart.items.length > 0 ||
+                    cart.potions > 0 ||
+                    adventurer?.stat_upgrades_available! > 0
+                  }
+                  onChange={(e) => setUntilBeast(e.target.checked)}
+                  size="medium"
+                  sx={styles.deathCheckbox}
+                />
+              </Box>
+            </Box>
           )}
-        </Box>}
-
-        {!spectating && (
-          <Box
-            sx={styles.deathCheckboxContainer}
-            onClick={() => {
-              if (
-                !isExploring &&
-                !inProgress &&
-                cart.items.length === 0 &&
-                cart.potions === 0 &&
-                adventurer?.stat_upgrades_available! === 0
-              ) {
-                setUntilBeast(!untilBeast);
-              }
-            }}
-          >
-            <Typography sx={styles.deathCheckboxLabel}>
-              until beast
-            </Typography>
-            <Checkbox
-              checked={untilBeast}
-              disabled={
-                isExploring ||
-                inProgress ||
-                cart.items.length > 0 ||
-                cart.potions > 0 ||
-                adventurer?.stat_upgrades_available! > 0
-              }
-              onChange={(e) => setUntilBeast(e.target.checked)}
-              size="medium"
-              sx={styles.deathCheckbox}
-            />
-          </Box>
+        </Box>
         )}
       </Box>
 
@@ -307,6 +339,23 @@ const styles = {
     transform: 'translateX(-50%)',
     display: 'flex',
     gap: '16px',
+  },
+  primaryActionContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '12px 16px',
+    borderRadius: '12px',
+    border: '1px solid rgba(8, 62, 34, 0.8)',
+    background: 'rgba(24, 40, 24, 0.85)',
+    backdropFilter: 'blur(8px)',
+  },
+  exploreControlsRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '10px',
   },
   exploreButton: {
     border: '2px solid rgba(255, 255, 255, 0.15)',
@@ -401,6 +450,23 @@ const styles = {
     border: '1px solid #d0c98d80',
     backdropFilter: 'blur(8px)',
     zIndex: 1000,
+  },
+  lethalChancesContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    alignItems: 'center',
+  },
+  lethalChanceLabel: {
+    fontSize: '0.9rem',
+    color: '#d0c98d',
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+  },
+  lethalChanceValue: {
+    fontWeight: 600,
+    color: '#ff6b6b',
   },
   toastText: {
     fontFamily: 'Cinzel, Georgia, serif',

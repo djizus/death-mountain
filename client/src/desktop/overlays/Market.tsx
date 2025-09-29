@@ -3,7 +3,7 @@ import { MAX_BAG_SIZE, STARTING_HEALTH } from '@/constants/game';
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { calculateLevel } from '@/utils/game';
-import { ItemUtils, slotIcons, typeIcons, Tier } from '@/utils/loot';
+import { ItemUtils, ItemType, slotIcons, typeIcons, Tier } from '@/utils/loot';
 import { MarketItem, generateMarketItems, getTierOneArmorSetStats, potionPrice, STAT_FILTER_OPTIONS, type ArmorSetStatSummary, type StatDisplayName } from '@/utils/market';
 import { getEventIcon, getEventTitle } from '@/utils/events';
 import { getExplorationInsights, type DamageBucket, type SlotDamageSummary } from '@/utils/exploration';
@@ -772,35 +772,59 @@ export default function MarketOverlay() {
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-              <Box sx={styles.setStatsModal}>
-                <Box sx={styles.setStatsHeader}>
-                  <Typography sx={styles.setStatsTitle}>Level 15+ Armor Set Stats</Typography>
+          <Box sx={styles.setStatsModal}>
+            <Box sx={styles.setStatsHeader}>
+              <Typography sx={styles.setStatsTitle}>Level 15+ Bonus Stats</Typography>
                   <Button onClick={() => setShowSetStats(false)} sx={styles.closeButton}>x</Button>
                 </Box>
                 {setStatsSummaries.length === 0 ? (
                   <Typography sx={styles.setStatsEmpty}>No armor stats available.</Typography>
                 ) : (
                   <Box sx={styles.setStatsContent}>
-                    {setStatsSummaries.map((summary) => (
-                      <Box key={summary.type} sx={styles.setStatsColumn}>
-                        <Typography sx={styles.setStatsColumnTitle}>{summary.type.toUpperCase()}</Typography>
-                        <Box sx={styles.setStatsItems}>
-                          {summary.items.map((item) => (
-                            <Box key={item.slot} sx={styles.setStatsItemRow}>
-                              <Typography sx={styles.setStatsItemSlot}>{item.slot}</Typography>
+                    {setStatsSummaries.map((summary) => {
+                      const columnPlacement = (() => {
+                        switch (summary.type) {
+                          case 'Weapons':
+                            return styles.setStatsColumnWeapons;
+                          case 'Rings':
+                            return styles.setStatsColumnRings;
+                          case ItemType.Cloth:
+                            return styles.setStatsColumnCloth;
+                          case ItemType.Hide:
+                            return styles.setStatsColumnHide;
+                          case ItemType.Metal:
+                            return styles.setStatsColumnMetal;
+                          default:
+                            return {};
+                        }
+                      })();
+
+                      return (
+                        <Box
+                          key={summary.type}
+                          sx={[styles.setStatsColumn, columnPlacement]}
+                        >
+                          <Typography sx={styles.setStatsColumnTitle}>{summary.type.toUpperCase()}</Typography>
+                          <Box sx={styles.setStatsItems}>
+                            {summary.items.map((item) => (
+                              <Box key={item.slot} sx={styles.setStatsItemRow}>
+                                <Typography sx={styles.setStatsItemSlot}>{item.slot}</Typography>
                               <Typography sx={styles.setStatsItemBonus}>{item.statBonus ?? '—'}</Typography>
                             </Box>
                           ))}
                         </Box>
-                        <Box sx={styles.setStatsTotals}>
-                          {STAT_FILTER_OPTIONS.map((stat) => (
-                            <Typography key={stat} sx={styles.setStatsTotalValue}>
-                              {`+${summary.totals[stat]} ${STAT_ABBREVIATIONS[stat]}`}
-                            </Typography>
-                          ))}
+                          {summary.category === 'Armor' && (
+                            <Box sx={styles.setStatsTotals}>
+                              {STAT_FILTER_OPTIONS.map((stat) => (
+                                <Typography key={stat} sx={styles.setStatsTotalValue}>
+                                  {`+${summary.totals[stat]} ${STAT_ABBREVIATIONS[stat]}`}
+                                </Typography>
+                              ))}
+                            </Box>
+                          )}
                         </Box>
-                      </Box>
-                    ))}
+                      );
+                    })}
                   </Box>
                 )}
               </Box>
@@ -1795,7 +1819,7 @@ const styles = {
     borderRadius: '8px',
     padding: '18px',
     border: '2px solid rgba(215, 197, 41, 0.35)',
-    width: 'min(900px, 90vw)',
+    width: 'min(980px, 92vw)',
     maxHeight: '80vh',
     overflowY: 'auto',
   },
@@ -1817,12 +1841,13 @@ const styles = {
     textAlign: 'center',
   },
   setStatsContent: {
-    display: 'flex',
-    flexWrap: 'wrap',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gridAutoRows: '1fr',
     gap: '12px',
+    width: '100%',
   },
   setStatsColumn: {
-    flex: '1 1 240px',
     border: '1px solid rgba(215, 197, 41, 0.25)',
     borderRadius: '6px',
     padding: '12px',
@@ -1830,6 +1855,26 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
+  },
+  setStatsColumnWeapons: {
+    gridColumn: '1',
+    gridRow: '2',
+  },
+  setStatsColumnRings: {
+    gridColumn: '2',
+    gridRow: '2',
+  },
+  setStatsColumnCloth: {
+    gridColumn: '1',
+    gridRow: '1',
+  },
+  setStatsColumnHide: {
+    gridColumn: '2',
+    gridRow: '1',
+  },
+  setStatsColumnMetal: {
+    gridColumn: '3',
+    gridRow: '1',
   },
   setStatsColumnTitle: {
     color: '#d7c529',
@@ -1864,6 +1909,8 @@ const styles = {
     gap: '4px',
     paddingTop: '8px',
     borderTop: '1px solid rgba(215, 197, 41, 0.2)',
+    alignItems: 'flex-end',
+    textAlign: 'right',
   },
   setStatsTotalValue: {
     color: '#d7c529',

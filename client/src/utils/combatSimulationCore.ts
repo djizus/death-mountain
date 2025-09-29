@@ -4,10 +4,14 @@ import type { Adventurer, Beast, Equipment } from '@/types/game';
 export const ARMOR_TARGET_SLOTS: Array<keyof Equipment> = ['chest', 'head', 'waist', 'foot', 'hand'];
 export const MAX_ROUNDS_PER_FIGHT = 500;
 
+export interface CombatSimulationOptions {
+  initialBeastStrike?: boolean;
+}
+
 export interface CombatSimulationResult {
   hasOutcome: boolean;
   winRate: number;
-  lethalRate: number;
+  otkRate: number;
   modeDamageDealt: number;
   modeDamageTaken: number;
   modeRounds: number;
@@ -22,7 +26,7 @@ export interface CombatSimulationResult {
 export const defaultSimulationResult: CombatSimulationResult = {
   hasOutcome: false,
   winRate: 0,
-  lethalRate: 0,
+  otkRate: 0,
   modeDamageDealt: 0,
   modeDamageTaken: 0,
   minDamageDealt: 0,
@@ -172,6 +176,7 @@ const getMaxFromDistribution = (distribution: Map<number, number>) => {
 export const calculateDeterministicCombatResult = (
   adventurer: Adventurer,
   beast: Beast,
+  options: CombatSimulationOptions = {},
 ): CombatSimulationResult => {
   if (!adventurer || !beast || adventurer.health <= 0 || beast.health <= 0) {
     return defaultSimulationResult;
@@ -210,6 +215,9 @@ export const calculateDeterministicCombatResult = (
   if (effectiveBeastHp <= 0) {
     return defaultSimulationResult;
   }
+
+  const initialHeroHp = adventurer.health;
+  const { initialBeastStrike = false } = options;
 
   const memo = new Map<string, StateOutcome>();
 
@@ -311,15 +319,128 @@ export const calculateDeterministicCombatResult = (
     return outcome;
   };
 
-  const rootOutcome = solve(adventurer.health, effectiveBeastHp, 0);
+  const computeInitialStrikeOutcome = (): StateOutcome => {
+    let winProbability = 0;
+    let lethalProbability = 0;
+    const damageDealtDistribution = new Map<number, number>();
+    const damageTakenDistribution = new Map<number, number>();
+    const roundsDistribution = new Map<number, number>();
+
+    beastDamageOptions.forEach(({ damage: initialDamage, probability: initialProbability }) => {
+      if (initialProbability <= PROBABILITY_EPSILON) {
+        return;
+      }
+
+      const remainingHeroHp = initialHeroHp - initialDamage;
+
+      if (remainingHeroHp <= 0) {
+        lethalProbability += initialProbability;
+        addProbability(damageDealtDistribution, 0, initialProbability);
+        addProbability(damageTakenDistribution, initialDamage, initialProbability);
+        addProbability(roundsDistribution, 0, initialProbability);
+        return;
+      }
+
+      const nextOutcome = solve(remainingHeroHp, effectiveBeastHp, 0);
+
+      winProbability += initialProbability * nextOutcome.winProbability;
+      lethalProbability += initialProbability * nextOutcome.lethalProbability;
+
+      combineDistributions(damageDealtDistribution, nextOutcome.damageDealtDistribution, 0, initialProbability);
+      combineDistributions(damageTakenDistribution, nextOutcome.damageTakenDistribution, initialDamage, initialProbability);
+      combineDistributions(roundsDistribution, nextOutcome.roundsDistribution, 0, initialProbability);
+    });
+
+    return {
+      winProbability,
+      lethalProbability,
+      damageDealtDistribution,
+      damageTakenDistribution,
+      roundsDistribution,
+    };
+  };
+
+  const rootOutcome = initialBeastStrike
+    ? computeInitialStrikeOutcome()
+    : solve(initialHeroHp, effectiveBeastHp, 0);
   const totalProbability = rootOutcome.winProbability + rootOutcome.lethalProbability;
 
   if (totalProbability <= PROBABILITY_EPSILON) {
     return defaultSimulationResult;
   }
 
+  const getBeastLethalChance = (heroHp: number) => beastDamageOptions.reduce((chance, { damage, probability }) => {
+    if (probability <= PROBABILITY_EPSILON) {
+      return chance;
+    }
+
+    return damage >= heroHp ? chance + probability : chance;
+  }, 0);
+
+  const otkProbability = initialBeastStrike
+    ? (() => {
+      let probability = 0;
+
+      beastDamageOptions.forEach(({ damage: initialDamage, probability: initialProbability }) => {
+        if (initialProbability <= PROBABILITY_EPSILON) {
+          return;
+        }
+
+        const remainingHeroHp = initialHeroHp - initialDamage;
+
+        if (remainingHeroHp <= 0) {
+          probability += initialProbability;
+          return;
+        }
+
+        heroDamageOptions.forEach(({ damage: heroDamage, probability: heroProbability }) => {
+          if (heroProbability <= PROBABILITY_EPSILON) {
+            return;
+          }
+
+          const remainingBeastHp = effectiveBeastHp - heroDamage;
+
+          if (remainingBeastHp <= 0) {
+            return;
+          }
+
+          const lethalChance = getBeastLethalChance(remainingHeroHp);
+          if (lethalChance <= PROBABILITY_EPSILON) {
+            return;
+          }
+
+          probability += initialProbability * heroProbability * lethalChance;
+        });
+      });
+
+      return probability;
+    })()
+    : (() => {
+      let probability = 0;
+
+      heroDamageOptions.forEach(({ damage: heroDamage, probability: heroProbability }) => {
+        if (heroProbability <= PROBABILITY_EPSILON) {
+          return;
+        }
+
+        const remainingBeastHp = effectiveBeastHp - heroDamage;
+        if (remainingBeastHp <= 0) {
+          return;
+        }
+
+        const lethalChance = getBeastLethalChance(initialHeroHp);
+        if (lethalChance <= PROBABILITY_EPSILON) {
+          return;
+        }
+
+        probability += heroProbability * lethalChance;
+      });
+
+      return probability;
+    })();
+
   const winRate = Number(((rootOutcome.winProbability / totalProbability) * 100).toFixed(1));
-  const lethalRate = Number(((rootOutcome.lethalProbability / totalProbability) * 100).toFixed(1));
+  const otkRate = Number(((otkProbability / totalProbability) * 100).toFixed(1));
 
   const damageDealtMode = getModeFromDistribution(rootOutcome.damageDealtDistribution);
   const damageTakenMode = getModeFromDistribution(rootOutcome.damageTakenDistribution);
@@ -334,7 +455,7 @@ export const calculateDeterministicCombatResult = (
   return {
     hasOutcome: true,
     winRate,
-    lethalRate,
+    otkRate,
     modeDamageDealt: Math.round(damageDealtMode),
     modeDamageTaken: Math.round(damageTakenMode),
     modeRounds: Math.round(modeRounds),
