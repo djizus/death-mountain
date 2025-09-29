@@ -1,10 +1,14 @@
 import { useStarknetApi } from "@/api/starknet";
+import { JACKPOT_BEASTS } from "@/constants/beast";
 import { useDynamicConnector } from "@/contexts/starknet";
 import { useGameEvents } from "@/dojo/useGameEvents";
 import { Settings } from "@/dojo/useGameSettings";
 import { useSystemCalls } from "@/dojo/useSystemCalls";
 import { useGameStore } from "@/stores/gameStore";
+import { useMarketStore } from "@/stores/marketStore";
+import { useUIStore } from "@/stores/uiStore";
 import { GameAction, Item } from "@/types/game";
+import { useAnalytics } from "@/utils/analytics";
 import { streamIds } from "@/utils/cloudflare";
 import {
   BattleEvents,
@@ -24,10 +28,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useAnalytics } from "@/utils/analytics";
-import { useMarketStore } from "@/stores/marketStore";
-import { useUIStore } from "@/stores/uiStore";
-import { JACKPOT_BEASTS } from "@/constants/beast";
 
 export interface GameDirectorContext {
   executeGameAction: (action: GameAction) => void;
@@ -85,7 +85,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     drop,
     claimBeast,
   } = useSystemCalls();
-  const { getSettingsDetails, getTokenMetadata, getGameState } =
+  const { getSettingsDetails, getTokenMetadata, getGameState, unclaimedBeast } =
     useStarknetApi();
   const { getGameEvents } = useGameEvents();
   const { gameStartedEvent } = useAnalytics();
@@ -192,6 +192,24 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       claimBeast(gameId!, collectable);
     }
   }, [beastDefeated]);
+
+  useEffect(() => {
+    async function checkUnclaimedBeast() {
+      let collectable = JSON.parse(localStorage.getItem('collectable_beast')!);
+      let isUnclaimed = await unclaimedBeast(collectable.gameId, collectable);
+      if (isUnclaimed) {
+        setClaimInProgress(true);
+        setCollectable(collectable);
+        claimBeast(collectable.gameId, collectable);
+      } else {
+        localStorage.removeItem('collectable_beast');
+      }
+    }
+
+    if (gameId && localStorage.getItem('collectable_beast')) {
+      checkUnclaimedBeast();
+    }
+  }, [gameId]);
 
   const initializeGame = async (settings: Settings, mode: string) => {
     if (spectating) return;
@@ -427,6 +445,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     }
 
     const events = await executeAction(txs, setActionFailed);
+    if (!events) return;
 
     if (events.some((event: any) => event.type === "defeated_beast")) {
       setBeastDefeated(true);

@@ -89,7 +89,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     claimBeast,
   } = useSystemCalls();
   const { currentNetworkConfig } = useDynamicConnector();
-  const { getGameState, getSettingsDetails, getTokenMetadata } =
+  const { getGameState, getSettingsDetails, getTokenMetadata, unclaimedBeast } =
     useStarknetApi();
   const { getGameEvents } = useGameEvents();
   const { gameStartedEvent } = useAnalytics();
@@ -178,6 +178,24 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       claimBeast(gameId!, collectable);
     }
   }, [beastDefeated]);
+
+  useEffect(() => {
+    async function checkUnclaimedBeast() {
+      let collectable = JSON.parse(localStorage.getItem('collectable_beast')!);
+      let isUnclaimed = await unclaimedBeast(collectable.gameId, collectable);
+      if (isUnclaimed) {
+        setClaimInProgress(true);
+        setCollectable(collectable);
+        claimBeast(collectable.gameId, collectable);
+      } else {
+        localStorage.removeItem('collectable_beast');
+      }
+    }
+
+    if (gameId && localStorage.getItem('collectable_beast')) {
+      checkUnclaimedBeast();
+    }
+  }, [gameId]);
 
   const initializeGame = async (settings: Settings, mode: string) => {
     if (spectating) return;

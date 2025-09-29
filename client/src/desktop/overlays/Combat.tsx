@@ -57,7 +57,7 @@ const tipPulseGamble = keyframes`
 export default function CombatOverlay() {
   const { executeGameAction, actionFailed, spectating, setSkipCombat, skipCombat, showSkipCombat } = useGameDirector();
   const { currentNetworkConfig } = useDynamicConnector();
-  const { adventurer, adventurerState, beast, battleEvent, bag, undoEquipment } = useGameStore();
+  const { gameId, adventurer, adventurerState, beast, battleEvent, bag, undoEquipment } = useGameStore();
 
   const [untilDeath, setUntilDeath] = useState(false);
   const [attackInProgress, setAttackInProgress] = useState(false);
@@ -129,12 +129,24 @@ export default function CombatOverlay() {
   }, [adventurer!.action_count]);
 
   const handleAttack = () => {
+    if (beast?.isCollectable) {
+      localStorage.setItem('collectable_beast', JSON.stringify({
+        gameId,
+        id: beast.id,
+        specialPrefix: beast.specialPrefix,
+        specialSuffix: beast.specialSuffix,
+        name: beast.name,
+        tier: beast.tier,
+      }));
+    }
+
     setAttackInProgress(true);
     setCombatLog(attackMessage);
     executeGameAction({ type: 'attack', untilDeath });
   };
 
   const handleFlee = () => {
+    localStorage.removeItem('collectable_beast');
     setFleeInProgress(true);
     setCombatLog(fleeMessage);
     executeGameAction({ type: 'flee', untilDeath });

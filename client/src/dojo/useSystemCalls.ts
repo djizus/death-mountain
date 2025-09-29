@@ -73,7 +73,8 @@ export const useSystemCalls = () => {
         txRevertedEvent({
           txHash: tx.transaction_hash,
         });
-        return enqueueSnackbar('Action failed', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } })
+        enqueueSnackbar('Action failed', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } });
+        return;
       }
 
       const translatedEvents = receipt.events.map((event: any) =>
@@ -385,7 +386,11 @@ export const useSystemCalls = () => {
   };
 
 
-  const claimBeast = async (gameId: number, beast: Beast) => {
+  const claimBeast = async (gameId: number, beast: Beast, retries: number = 0) => {
+    if (retries > 2) {
+      return;
+    }
+
     let prefix =
       Object.keys(BEAST_NAME_PREFIXES).find(
         (key: any) => BEAST_NAME_PREFIXES[key] === beast.specialPrefix
@@ -421,10 +426,12 @@ export const useSystemCalls = () => {
         await claimJackpot(tokenId);
       }
 
+      localStorage.removeItem('collectable_beast');
       return tokenId;
     } catch (error) {
       console.error("Error claiming beast:", error);
-      throw error;
+      await delay(3000);
+      return claimBeast(gameId, beast, retries + 1);
     }
   };
 

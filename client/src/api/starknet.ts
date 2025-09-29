@@ -1,5 +1,6 @@
+import { BEAST_NAME_PREFIXES, BEAST_NAME_SUFFIXES } from "@/constants/beast";
 import { useDynamicConnector } from "@/contexts/starknet";
-import { Metadata } from "@/types/game";
+import { Beast, Metadata } from "@/types/game";
 import { NETWORKS } from "@/utils/networkConfig";
 import { decodeHexByteArray, parseBalances } from "@/utils/utils";
 import { getContractByName } from "@dojoengine/core";
@@ -434,6 +435,79 @@ export const useStarknetApi = () => {
     return null;
   }
 
+  const unclaimedBeast = async (gameId: number, beast: Beast): Promise<boolean> => {
+    let prefix = 0;
+    let suffix = 0;
+
+    if (beast.specialPrefix) {
+      const prefixKey = Object.keys(BEAST_NAME_PREFIXES).find(
+        (key) => BEAST_NAME_PREFIXES[parseInt(key)] === beast.specialPrefix
+      );
+      prefix = prefixKey ? parseInt(prefixKey) : 0;
+    }
+
+    if (beast.specialSuffix) {
+      const suffixKey = Object.keys(BEAST_NAME_SUFFIXES).find(
+        (key) => BEAST_NAME_SUFFIXES[parseInt(key)] === beast.specialSuffix
+      );
+      suffix = suffixKey ? parseInt(suffixKey) : 0;
+    }
+
+    try {
+      const toriiUrl = `${currentNetworkConfig.toriiUrl}/sql?query=
+        SELECT id, killed_by
+        FROM "${currentNetworkConfig.namespace}-CollectableEntity"
+        WHERE dungeon = "0x00a67ef20b61a9846e1c82b411175e6ab167ea9f8632bd6c2091823c3629ec42"
+        AND "index" = "0x0000000000000000"
+        AND id = "${beast.id}"
+        AND prefix = "${prefix}"
+        AND suffix = "${suffix}"
+        LIMIT 1`;
+
+      console.log('Torii URL', toriiUrl)
+      const sqlResponse = await fetch(toriiUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      const collectableData = await sqlResponse.json();
+      console.log('Collectable Data', collectableData)
+
+      if (!collectableData || collectableData.length === 0 || parseInt(collectableData[0].killed_by, 16) !== gameId) {
+        return false;
+      }
+
+      const mintedResponse = await fetch(currentNetworkConfig.rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: 0,
+          jsonrpc: "2.0",
+          method: "starknet_call",
+          params: [
+            {
+              contract_address: currentNetworkConfig.beasts,
+              entry_point_selector: "0x019b8444cb075fa118a2d8dc7d0597d114a82ad3e7bba431638c00966674670e",
+              calldata: [num.toHex(beast.id), num.toHex(prefix), num.toHex(suffix)]
+            },
+            "latest"
+          ]
+        }),
+      });
+
+      const mintedData = await mintedResponse.json();
+      console.log('Minted Data', mintedData)
+      const minted = parseInt(mintedData.result[0], 16);
+
+      return minted === 0;
+    } catch (error) {
+      console.error('Error in unclaimedBeast:', error);
+      return false;
+    }
+  }
+
   const createBurnerAccount = async (rpcProvider: RpcProvider) => {
     const privateKey = stark.randomAddress();
     const publicKey = ec.starkCurve.getStarkKey(privateKey);
@@ -479,5 +553,6 @@ export const useStarknetApi = () => {
     getTokenMetadata,
     getAdventurerState,
     getRewardTokensClaimed,
+    unclaimedBeast,
   };
 };

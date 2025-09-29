@@ -23,7 +23,7 @@ const equipMessage = "Equipping items";
 export default function BeastScreen() {
   const { currentNetworkConfig } = useDynamicConnector();
   const { executeGameAction, actionFailed } = useGameDirector();
-  const { adventurer, adventurerState, beast, battleEvent, bag,
+  const { gameId, adventurer, adventurerState, beast, battleEvent, bag,
     equipItem, undoEquipment, setShowBeastRewards } = useGameStore();
   const [untilDeath, setUntilDeath] = useState(false);
   const [attackInProgress, setAttackInProgress] = useState(false);
@@ -111,6 +111,17 @@ export default function BeastScreen() {
   }, [adventurer!.action_count]);
 
   const handleAttack = () => {
+    if (beast?.isCollectable) {
+      localStorage.setItem('collectable_beast', JSON.stringify({
+        gameId,
+        id: beast.id,
+        specialPrefix: beast.specialPrefix,
+        specialSuffix: beast.specialSuffix,
+        name: beast.name,
+        tier: beast.tier,
+      }));
+    }
+
     setShowBeastRewards(true);
     setAttackInProgress(true);
     setCombatLog(attackMessage);
@@ -118,6 +129,7 @@ export default function BeastScreen() {
   };
 
   const handleFlee = () => {
+    localStorage.removeItem('collectable_beast');
     setShowBeastRewards(false);
     setFleeInProgress(true);
     setCombatLog(fleeMessage);
