@@ -220,7 +220,64 @@ export const buildCandidates = (
       array.findIndex((other) => itemsEqual(candidate, other)) === index
     ));
 
-    candidates[slot] = unique.sort(candidateSorter(slot, adventurer, beast));
+    const comparator = candidateSorter(slot, adventurer, beast);
+    const sorted = unique.sort(comparator);
+
+    if (slot === 'weapon') {
+      let bestDamage = Number.NEGATIVE_INFINITY;
+      const best: Item[] = [];
+
+      sorted.forEach((candidate) => {
+        const damage = calculateAttackDamage(candidate, adventurer, beast).baseDamage;
+
+        if (damage > bestDamage) {
+          bestDamage = damage;
+          best.length = 0;
+          best.push(candidate);
+          return;
+        }
+
+        if (damage === bestDamage) {
+          best.push(candidate);
+        }
+      });
+
+      candidates[slot] = best;
+      return;
+    }
+
+    if (ARMOR_SLOTS.includes(slot)) {
+      const bestByType = new Map<string, { item: Item; damage: number; tier: number; xp: number }>();
+
+      sorted.forEach((candidate) => {
+        const typeKey = ItemUtils.getItemType(candidate.id);
+        const damage = calculateBeastDamage(beast, adventurer, candidate).baseDamage;
+        const tier = ItemUtils.getItemTier(candidate.id);
+        const currentBest = bestByType.get(typeKey);
+
+        if (!currentBest) {
+          bestByType.set(typeKey, { item: candidate, damage, tier, xp: candidate.xp });
+          return;
+        }
+
+        if (damage < currentBest.damage) {
+          bestByType.set(typeKey, { item: candidate, damage, tier, xp: candidate.xp });
+          return;
+        }
+
+        if (damage === currentBest.damage) {
+          if (tier > currentBest.tier || (tier === currentBest.tier && candidate.xp > currentBest.xp)) {
+            bestByType.set(typeKey, { item: candidate, damage, tier, xp: candidate.xp });
+          }
+        }
+      });
+
+      const filtered = Array.from(bestByType.values()).map(({ item }) => item);
+      candidates[slot] = filtered.sort(comparator);
+      return;
+    }
+
+    candidates[slot] = sorted;
   });
 
   return candidates;
