@@ -9,13 +9,14 @@ import {
 export type { CombatSimulationResult } from './combatSimulationCore';
 export { defaultSimulationResult } from './combatSimulationCore';
 
-const workerUrl = new URL('../workers/combatSimulationWorker.ts', import.meta.url);
-
 const supportsWorkers = () => typeof window !== 'undefined' && typeof Worker !== 'undefined';
 
 const spawnWorker = (params: { adventurer: Adventurer; beast: Beast; options?: CombatSimulationOptions; }) =>
   new Promise<CombatSimulationResult>((resolve, reject) => {
-    const worker = new Worker(workerUrl, { type: 'module' });
+    const worker = new Worker(
+      new URL('../workers/combatSimulationWorker.ts', import.meta.url),
+      { type: 'module' },
+    );
 
     worker.onmessage = (event) => {
       resolve(event.data);

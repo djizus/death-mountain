@@ -18,8 +18,6 @@ import {
 import type { Adventurer, Beast, Item } from '@/types/game';
 import { calculateDeterministicCombatResult } from '@/utils/combatSimulationCore';
 
-const workerUrl = new URL('../workers/gearSuggestionWorker.ts', import.meta.url);
-
 const logSuggestion = (...args: unknown[]) => {
   if (import.meta.env.DEV) {
     console.info('[GearSuggestion]', ...args);
@@ -33,7 +31,10 @@ const spawnWorker = (
   beast: Beast,
   selections: Array<Partial<Record<EquipmentSlot, Item>>>,
 ) => new Promise<GearSuggestionWorkerResponse | null>((resolve, reject) => {
-  const worker = new Worker(workerUrl, { type: 'module' });
+  const worker = new Worker(
+    new URL('../workers/gearSuggestionWorker.ts', import.meta.url),
+    { type: 'module' },
+  );
 
   worker.onmessage = (event: MessageEvent<GearSuggestionWorkerResponse | null>) => {
     worker.terminate();
