@@ -27,6 +27,7 @@ import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
+import Link from "@mui/material/Link";
 import { useAccount } from "@starknet-react/core";
 import { AnimatePresence } from "framer-motion";
 import { useGameTokens } from "metagame-sdk/sql";
@@ -347,28 +348,24 @@ export default function MainMenu() {
                 </Typography>
               </Button> */}
 
-              {/* {currentNetworkConfig.name === "Beast Mode" &&
-                <PriceIndicator />
-              } */}
+              {currentNetworkConfig.name === "Beast Mode" &&
+                <>
+                  <PriceIndicator />
+
+                  <Link
+                    href="#"
+                    sx={styles.learnMoreLink}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.open('https://docs.provable.games/lootsurvivor/dungeon-tickets', '_blank');
+                    }}
+                  >
+                    Learn more about Dungeon Tickets
+                  </Link>
+                </>
+              }
 
               <Box sx={styles.bottom}>
-                <Box sx={styles.launchCampaign}>
-                  <Typography sx={styles.campaignHeadline}>
-                    Launch Campaign
-                  </Typography>
-                  <Typography sx={styles.campaignDescription}>
-                    588k free games available
-                  </Typography>
-                  <Typography
-                    component="a"
-                    href="https://claims.lootsurvivor.io/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={styles.eligibilityLink}
-                  >
-                    Check if you're eligible
-                  </Typography>
-                </Box>
                 <WalletConnect />
 
                 <Box sx={styles.bottomRow}>
@@ -595,6 +592,15 @@ const styles = {
     "&:hover": {
       textDecoration: "underline !important",
       color: "#d0ffd0",
+    },
+  },
+  learnMoreLink: {
+    fontSize: '0.9rem',
+    color: 'rgba(208, 201, 141, 0.6)',
+    textDecoration: 'underline !important',
+    cursor: 'pointer',
+    '&:hover': {
+      color: 'rgba(208, 201, 141, 0.8)',
     },
   },
 };

@@ -195,18 +195,18 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     async function checkUnclaimedBeast() {
-      let collectable = JSON.parse(localStorage.getItem('collectable_beast')!);
+      let collectable = JSON.parse(localStorage.getItem("collectable_beast")!);
       let isUnclaimed = await unclaimedBeast(collectable.gameId, collectable);
       if (isUnclaimed) {
         setClaimInProgress(true);
         setCollectable(collectable);
         claimBeast(collectable.gameId, collectable);
       } else {
-        localStorage.removeItem('collectable_beast');
+        localStorage.removeItem("collectable_beast");
       }
     }
 
-    if (gameId && localStorage.getItem('collectable_beast')) {
+    if (gameId && localStorage.getItem("collectable_beast")) {
       checkUnclaimedBeast();
     }
   }, [gameId]);
@@ -303,7 +303,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       if (
         !skipDelay &&
         event.adventurer!.item_specials_seed &&
-        event.adventurer!.item_specials_seed !== adventurer?.item_specials_seed &&
+        event.adventurer!.item_specials_seed !==
+          adventurer?.item_specials_seed &&
         !skipAllAnimations
       ) {
         setShowOverlay(false);
@@ -371,9 +372,18 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     }
 
     // Jackpot video
-    if (event.type === "beast" && event.beast!.isCollectable && JACKPOT_BEASTS.includes(event.beast!.name!)) {
+    if (
+      event.type === "beast" &&
+      event.beast!.isCollectable &&
+      JACKPOT_BEASTS.includes(event.beast!.name!)
+    ) {
       setShowOverlay(false);
-      setVideoQueue((prev) => [...prev, streamIds[`jackpot_${event.beast!.baseName!.toLowerCase()}` as keyof typeof streamIds]]);
+      setVideoQueue((prev) => [
+        ...prev,
+        streamIds[
+          `jackpot_${event.beast!.baseName!.toLowerCase()}` as keyof typeof streamIds
+        ],
+      ]);
     }
 
     if (delayTimes[event.type] && !skipDelay) {
@@ -389,8 +399,13 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
         action.settings.game_seed === 0 &&
         action.settings.adventurer.xp !== 0
       ) {
-        txs.push(requestRandom(generateSalt(action.gameId!, action.settings.adventurer.xp)));
+        txs.push(
+          requestRandom(
+            generateSalt(action.gameId!, action.settings.adventurer.xp)
+          )
+        );
       }
+      
       txs.push(startGame(action.gameId!));
     }
 
@@ -399,7 +414,11 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     }
 
     if (VRFEnabled && ["attack", "flee"].includes(action.type)) {
-      txs.push(requestRandom(generateBattleSalt(gameId!, adventurer!.xp, adventurer!.action_count)));
+      txs.push(
+        requestRandom(
+          generateBattleSalt(gameId!, adventurer!.xp, adventurer!.action_count)
+        )
+      );
     }
 
     if (
@@ -407,7 +426,11 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       action.type === "equip" &&
       adventurer?.beast_health! > 0
     ) {
-      txs.push(requestRandom(generateBattleSalt(gameId!, adventurer!.xp, adventurer!.action_count)));
+      txs.push(
+        requestRandom(
+          generateBattleSalt(gameId!, adventurer!.xp, adventurer!.action_count)
+        )
+      );
     }
 
     let newItemsEquipped = getNewItemsEquipped(
@@ -451,7 +474,9 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       setBeastDefeated(true);
     }
 
-    if (events.filter((event: any) => event.type === "beast_attack").length >= 2) {
+    if (
+      events.filter((event: any) => event.type === "beast_attack").length >= 2
+    ) {
       setShowSkipCombat(true);
     }
 
