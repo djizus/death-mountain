@@ -18,8 +18,11 @@ import {
 import type { Adventurer, Beast, Item } from '@/types/game';
 import { calculateDeterministicCombatResult } from '@/utils/combatSimulationCore';
 
+const shouldLogSuggestions =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_GEAR_LOGS === 'true';
+
 const logSuggestion = (...args: unknown[]) => {
-  if (import.meta.env.DEV) {
+  if (shouldLogSuggestions) {
     console.info('[GearSuggestion]', ...args);
   }
 };
