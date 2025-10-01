@@ -91,9 +91,9 @@ const WEAPON_SET_ITEM_IDS = [
 ];
 
 const RING_SET_ITEM_IDS = [
-  ItemId.GoldRing,
   ItemId.PlatinumRing,
   ItemId.TitaniumRing,
+  ItemId.GoldRing,
   ItemId.SilverRing,
   ItemId.BronzeRing,
 ];
@@ -215,6 +215,20 @@ export function getTierOneArmorSetStats(itemSpecialsSeed: number): ArmorSetStatS
     } else {
       summary.items = summary.items.filter((entry) => entry.id !== 0);
     }
+
+    const jewelryLabel = jewelryConfig ? ItemUtils.getItemName(jewelryConfig.id) : null;
+    const desiredOrder = [
+      jewelryLabel,
+      'Head',
+      'Hand',
+      'Chest',
+      'Waist',
+      'Foot',
+    ].filter(Boolean) as string[];
+
+    summary.items = desiredOrder
+      .map((label) => summary.items.find((entry) => entry.slot === label))
+      .filter((entry): entry is ArmorSetItemStats => Boolean(entry));
   });
 
   const weaponSummary: ArmorSetStatSummary = {
@@ -242,6 +256,18 @@ export function getTierOneArmorSetStats(itemSpecialsSeed: number): ArmorSetStatS
     const { item } = createItemStatsEntry(itemId, label);
     ringSummary.items.push(item);
   });
+
+  const ringOrder = [
+    ItemUtils.getItemName(ItemId.PlatinumRing),
+    ItemUtils.getItemName(ItemId.TitaniumRing),
+    ItemUtils.getItemName(ItemId.GoldRing),
+    ItemUtils.getItemName(ItemId.SilverRing),
+    ItemUtils.getItemName(ItemId.BronzeRing),
+  ];
+
+  ringSummary.items = ringOrder
+    .map((label) => ringSummary.items.find((entry) => entry.slot === label))
+    .filter((entry): entry is ArmorSetItemStats => Boolean(entry));
 
   const armorSummaries = ARMOR_TYPES.map((type) => summaries[type]);
 

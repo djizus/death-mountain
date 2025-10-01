@@ -46,6 +46,7 @@ interface GameState {
   setQuest: (data: Quest | null) => void;
   equipItem: (data: Item) => void;
   undoEquipment: () => void;
+  applyGearSuggestion: (data: { adventurer: Adventurer; bag: Item[] }) => void;
   setShowInventory: (show: boolean) => void;
   setShowOverlay: (show: boolean) => void;
   setShowSettings: (show: boolean) => void;
@@ -170,6 +171,19 @@ export const useGameStore = create<GameState>((set, get) => ({
           stats: updatedStats,
         },
         bag: updatedBag,
+      };
+    });
+  },
+
+  applyGearSuggestion: (data: { adventurer: Adventurer; bag: Item[] }) => {
+    set((state) => {
+      if (!state.adventurer) {
+        return state;
+      }
+
+      return {
+        adventurer: data.adventurer,
+        bag: data.bag,
       };
     });
   },

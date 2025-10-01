@@ -8,6 +8,7 @@ import { screenVariants } from '@/utils/animations';
 import { getBeastImageById, getCollectableTraits, collectableImage } from '@/utils/beast';
 import { ability_based_percentage, calculateAttackDamage, calculateBeastDamage, calculateCombatStats, calculateGoldReward, calculateLevel, getNewItemsEquipped } from '@/utils/game';
 import { ItemUtils, slotIcons } from '@/utils/loot';
+import { suggestBestCombatGear } from '@/utils/gearSuggestion';
 import { Box, Button, Checkbox, LinearProgress, Typography, keyframes } from '@mui/material';
 import { motion } from 'framer-motion';
 import { useLottie } from 'lottie-react';
@@ -24,11 +25,12 @@ export default function BeastScreen() {
   const { currentNetworkConfig } = useDynamicConnector();
   const { executeGameAction, actionFailed } = useGameDirector();
   const { gameId, adventurer, adventurerState, beast, battleEvent, bag,
-    equipItem, undoEquipment, setShowBeastRewards } = useGameStore();
+    equipItem, undoEquipment, setShowBeastRewards, applyGearSuggestion } = useGameStore();
   const [untilDeath, setUntilDeath] = useState(false);
   const [attackInProgress, setAttackInProgress] = useState(false);
   const [fleeInProgress, setFleeInProgress] = useState(false);
   const [equipInProgress, setEquipInProgress] = useState(false);
+  const [suggestInProgress, setSuggestInProgress] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -141,6 +143,31 @@ export default function BeastScreen() {
     setEquipInProgress(true);
     setCombatLog(equipMessage);
     executeGameAction({ type: 'equip' });
+  };
+
+  const handleSuggestGear = () => {
+    if (!adventurer || !bag || !beast) {
+      return;
+    }
+
+    setSuggestInProgress(true);
+
+    try {
+      const suggestion = suggestBestCombatGear(adventurer, bag, beast);
+
+      if (!suggestion) {
+        setCombatLog('Best gear already equipped.');
+        return;
+      }
+
+      applyGearSuggestion({ adventurer: suggestion.adventurer, bag: suggestion.bag });
+      setCombatLog('Suggested combat gear equipped.');
+    } catch (error) {
+      console.error('Failed to suggest combat gear', error);
+      setCombatLog('Unable to suggest gear right now.');
+    } finally {
+      setSuggestInProgress(false);
+    }
   };
 
   const getOffsetY = (isWeapon: boolean, isNameMatch: boolean, level: number, specialSeed: number) => {
@@ -356,7 +383,7 @@ export default function BeastScreen() {
                     size="small"
                     onClick={handleAttack}
                     sx={styles.attackButton}
-                    disabled={attackInProgress || fleeInProgress}
+                    disabled={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
                   >
                     ATTACK
                   </Button>
@@ -368,9 +395,23 @@ export default function BeastScreen() {
                   <Button
                     variant="contained"
                     size="small"
+                    onClick={handleSuggestGear}
+                    sx={styles.suggestButton}
+                    disabled={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
+                  >
+                    SUGGEST
+                  </Button>
+                  <Typography sx={styles.probabilityText}>
+                    optimal gear
+                  </Typography>
+                </Box>
+                <Box sx={styles.actionButtonContainer}>
+                  <Button
+                    variant="contained"
+                    size="small"
                     onClick={handleFlee}
                     sx={styles.fleeButton}
-                    disabled={adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress}
+                    disabled={adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress || equipInProgress || suggestInProgress}
                   >
                     FLEE
                   </Button>
@@ -379,7 +420,7 @@ export default function BeastScreen() {
                   </Typography>
                 </Box>
                 <Box sx={styles.deathCheckboxContainer} onClick={() => {
-                  if (!attackInProgress && !fleeInProgress && !equipInProgress) {
+                  if (!attackInProgress && !fleeInProgress && !equipInProgress && !suggestInProgress) {
                     setUntilDeath(!untilDeath);
                   }
                 }}>
@@ -388,7 +429,7 @@ export default function BeastScreen() {
                   </Typography>
                   <Checkbox
                     checked={untilDeath}
-                    disabled={attackInProgress || fleeInProgress || equipInProgress}
+                    disabled={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
                     onChange={(e) => setUntilDeath(e.target.checked)}
                     size="small"
                     sx={styles.deathCheckbox}
@@ -976,9 +1017,12 @@ const styles = {
     display: 'flex',
     gap: 1,
     width: '100%',
+    justifyContent: 'flex-end',
+    paddingLeft: '12px',
   },
   actionButtonContainer: {
-    flex: 1,
+    flex: '0 0 32%',
+    maxWidth: '32%',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -990,6 +1034,14 @@ const styles = {
     fontSize: '1.2rem',
     fontWeight: 'bold',
     background: 'linear-gradient(45deg, #80FF00 30%, #9dff33 90%)',
+    borderRadius: '12px',
+    color: '#111111',
+  },
+  suggestButton: {
+    width: '100%',
+    fontSize: '1.2rem',
+    fontWeight: 'bold',
+    background: 'linear-gradient(45deg, #3380ff 30%, #66a3ff 90%)',
     borderRadius: '12px',
     color: '#111111',
   },
@@ -1008,6 +1060,7 @@ const styles = {
     gap: '1px',
     minWidth: '32px',
     cursor: 'pointer',
+    marginLeft: '8px',
   },
   deathCheckboxLabel: {
     color: 'rgba(128, 255, 0, 0.7)',

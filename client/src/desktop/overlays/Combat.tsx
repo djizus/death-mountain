@@ -13,6 +13,7 @@ import InventoryOverlay from './Inventory';
 import SettingsOverlay from './Settings';
 import { JACKPOT_BEASTS, GOLD_MULTIPLIER, GOLD_REWARD_DIVISOR, MINIMUM_XP_REWARD } from '@/constants/beast';
 import { useDynamicConnector } from '@/contexts/starknet';
+import { suggestBestCombatGear } from '@/utils/gearSuggestion';
 
 const attackMessage = "Attacking";
 const fleeMessage = "Attempting to flee";
@@ -57,12 +58,13 @@ const tipPulseGamble = keyframes`
 export default function CombatOverlay() {
   const { executeGameAction, actionFailed, spectating, setSkipCombat, skipCombat, showSkipCombat } = useGameDirector();
   const { currentNetworkConfig } = useDynamicConnector();
-  const { gameId, adventurer, adventurerState, beast, battleEvent, bag, undoEquipment } = useGameStore();
+  const { gameId, adventurer, adventurerState, beast, battleEvent, bag, undoEquipment, applyGearSuggestion } = useGameStore();
 
   const [untilDeath, setUntilDeath] = useState(false);
   const [attackInProgress, setAttackInProgress] = useState(false);
   const [fleeInProgress, setFleeInProgress] = useState(false);
   const [equipInProgress, setEquipInProgress] = useState(false);
+  const [suggestInProgress, setSuggestInProgress] = useState(false);
   const [combatLog, setCombatLog] = useState("");
   const [simulationResult, setSimulationResult] = useState(defaultSimulationResult);
   const formatNumber = (value: number) => value.toLocaleString();
@@ -158,6 +160,31 @@ export default function CombatOverlay() {
     executeGameAction({ type: 'equip' });
   };
 
+  const handleSuggestGear = () => {
+    if (!adventurer || !bag || !beast) {
+      return;
+    }
+
+    setSuggestInProgress(true);
+
+    try {
+      const suggestion = suggestBestCombatGear(adventurer, bag, beast);
+
+      if (!suggestion) {
+        setCombatLog('Best gear already equipped.');
+        return;
+      }
+
+      applyGearSuggestion({ adventurer: suggestion.adventurer, bag: suggestion.bag });
+      setCombatLog('Suggested combat gear equipped.');
+    } catch (error) {
+      console.error('Failed to suggest combat gear', error);
+      setCombatLog('Unable to suggest gear right now.');
+    } finally {
+      setSuggestInProgress(false);
+    }
+  };
+
   const handleSkipCombat = () => {
     setSkipCombat(true);
   };
@@ -179,7 +206,6 @@ export default function CombatOverlay() {
       return null;
     }
 
-    const weaponDamage = calculateAttackDamage(adventurer.equipment.weapon, adventurer, beast);
     const adventurerLevel = calculateLevel(adventurer.xp);
     const beastTier = Math.min(5, Math.max(1, Number(beast.tier)));
 
@@ -199,8 +225,6 @@ export default function CombatOverlay() {
     const critChance = Math.min(100, Math.max(0, adventurer.stats.luck ?? 0));
 
     return {
-      attackDamage: weaponDamage.baseDamage,
-      criticalDamage: weaponDamage.criticalDamage,
       critChance,
       goldReward,
       xpReward,
@@ -362,15 +386,15 @@ export default function CombatOverlay() {
             <Box sx={styles.adventurerMetricsRow}>
               <Box sx={styles.metricItem}>
                 <Typography sx={styles.metricLabel}>Attack DMG</Typography>
-                <Typography sx={styles.metricValue}>{formatNumber(Math.round(combatOverview.attackDamage))}</Typography>
+                <Typography sx={styles.metricValue}>{formatNumber(Math.round(combatStats.baseDamage))}</Typography>
               </Box>
               <Box sx={styles.metricItem}>
                 <Typography sx={styles.metricLabel}>Crit %</Typography>
-                <Typography sx={styles.metricValue}>{formatPercent(combatOverview.critChance)}</Typography>
+                <Typography sx={styles.metricValue}>{formatPercent(combatStats.critChance)}</Typography>
               </Box>
               <Box sx={styles.metricItem}>
                 <Typography sx={styles.metricLabel}>Crit DMG</Typography>
-                <Typography sx={styles.metricValue}>{formatNumber(Math.round(combatOverview.criticalDamage))}</Typography>
+                <Typography sx={styles.metricValue}>{formatNumber(Math.round(combatStats.criticalDamage))}</Typography>
               </Box>
             </Box>
           </Box>
@@ -494,7 +518,7 @@ export default function CombatOverlay() {
         </Button>
       </Box>}
 
-      <InventoryOverlay disabledEquip={attackInProgress || fleeInProgress || equipInProgress} />
+      <InventoryOverlay disabledEquip={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress} />
       <SettingsOverlay />
 
       {/* Combat Buttons */}
@@ -538,9 +562,9 @@ export default function CombatOverlay() {
                 variant="contained"
                 onClick={handleAttack}
                 sx={styles.attackButton}
-                disabled={!adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress}
+                disabled={!adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
               >
-                <Box sx={{ opacity: !adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress ? 0.5 : 1 }}>
+                <Box sx={{ opacity: !adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
                   <Typography sx={styles.buttonText}>
                     ATTACK
                   </Typography>
@@ -555,11 +579,29 @@ export default function CombatOverlay() {
             <Box sx={styles.actionButtonContainer}>
               <Button
                 variant="contained"
+                onClick={handleSuggestGear}
+                sx={styles.suggestButton}
+                disabled={!adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
+              >
+                <Box sx={{ opacity: attackInProgress || fleeInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
+                  <Typography sx={styles.buttonText}>
+                    SUGGEST
+                  </Typography>
+                  <Typography sx={styles.buttonHelperText}>
+                    optimal gear
+                  </Typography>
+                </Box>
+              </Button>
+            </Box>
+
+            <Box sx={styles.actionButtonContainer}>
+              <Button
+                variant="contained"
                 onClick={handleFlee}
                 sx={styles.fleeButton}
-                disabled={adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress}
+                disabled={adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress || equipInProgress || suggestInProgress}
               >
-                <Box sx={{ opacity: adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress ? 0.5 : 1 }}>
+                <Box sx={{ opacity: adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
                   <Typography sx={styles.buttonText}>
                     FLEE
                   </Typography>
@@ -571,7 +613,7 @@ export default function CombatOverlay() {
             </Box>
 
             <Box sx={styles.deathCheckboxContainer} onClick={() => {
-              if (!attackInProgress && !fleeInProgress && !equipInProgress) {
+              if (!attackInProgress && !fleeInProgress && !equipInProgress && !suggestInProgress) {
                 setUntilDeath(!untilDeath);
               }
             }}>
@@ -639,7 +681,7 @@ const styles = {
     position: 'absolute',
     bottom: 32,
     left: '50%',
-    transform: 'translateX(-50%)',
+    transform: 'translateX(calc(-36%))',
     display: 'flex',
     gap: '16px',
     alignItems: 'flex-end',
@@ -679,6 +721,21 @@ const styles = {
     '&:disabled': {
       background: 'rgba(60, 16, 16, 1)',
       borderColor: 'rgba(106, 27, 27, 0.5)',
+    },
+  },
+  suggestButton: {
+    width: '190px',
+    height: '48px',
+    justifyContent: 'center',
+    background: 'rgba(16, 32, 48, 1)',
+    borderRadius: '8px',
+    border: '3px solid #1e3a5c',
+    '&:hover': {
+      background: 'rgba(24, 48, 72, 1)',
+    },
+    '&:disabled': {
+      background: 'rgba(16, 32, 48, 1)',
+      borderColor: 'rgba(30, 58, 92, 0.5)',
     },
   },
   buttonIcon: {

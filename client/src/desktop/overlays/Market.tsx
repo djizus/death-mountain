@@ -316,6 +316,38 @@ export default function MarketOverlay() {
     return getTierOneArmorSetStats(adventurer?.item_specials_seed || 0);
   }, [specialsUnlocked, adventurer?.item_specials_seed]);
 
+  const ringsSummary = useMemo(() => setStatsSummaries.find((summary) => summary.type === 'Rings'), [setStatsSummaries]);
+
+  const renderSetStatsItem = (item: ArmorSetStatSummary['items'][number]) => {
+    const hasItem = item.id > 0;
+    const imageUrl = hasItem ? ItemUtils.getItemImage(item.id) : null;
+    const tierColor = hasItem ? ItemUtils.getTierColor(ItemUtils.getItemTier(item.id)) : undefined;
+
+    return (
+      <Box key={`${item.slot}-${item.id}`} sx={styles.setStatsItemRow}>
+        {hasItem && imageUrl ? (
+          <Box sx={[styles.itemImageContainer, styles.setStatsItemImageContainer]}>
+            <Box
+              sx={[styles.itemGlow, styles.setStatsItemGlow, tierColor ? { backgroundColor: tierColor } : {}]}
+            />
+            <Box
+              component="img"
+              src={imageUrl}
+              alt={item.slot}
+              sx={[styles.itemImage, styles.setStatsItemImage]}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </Box>
+        ) : (
+          <Typography sx={styles.setStatsItemSlot}>{item.slot}</Typography>
+        )}
+        <Typography sx={styles.setStatsItemBonus}>{item.statBonus ?? '—'}</Typography>
+      </Box>
+    );
+  };
+
   const explorationInsights = useMemo(() => getExplorationInsights(adventurer ?? null, gameSettings ?? null), [adventurer, gameSettings]);
 
   useEffect(() => {
@@ -782,6 +814,9 @@ export default function MarketOverlay() {
                 ) : (
                   <Box sx={styles.setStatsContent}>
                     {setStatsSummaries.map((summary) => {
+                      if (summary.type === 'Rings') {
+                        return null;
+                      }
                       const columnPlacement = (() => {
                         switch (summary.type) {
                           case 'Weapons':
@@ -806,13 +841,17 @@ export default function MarketOverlay() {
                         >
                           <Typography sx={styles.setStatsColumnTitle}>{summary.type.toUpperCase()}</Typography>
                           <Box sx={styles.setStatsItems}>
-                            {summary.items.map((item) => (
-                              <Box key={item.slot} sx={styles.setStatsItemRow}>
-                                <Typography sx={styles.setStatsItemSlot}>{item.slot}</Typography>
-                              <Typography sx={styles.setStatsItemBonus}>{item.statBonus ?? '—'}</Typography>
-                            </Box>
-                          ))}
-                        </Box>
+                            {summary.items.map(renderSetStatsItem)}
+                          </Box>
+                          {summary.type === 'Weapons' && ringsSummary && ringsSummary.items.length > 0 && (
+                            <>
+                              <Box sx={styles.setStatsDivider} />
+                              <Typography sx={styles.setStatsColumnTitle}>RINGS</Typography>
+                              <Box sx={styles.setStatsItems}>
+                                {ringsSummary.items.map(renderSetStatsItem)}
+                              </Box>
+                            </>
+                          )}
                           {summary.category === 'Armor' && (
                             <Box sx={styles.setStatsTotals}>
                               {STAT_FILTER_OPTIONS.map((stat) => (
@@ -1817,9 +1856,9 @@ const styles = {
   setStatsModal: {
     background: 'rgba(24, 40, 24, 0.97)',
     borderRadius: '8px',
-    padding: '18px',
+    padding: '20px',
     border: '2px solid rgba(215, 197, 41, 0.35)',
-    width: 'min(980px, 92vw)',
+    width: 'min(1120px, 94vw)',
     maxHeight: '80vh',
     overflowY: 'auto',
   },
@@ -1842,38 +1881,38 @@ const styles = {
   },
   setStatsContent: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-    gridAutoRows: '1fr',
-    gap: '12px',
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gridAutoRows: 'auto',
+    gap: '10px',
     width: '100%',
   },
   setStatsColumn: {
     border: '1px solid rgba(215, 197, 41, 0.25)',
     borderRadius: '6px',
-    padding: '12px',
+    padding: '10px',
     background: 'rgba(12, 20, 12, 0.85)',
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
+    gap: '6px',
   },
   setStatsColumnWeapons: {
     gridColumn: '1',
-    gridRow: '2',
+    gridRow: '1',
   },
   setStatsColumnRings: {
-    gridColumn: '2',
-    gridRow: '2',
-  },
-  setStatsColumnCloth: {
     gridColumn: '1',
     gridRow: '1',
   },
-  setStatsColumnHide: {
+  setStatsColumnCloth: {
     gridColumn: '2',
     gridRow: '1',
   },
-  setStatsColumnMetal: {
+  setStatsColumnHide: {
     gridColumn: '3',
+    gridRow: '1',
+  },
+  setStatsColumnMetal: {
+    gridColumn: '4',
     gridRow: '1',
   },
   setStatsColumnTitle: {
@@ -1890,7 +1929,24 @@ const styles = {
   setStatsItemRow: {
     display: 'flex',
     justifyContent: 'space-between',
-    gap: '12px',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  setStatsItemImageContainer: {
+    width: '38px',
+    height: '38px',
+    minWidth: '38px',
+  },
+  setStatsItemGlow: {
+    opacity: 0.25,
+  },
+  setStatsItemImage: {
+    padding: '3px',
+  },
+  setStatsDivider: {
+    borderTop: '1px solid rgba(215, 197, 41, 0.18)',
+    marginTop: '6px',
+    paddingTop: '6px',
   },
   setStatsItemSlot: {
     color: '#d0c98d',
