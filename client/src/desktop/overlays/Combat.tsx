@@ -160,7 +160,7 @@ export default function CombatOverlay() {
     executeGameAction({ type: 'equip' });
   };
 
-  const handleSuggestGear = () => {
+  const handleSuggestGear = async () => {
     if (!adventurer || !bag || !beast) {
       return;
     }
@@ -168,7 +168,7 @@ export default function CombatOverlay() {
     setSuggestInProgress(true);
 
     try {
-      const suggestion = suggestBestCombatGear(adventurer, bag, beast);
+      const suggestion = await suggestBestCombatGear(adventurer, bag, beast);
 
       if (!suggestion) {
         setCombatLog('Best gear already equipped.');
