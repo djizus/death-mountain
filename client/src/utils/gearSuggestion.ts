@@ -7,6 +7,7 @@ import {
   EquipmentSlot,
   GearSuggestionResult,
   GearSuggestionScore,
+  GearSuggestionWorkerResponse,
   describeSelection,
   evaluateSelections,
   getItemLabel,
@@ -31,10 +32,10 @@ const spawnWorker = (
   adventurer: Adventurer,
   beast: Beast,
   selections: Array<Partial<Record<EquipmentSlot, Item>>>,
-) => new Promise<GearSuggestionScore & { selection: Partial<Record<EquipmentSlot, Item>> | null; changeCount: number; } | null>((resolve, reject) => {
+) => new Promise<GearSuggestionWorkerResponse | null>((resolve, reject) => {
   const worker = new Worker(workerUrl, { type: 'module' });
 
-  worker.onmessage = (event: MessageEvent<{ score: GearSuggestionScore; selection: Partial<Record<EquipmentSlot, Item>> | null; changeCount: number } | null>) => {
+  worker.onmessage = (event: MessageEvent<GearSuggestionWorkerResponse | null>) => {
     worker.terminate();
     resolve(event.data);
   };

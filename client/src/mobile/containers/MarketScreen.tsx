@@ -458,8 +458,6 @@ export default function MarketScreen() {
                     switch (summary.type) {
                       case 'Weapons':
                         return styles.setStatsColumnWeapons;
-                      case 'Rings':
-                        return styles.setStatsColumnRings;
                       case ItemType.Cloth:
                         return styles.setStatsColumnCloth;
                       case ItemType.Hide:
@@ -489,15 +487,15 @@ export default function MarketScreen() {
                           </Box>
                         </>
                       )}
-                    {summary.category === 'Armor' && (
-                      <Box sx={styles.setStatsTotals}>
-                        {STAT_FILTER_OPTIONS.map((stat) => (
-                          <Typography key={stat} sx={styles.setStatsTotalValue}>
-                            {`+${summary.totals[stat]} ${STAT_ABBREVIATIONS[stat]}`}
-                          </Typography>
-                        ))}
-                      </Box>
-                    )}
+                      {summary.category === 'Armor' && (
+                        <Box sx={styles.setStatsTotals}>
+                          {STAT_FILTER_OPTIONS.map((stat) => (
+                            <Typography key={stat} sx={styles.setStatsTotalValue}>
+                              {`+${summary.totals[stat]} ${STAT_ABBREVIATIONS[stat]}`}
+                            </Typography>
+                          ))}
+                        </Box>
+                      )}
                     </Box>
                   );
                 })}

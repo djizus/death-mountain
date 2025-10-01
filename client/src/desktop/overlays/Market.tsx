@@ -821,8 +821,6 @@ export default function MarketOverlay() {
                         switch (summary.type) {
                           case 'Weapons':
                             return styles.setStatsColumnWeapons;
-                          case 'Rings':
-                            return styles.setStatsColumnRings;
                           case ItemType.Cloth:
                             return styles.setStatsColumnCloth;
                           case ItemType.Hide:
