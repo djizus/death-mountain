@@ -31,7 +31,7 @@ import Link from "@mui/material/Link";
 import { useAccount } from "@starknet-react/core";
 import { AnimatePresence } from "framer-motion";
 import { useGameTokens } from "metagame-sdk/sql";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { addAddressPadding } from "starknet";
 import PriceIndicator from "../../components/PriceIndicator";
@@ -140,21 +140,30 @@ export default function MainMenu() {
   let disableGameButtons =
     !isDungeonOpen && currentNetworkConfig.name === "Beast Mode";
 
-  const { totalCount } = useGameTokens({
+  const { games: unfilteredGames } = useGameTokens({
     owner: account?.address || "0x0",
     sortBy: "minted_at",
     sortOrder: "desc",
     gameOver: false,
-    score: {
-      max: 0,
-    },
     mintedByAddress: currentNetworkConfig.dungeon
       ? addAddressPadding(currentNetworkConfig.dungeon)
       : "0",
-    countOnly: true,
+    includeMetadata: false,
+    limit: 1000,
   });
 
-  const gamesCount = totalCount ?? 0;
+  const gamesCount = useMemo(() => {
+    if (!unfilteredGames) return 0;
+
+    const now = Date.now();
+
+    return unfilteredGames.filter(game => {
+      const expiresAt = (game?.lifecycle?.end ?? 0) * 1000;
+      const isExpired = expiresAt !== 0 && expiresAt < now;
+
+      return !isExpired;
+    }).length;
+  }, [unfilteredGames]);
 
   const formatTimeRemaining = (seconds: number) => {
     const days = Math.floor(seconds / 86400);
