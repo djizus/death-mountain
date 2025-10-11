@@ -26,7 +26,7 @@ import { useGameTokens } from "metagame-sdk/sql";
 
 export default function LandingPage() {
   const { account } = useAccount();
-  const { login } = useController();
+  const { login, gamesRefreshVersion } = useController();
   const { currentNetworkConfig, setCurrentNetworkConfig } =
     useDynamicConnector();
   const navigate = useNavigate();
@@ -103,7 +103,7 @@ export default function LandingPage() {
   let disableGameButtons =
     !isDungeonOpen && currentNetworkConfig.name === "Beast Mode";
 
-  const { totalCount } = useGameTokens({
+  const { totalCount, refetch } = useGameTokens({
     owner: account?.address || "0x0",
     sortBy: "minted_at",
     sortOrder: "desc",
@@ -116,6 +116,10 @@ export default function LandingPage() {
       : "0",
     countOnly: true,
   });
+
+  useEffect(() => {
+    refetch();
+  }, [gamesRefreshVersion, refetch]);
 
   const gamesCount = totalCount ?? 0;
 

@@ -1,3 +1,4 @@
+import MintGameModal from "@/components/MintGameModal";
 import PaymentOptionsModal from "@/components/PaymentOptionsModal";
 import { useController } from "@/contexts/controller";
 import { useDynamicConnector } from "@/contexts/starknet";
@@ -42,7 +43,7 @@ import StatisticsModal from "./StatisticsModal";
 export default function MainMenu() {
   const navigate = useNavigate();
   const { account } = useAccount();
-  const { login } = useController();
+  const { login, gamesRefreshVersion } = useController();
   const { currentNetworkConfig, setCurrentNetworkConfig } =
     useDynamicConnector();
   const [showAdventurers, setShowAdventurers] = useState(false);
@@ -51,6 +52,7 @@ export default function MainMenu() {
   const [showReplays, setShowReplays] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
+  const [showMintModal, setShowMintModal] = useState(false);
   const [left, setLeft] = useState(getMenuLeftOffset());
   const [isDungeonOpen, setIsDungeonOpen] = useState(false);
   const [showBoost, setShowBoost] = useState(false);
@@ -99,6 +101,21 @@ export default function MainMenu() {
     }
   };
 
+  const handleMintGames = () => {
+    if (!currentNetworkConfig.dungeonTicket) {
+      return;
+    }
+
+    if (currentNetworkConfig.chainId === import.meta.env.VITE_PUBLIC_CHAIN) {
+      if (!account) {
+        login();
+        return;
+      }
+    }
+
+    setShowMintModal(true);
+  };
+
   const handleShowAdventurers = () => {
     if (
       currentNetworkConfig.chainId === import.meta.env.VITE_PUBLIC_CHAIN &&
@@ -140,7 +157,7 @@ export default function MainMenu() {
   let disableGameButtons =
     !isDungeonOpen && currentNetworkConfig.name === "Beast Mode";
 
-  const { games: unfilteredGames } = useGameTokens({
+  const { games: unfilteredGames, refetch: refetchGameTokens } = useGameTokens({
     owner: account?.address || "0x0",
     sortBy: "minted_at",
     sortOrder: "desc",
@@ -151,6 +168,10 @@ export default function MainMenu() {
     includeMetadata: false,
     limit: 1000,
   });
+
+  useEffect(() => {
+    refetchGameTokens();
+  }, [gamesRefreshVersion, refetchGameTokens]);
 
   const gamesCount = useMemo(() => {
     if (!unfilteredGames) return 0;
@@ -229,11 +250,44 @@ export default function MainMenu() {
                     }}
                   >
                     {currentNetworkConfig.name === "Beast Mode"
-                      ? "Buy Game"
-                      : "Start Game"}
+                    ? "Buy Game"
+                    : "Start Game"}
                   </Typography>
                 </Box>
               </Button>
+
+              {currentNetworkConfig.dungeonTicket && (
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  size="large"
+                  onClick={handleMintGames}
+                  disabled={disableGameButtons}
+                  sx={{
+                    px: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    height: "36px",
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <TokenIcon sx={{ fontSize: 20, mr: 1 }} />
+                    <Typography
+                      sx={{
+                        fontSize: "0.85rem",
+                        fontWeight: 500,
+                        letterSpacing: 0.5,
+                        color: disableGameButtons
+                          ? "rgba(208, 201, 141, 0.3)"
+                          : "#d0c98d",
+                      }}
+                    >
+                      Mint Tickets
+                    </Typography>
+                  </Box>
+                </Button>
+              )}
 
               <Button
                 variant="outlined"
@@ -478,6 +532,11 @@ export default function MainMenu() {
           onClose={() => setShowPaymentOptions(false)}
         />
       )}
+
+      <MintGameModal
+        open={showMintModal}
+        onClose={() => setShowMintModal(false)}
+      />
 
       <Box sx={[styles.rewardsContainer, { right: `${left + 32}px` }]}>
         <DungeonRewards />

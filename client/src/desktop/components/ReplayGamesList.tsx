@@ -19,7 +19,7 @@ interface ReplayGamesListProps {
 
 export default function ReplayGamesList({ onBack }: ReplayGamesListProps) {
   const navigate = useNavigate();
-  const { address } = useController();
+  const { address, gamesRefreshVersion } = useController();
   const { fetchAdventurerData } = useGameTokens();
   const { currentNetworkConfig } = useDynamicConnector();
   const namespace = currentNetworkConfig.namespace;
@@ -28,7 +28,7 @@ export default function ReplayGamesList({ onBack }: ReplayGamesListProps) {
     namespace,
     "game_token_systems"
   )?.address;
-  const { games: gamesData, loading: gamesLoading } = useMetagameTokens({
+  const { games: gamesData, loading: gamesLoading, refetch } = useMetagameTokens({
     mintedByAddress:
       currentNetworkConfig.chainId === ChainId.WP_PG_SLOT
         ? gameTokenAddress
@@ -56,6 +56,10 @@ export default function ReplayGamesList({ onBack }: ReplayGamesListProps) {
     }
     fetchAdventurers();
   }, [gamesData]);
+
+  useEffect(() => {
+    refetch();
+  }, [gamesRefreshVersion, refetch]);
 
   const handleWatch = (adventurerId: number) => {
     navigate(`/survivor/watch?id=${adventurerId}`);

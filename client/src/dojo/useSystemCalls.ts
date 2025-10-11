@@ -17,6 +17,8 @@ import { CairoOption, CairoOptionVariant, CallData, byteArray } from "starknet";
 import { useAnalytics } from "@/utils/analytics";
 import { useSnackbar } from "notistack";
 
+const TICKET_PRICE_WEI = BigInt("1000000000000000000");
+
 export const useSystemCalls = () => {
   const { enqueueSnackbar } = useSnackbar();
   const { getBeastTokenURI, getAdventurerState } = useStarknetApi();
@@ -155,47 +157,63 @@ export const useSystemCalls = () => {
     payment: Payment,
     name: string,
     preCalls: any[],
-    callback: () => void
-  ) => {
+    callback: () => void,
+    options?: { ticketCount?: number }
+  ): Promise<number[]> => {
+    const calls = [...preCalls];
+    const isTicketPayment = payment.paymentType === "Ticket";
+    const ticketCount =
+      isTicketPayment ? Math.max(options?.ticketCount ?? 1, 1) : 1;
+
     let paymentData =
       payment.paymentType === "Ticket"
         ? [0]
         : [1, payment.goldenPass!.address, payment.goldenPass!.tokenId];
 
-    if (payment.paymentType === "Ticket") {
-      preCalls.push({
+    if (isTicketPayment) {
+      const approvalAmount = (
+        TICKET_PRICE_WEI * BigInt(ticketCount)
+      ).toString();
+      calls.push({
         contractAddress: DUNGEON_TICKET,
         entrypoint: "approve",
-        calldata: CallData.compile([DUNGEON_ADDRESS, 1e18, "0"]),
+        calldata: CallData.compile([DUNGEON_ADDRESS, approvalAmount, "0"]),
       });
     }
 
     try {
-      let tx = await account!.execute(
-        [
-          ...preCalls,
-          {
-            contractAddress: DUNGEON_ADDRESS,
-            entrypoint: "buy_game",
-            calldata: CallData.compile([
-              ...paymentData,
-              new CairoOption(CairoOptionVariant.Some, stringToFelt(name)),
-              account!.address, // send game to this address
-              false, // soulbound
-            ]),
-          },
-        ]
-      );
+      const buyGameCalldata = CallData.compile([
+        ...paymentData,
+        new CairoOption(CairoOptionVariant.Some, stringToFelt(name)),
+        account!.address, // send game to this address
+        false, // soulbound
+      ]);
 
-      callback();
+      for (let i = 0; i < ticketCount; i++) {
+        calls.push({
+          contractAddress: DUNGEON_ADDRESS,
+          entrypoint: "buy_game",
+          calldata: buyGameCalldata,
+        });
+      }
+
+      let tx = await account!.execute(calls);
+
+      callback?.();
 
       const receipt: any = await waitForTransaction(tx.transaction_hash, 0, account!);
 
-      const tokenMetadataEvent = receipt.events.find(
+      const tokenMetadataEvents = receipt.events.filter(
         (event: any) => event.data.length === 14
       );
 
-      return parseInt(tokenMetadataEvent.data[1], 16);
+      if (!tokenMetadataEvents.length) {
+        throw new Error("No game minted");
+      }
+
+      return tokenMetadataEvents.map((event: any) =>
+        parseInt(event.data[1], 16)
+      );
     } catch (error) {
       console.error("Error buying game:", error);
       throw error;

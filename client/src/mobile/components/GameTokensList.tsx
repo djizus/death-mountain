@@ -16,7 +16,7 @@ import { addAddressPadding } from "starknet";
 
 export default function GameTokensList() {
   const { fetchAdventurerData } = useGameTokens();
-  const { account } = useController();
+  const { account, gamesRefreshVersion } = useController();
   const navigate = useNavigate();
 
   const [gameTokens, setGameTokens] = useState<string[]>([]);
@@ -31,7 +31,7 @@ export default function GameTokensList() {
     "game_token_systems"
   )?.address;
 
-  const { games: gamesData } = useMetagameTokens({
+  const { games: gamesData, refetch } = useMetagameTokens({
     mintedByAddress:
       currentNetworkConfig.chainId === ChainId.WP_PG_SLOT
         ? GAME_TOKEN_ADDRESS
@@ -57,6 +57,10 @@ export default function GameTokensList() {
     }
     fetchAdventurers();
   }, [gamesData]);
+
+  useEffect(() => {
+    refetch();
+  }, [gamesRefreshVersion, refetch]);
 
   function handleResumeGame(gameId: number) {
     navigate(`/survivor/play?id=${gameId}`);
