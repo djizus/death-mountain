@@ -62,11 +62,11 @@ export const useSystemCalls = () => {
   const executeAction = async (calls: any[], forceResetAction: () => void) => {
     try {
       if (adventurer) {
-        await waitForGlobalState();
+        await waitForGlobalState(adventurer.action_count);
       }
 
       let tx = await account!.execute(calls);
-      let receipt: any = await waitForPreConfirmedTransaction(tx.transaction_hash, 0);
+      let receipt: any = await waitForAcceptedTransaction(tx.transaction_hash, 0);
 
       if (receipt.execution_status === "REVERTED") {
         forceResetAction();
@@ -95,7 +95,7 @@ export const useSystemCalls = () => {
     }
   };
 
-  const waitForPreConfirmedTransaction = async (txHash: string, retries: number) => {
+  const waitForAcceptedTransaction = async (txHash: string, retries: number) => {
     if (retries > 5) {
       throw new Error("Transaction failed");
     }
@@ -103,14 +103,14 @@ export const useSystemCalls = () => {
     try {
       const receipt: any = await account!.waitForTransaction(
         txHash,
-        { retryInterval: 275, successStates: ["PRE_CONFIRMED", "ACCEPTED_ON_L2", "ACCEPTED_ON_L1"] }
+        { retryInterval: 275, successStates: ["ACCEPTED_ON_L2", "ACCEPTED_ON_L1"] }
       );
 
       return receipt;
     } catch (error) {
-      console.error("Error waiting for pre confirmed transaction:", error);
+      console.error("Error waiting for accepted transaction:", error);
       await delay(500);
-      return waitForPreConfirmedTransaction(txHash, retries + 1);
+      return waitForAcceptedTransaction(txHash, retries + 1);
     }
   }
 
@@ -133,15 +133,19 @@ export const useSystemCalls = () => {
     }
   }
 
-  const waitForGlobalState = async (retries: number = 0): Promise<boolean> => {
+  const waitForGlobalState = async (expectedActionCount: number, retries: number = 0): Promise<void> => {
     let adventurerState = await getAdventurerState(gameId!);
 
-    if (adventurerState?.action_count === adventurer!.action_count || retries > 9) {
-      return true;
+    if (adventurerState && adventurerState.action_count >= expectedActionCount) {
+      return;
+    }
+
+    if (retries > 19) {
+      throw new Error("Timed out waiting for global state to catch up");
     }
 
     await delay(500);
-    return waitForGlobalState(retries + 1);
+    return waitForGlobalState(expectedActionCount, retries + 1);
   };
 
   /**
