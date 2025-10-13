@@ -785,7 +785,7 @@ export default function PaymentOptionsModal({
   );
 }
 
-const styles = {
+export const paymentModalStyles = {
   overlay: {
     position: "fixed",
     top: 0,
@@ -1066,3 +1066,5 @@ const styles = {
     },
   },
 };
+
+const styles = paymentModalStyles;
