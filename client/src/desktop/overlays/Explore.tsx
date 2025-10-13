@@ -108,7 +108,9 @@ export default function ExploreOverlay() {
 
               {event.type === 'obstacle' && (
                 <Typography sx={{ color: event.obstacle?.dodged ? '#d7c529' : '#ff6b6b' }}>
-                  {event.obstacle?.dodged ? 'Dodged' : `-${event.obstacle?.damage} Health ${event.obstacle?.critical_hit ? 'critical hit!' : ''}`}
+                  {event.obstacle?.dodged
+                    ? `Dodged ${(event.obstacle?.damage ?? 0).toLocaleString()} dmg`
+                    : `-${(event.obstacle?.damage ?? 0).toLocaleString()} Health ${event.obstacle?.critical_hit ? 'critical hit!' : ''}`}
                 </Typography>
               )}
 

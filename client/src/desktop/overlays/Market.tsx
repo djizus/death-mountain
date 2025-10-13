@@ -596,8 +596,8 @@ export default function MarketOverlay() {
                   {event.type === 'obstacle' && (
                     <Typography sx={event.obstacle?.dodged ? styles.eventMetaValue : styles.eventMetaDamage}>
                       {event.obstacle?.dodged
-                        ? 'Dodged'
-                        : `-${event.obstacle?.damage} Health${event.obstacle?.critical_hit ? ' critical hit!' : ''}`}
+                        ? `Dodged ${(event.obstacle?.damage ?? 0).toLocaleString()} dmg`
+                        : `-${(event.obstacle?.damage ?? 0).toLocaleString()} Health${event.obstacle?.critical_hit ? ' critical hit!' : ''}`}
                     </Typography>
                   )}
 
