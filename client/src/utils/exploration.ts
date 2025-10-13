@@ -1,6 +1,12 @@
 import { BEAST_NAMES, BEAST_SPECIAL_NAME_LEVEL_UNLOCK, MAX_SPECIAL2, MAX_SPECIAL3 } from "@/constants/beast";
 import { OBSTACLE_NAMES } from "@/constants/obstacle";
-import { calculateBeastDamageDetails, calculateLevel, elementalAdjustedDamage } from "@/utils/game";
+import {
+  ability_based_damage_reduction,
+  ability_based_percentage,
+  calculateBeastDamageDetails,
+  calculateLevel,
+  elementalAdjustedDamage,
+} from "@/utils/game";
 import { getAttackType, getBeastTier } from "@/utils/beast";
 import { ItemUtils, ItemType, Tier as ItemTier } from "@/utils/loot";
 import type { Adventurer, Beast, Equipment, Item } from "@/types/game";
@@ -311,11 +317,27 @@ const makeEmptySlotSummary = (slot: keyof Equipment): SlotDamageSummary => ({
   lethalChance: 0,
 });
 
+const clampPercentage = (value: number) => Math.min(100, Math.max(0, value));
+
+const applyDamageReduction = (damage: number, reductionPercent: number) => {
+  if (damage <= 0) {
+    return 0;
+  }
+
+  const clamped = clampPercentage(reductionPercent);
+  if (clamped <= 0) {
+    return Math.max(0, Math.round(damage));
+  }
+
+  return Math.max(0, Math.floor((Math.round(damage) * (100 - clamped)) / 100));
+};
+
 const computeBeastSlotSummary = (
   slot: keyof Equipment,
   adventurer: Adventurer,
   levelRange: { min: number; max: number },
   isAmbush: boolean,
+  gameSettings: Settings,
 ): {
   summary: SlotDamageSummary;
   samples: WeightedSample[];
@@ -331,6 +353,27 @@ const computeBeastSlotSummary = (
   const levelWeight = 1 / levelCount;
   const adventurerLevel = Math.max(1, calculateLevel(adventurer.xp));
   const critChance = getBeastCriticalChance(adventurerLevel, isAmbush);
+  const statsMode = gameSettings?.stats_mode ?? 'Dodge';
+  const baseDamageReduction = isAmbush ? clampPercentage(gameSettings?.base_damage_reduction ?? 0) : 0;
+  const wisdomStat = adventurer.stats.wisdom ?? 0;
+  const statDamageReduction = isAmbush && statsMode === 'Reduction'
+    ? clampPercentage(ability_based_damage_reduction(adventurer.xp, wisdomStat))
+    : 0;
+  const avoidChance = isAmbush && statsMode === 'Dodge'
+    ? clampPercentage(ability_based_percentage(adventurer.xp, wisdomStat)) / 100
+    : 0;
+  const hitChance = 1 - avoidChance;
+
+  const applyAmbushMitigation = (damage: number) => {
+    let mitigated = damage;
+    if (isAmbush && baseDamageReduction > 0) {
+      mitigated = applyDamageReduction(mitigated, baseDamageReduction);
+    }
+    if (statDamageReduction > 0) {
+      mitigated = applyDamageReduction(mitigated, statDamageReduction);
+    }
+    return mitigated;
+  };
 
   const prefixMatchChance = armorSpecials.prefix ? 1 / BEAST_SPECIAL_PREFIX_POOL : 0;
   const suffixMatchChance = armorSpecials.suffix ? 1 / BEAST_SPECIAL_SUFFIX_POOL : 0;
@@ -392,23 +435,41 @@ const computeBeastSlotSummary = (
         };
 
         const damageDetails = calculateBeastDamageDetails(beast, adventurer, armor);
-        const baseDamage = finaliseBeastDamage(damageDetails.baseDamage);
-        const critDamage = finaliseBeastDamage(damageDetails.criticalDamage);
+        const baseDamage = applyAmbushMitigation(finaliseBeastDamage(damageDetails.baseDamage));
+        const critDamage = applyAmbushMitigation(finaliseBeastDamage(damageDetails.criticalDamage));
 
-        pushSample(beastId, baseDamage, scenarioWeight * (1 - critChance));
-        pushSample(beastId, critDamage, scenarioWeight * critChance);
+        const hitWeight = scenarioWeight * hitChance;
+        const baseWeight = hitWeight * (1 - critChance);
+        const critWeight = hitWeight * critChance;
 
-        minBase = Math.min(minBase, baseDamage);
-        maxBase = Math.max(maxBase, baseDamage);
-        minCrit = Math.min(minCrit, critDamage);
-        maxCrit = Math.max(maxCrit, critDamage);
+        if (baseWeight > 0) {
+          pushSample(beastId, baseDamage, baseWeight);
+          minBase = Math.min(minBase, baseDamage);
+          maxBase = Math.max(maxBase, baseDamage);
+        }
+
+        if (critWeight > 0) {
+          pushSample(beastId, critDamage, critWeight);
+          minCrit = Math.min(minCrit, critDamage);
+          maxCrit = Math.max(maxCrit, critDamage);
+        }
+
+        const avoidWeight = scenarioWeight * avoidChance;
+        if (avoidWeight > 0) {
+          pushSample(beastId, 0, avoidWeight);
+        }
       }
     }
   }
 
   if (!Number.isFinite(minBase)) {
     minBase = MIN_DAMAGE_FROM_BEASTS;
+    maxBase = MIN_DAMAGE_FROM_BEASTS;
+  }
+
+  if (!Number.isFinite(minCrit)) {
     minCrit = MIN_DAMAGE_FROM_BEASTS;
+    maxCrit = MIN_DAMAGE_FROM_BEASTS;
   }
 
   const distribution = buildDamageDistribution(samples);
@@ -453,6 +514,7 @@ const computeObstacleSlotSummary = (
   adventurer: Adventurer,
   levelRange: { min: number; max: number },
   dodgeProbability: number,
+  gameSettings: Settings,
 ): {
   summary: SlotDamageSummary;
   samples: WeightedSample[];
@@ -477,6 +539,20 @@ const computeObstacleSlotSummary = (
   const levelWeight = 1 / levelCount;
   const adventurerLevel = Math.max(1, calculateLevel(adventurer.xp));
   const critChance = getObstacleCriticalChance(adventurerLevel);
+  const statsMode = gameSettings?.stats_mode ?? 'Dodge';
+  const baseDamageReduction = clampPercentage(gameSettings?.base_damage_reduction ?? 0);
+  const intelligenceStat = adventurer.stats.intelligence ?? 0;
+  const statDamageReduction = statsMode === 'Reduction'
+    ? clampPercentage(ability_based_damage_reduction(adventurer.xp, intelligenceStat))
+    : 0;
+
+  const applyObstacleMitigation = (damage: number) => {
+    let mitigated = applyDamageReduction(damage, baseDamageReduction);
+    if (statDamageReduction > 0) {
+      mitigated = applyDamageReduction(mitigated, statDamageReduction);
+    }
+    return mitigated;
+  };
 
   const pushSample = (id: number, value: number, weight: number) => {
     if (weight <= 0) return;
@@ -500,8 +576,8 @@ const computeObstacleSlotSummary = (
       const adjustedBase = applyNecklaceMitigation(baseDamageRaw, armorBase, armorType, neckItem);
       const adjustedCrit = applyNecklaceMitigation(critDamageRaw, armorBase, armorType, neckItem);
 
-      const finalBase = finaliseObstacleDamage(adjustedBase);
-      const finalCrit = finaliseObstacleDamage(adjustedCrit);
+      const finalBase = applyObstacleMitigation(finaliseObstacleDamage(adjustedBase));
+      const finalCrit = applyObstacleMitigation(finaliseObstacleDamage(adjustedCrit));
 
       if (dodgeProbability > 0) {
         pushSample(obstacleId, 0, levelWeight * dodgeProbability);
@@ -522,7 +598,12 @@ const computeObstacleSlotSummary = (
 
   if (!Number.isFinite(minBase)) {
     minBase = MIN_DAMAGE_FROM_OBSTACLES;
+    maxBase = MIN_DAMAGE_FROM_OBSTACLES;
+  }
+
+  if (!Number.isFinite(minCrit)) {
     minCrit = MIN_DAMAGE_FROM_OBSTACLES;
+    maxCrit = MIN_DAMAGE_FROM_OBSTACLES;
   }
 
   const distribution = buildDamageDistribution(samples);
@@ -572,6 +653,14 @@ const computeBeastRisk = (
 
   const slotSummaries: SlotDamageSummary[] = [];
   const aggregatedSamples: WeightedSample[] = [];
+  const statsMode = _gameSettings?.stats_mode ?? 'Dodge';
+  const wisdomStat = adventurer.stats.wisdom ?? 0;
+  const avoidPercent = isAmbush && statsMode === 'Dodge'
+    ? clampPercentage(ability_based_percentage(adventurer.xp, wisdomStat))
+    : 0;
+  const ambushChance = isAmbush
+    ? Number((100 - avoidPercent).toFixed(2))
+    : 0;
 
   for (const slot of SLOT_ORDER) {
     const { summary, samples } = computeBeastSlotSummary(
@@ -579,12 +668,11 @@ const computeBeastRisk = (
       adventurer,
       levelRange,
       isAmbush,
+      _gameSettings,
     );
     slotSummaries.push(summary);
     aggregatedSamples.push(...samples);
   }
-
-  const ambushChance = isAmbush ? 100 : 0;
   const adventurerLevel = Math.max(1, calculateLevel(adventurer.xp));
   const critChance = Number((getBeastCriticalChance(adventurerLevel, isAmbush) * 100).toFixed(2));
   const damageDistribution = buildDamageDistribution(aggregatedSamples);
@@ -632,7 +720,12 @@ const computeObstacleRisk = (
 
   const slotSummaries: SlotDamageSummary[] = [];
   const aggregatedSamples: WeightedSample[] = [];
-  const dodgeProbability = 0;
+  const statsMode = _gameSettings?.stats_mode ?? 'Dodge';
+  const intelligenceStat = adventurer.stats.intelligence ?? 0;
+  const dodgePercent = statsMode === 'Dodge'
+    ? clampPercentage(ability_based_percentage(adventurer.xp, intelligenceStat))
+    : 0;
+  const dodgeProbability = dodgePercent / 100;
 
   for (const slot of SLOT_ORDER) {
     const { summary, samples } = computeObstacleSlotSummary(
@@ -640,6 +733,7 @@ const computeObstacleRisk = (
       adventurer,
       levelRange,
       dodgeProbability,
+      _gameSettings,
     );
     slotSummaries.push(summary);
     aggregatedSamples.push(...samples);
@@ -664,7 +758,7 @@ const computeObstacleRisk = (
   }
 
   return {
-    dodgeChance: 0,
+    dodgeChance: Number(dodgePercent.toFixed(2)),
     critChance,
     tierDistribution: Object.fromEntries(Object.entries(tierCounts).map(([key, value]) => [key, Number(((value / OBSTACLE_IDS.length) * 100).toFixed(2))])) as ObstacleRiskSummary['tierDistribution'],
     typeDistribution: Object.fromEntries(Object.entries(typeCounts).map(([key, value]) => [key, Number(((value / OBSTACLE_IDS.length) * 100).toFixed(2))])) as ObstacleRiskSummary['typeDistribution'],
