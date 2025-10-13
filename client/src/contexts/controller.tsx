@@ -39,7 +39,7 @@ export interface ControllerContext {
   gamesRefreshVersion: number;
 }
 
-const MAX_TICKET_BATCH = 100;
+const MAX_TICKET_BATCH = 50;
 
 // Create a context
 const ControllerContext = createContext<ControllerContext>(

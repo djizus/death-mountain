@@ -20,7 +20,7 @@ interface MintGameModalProps {
 }
 
 const styles = paymentModalStyles;
-const MAX_TICKET_BATCH = 100;
+const MAX_TICKET_BATCH = 50;
 
 export default function MintGameModal({ open, onClose }: MintGameModalProps) {
   const { enterDungeonMultiple, tokenBalances, playerName } = useController();
