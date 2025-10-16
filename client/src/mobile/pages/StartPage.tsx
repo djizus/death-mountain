@@ -9,6 +9,7 @@ import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import { Box, Button, Divider, Typography } from "@mui/material";
 import { useAccount } from "@starknet-react/core";
 import { useState, useEffect } from "react";
@@ -36,6 +37,8 @@ export default function LandingPage() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showDungeonRewards, setShowDungeonRewards] = useState(false);
   const [isDungeonOpen, setIsDungeonOpen] = useState(false);
+  const isMainNetwork =
+    currentNetworkConfig.chainId === import.meta.env.VITE_PUBLIC_CHAIN;
 
   useEffect(() => {
     const checkDungeonOpen = () => {
@@ -86,6 +89,15 @@ export default function LandingPage() {
 
     setShowAdventurers(false);
     setShowReplays(true);
+  };
+
+  const handleClaimRewards = () => {
+    if (isMainNetwork && !account) {
+      login();
+      return;
+    }
+
+    navigate("/survivor/claim");
   };
 
   const switchMode = () => {
@@ -178,6 +190,34 @@ export default function LandingPage() {
                     : "Start Game"}
                 </Typography>
               </Button>
+
+              {isMainNetwork && (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  color="secondary"
+                  onClick={handleClaimRewards}
+                  sx={{
+                    height: "36px",
+                    mt: 1,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "100%",
+                    }}
+                  >
+                    <AttachMoneyIcon sx={{ mr: 1 }} />
+                    <Typography variant="h5" color="#111111">
+                      Claim Tokens
+                    </Typography>
+                  </Box>
+                </Button>
+              )}
 
               <Button
                 fullWidth

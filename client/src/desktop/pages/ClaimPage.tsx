@@ -156,20 +156,6 @@ export default function ClaimPage() {
             <Typography sx={styles.text} mb={3}>
               Successfully claimed rewards for {totalClaimed} adventurer{totalClaimed !== 1 ? 's' : ''}.
             </Typography>
-            <Button
-              onClick={() => navigate('/survivor')}
-              variant="contained"
-              color="primary"
-              sx={{
-                width: 'auto',
-                px: 3,
-                py: 1
-              }}
-            >
-              <Typography sx={styles.buttonText}>
-                Back to Main Menu
-              </Typography>
-            </Button>
           </Box>
         ) : loading || gamesLoading ? (
           <Typography sx={styles.text}>Checking for unclaimed rewards...</Typography>
@@ -205,6 +191,23 @@ export default function ClaimPage() {
             )}
           </Box>
         )}
+        <Box
+          sx={{
+            mt: 4,
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
+          <Button
+            onClick={() => navigate('/survivor')}
+            variant="outlined"
+            sx={styles.mainMenuButton}
+          >
+            <Typography sx={styles.buttonText}>
+              Back to Main Menu
+            </Typography>
+          </Button>
+        </Box>
       </Box>
     </Box>
   );
@@ -256,7 +259,26 @@ const styles = {
   buttonText: {
     fontFamily: 'Cinzel, Georgia, serif',
     fontWeight: 600,
-    color: '#000',
+    color: '#d0c98d',
     textAlign: 'center',
+  },
+  mainMenuButton: {
+    width: 'auto',
+    px: 3,
+    py: 1,
+    borderColor: 'rgba(208, 201, 141, 0.4)',
+    color: '#d0c98d',
+    textTransform: 'none',
+    '& .MuiTypography-root': {
+      color: '#d0c98d',
+    },
+    '&:hover': {
+      borderColor: '#d0c98d',
+      backgroundColor: 'rgba(208, 201, 141, 0.08)',
+      color: '#d0c98d',
+      '& .MuiTypography-root': {
+        color: '#d0c98d',
+      },
+    },
   },
 };
