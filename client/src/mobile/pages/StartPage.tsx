@@ -12,7 +12,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import { Box, Button, Divider, Typography } from "@mui/material";
 import { useAccount } from "@starknet-react/core";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import GameTokensList from "../components/GameTokensList";
 import ReplayGamesList from "../components/ReplayGamesList";
@@ -115,21 +115,30 @@ export default function LandingPage() {
   let disableGameButtons =
     !isDungeonOpen && currentNetworkConfig.name === "Beast Mode";
 
-  const { totalCount } = useGameTokens({
+  const { games: unfilteredGames } = useGameTokens({
     owner: account?.address || "0x0",
     sortBy: "minted_at",
     sortOrder: "desc",
     gameOver: false,
-    score: {
-      max: 0,
-    },
     mintedByAddress: currentNetworkConfig.dungeon
       ? addAddressPadding(currentNetworkConfig.dungeon)
       : "0",
-    countOnly: true,
+    includeMetadata: false,
+    limit: 1000,
   });
 
-  const gamesCount = totalCount ?? 0;
+  const gamesCount = useMemo(() => {
+    if (!unfilteredGames) return 0;
+
+    const now = Date.now();
+
+    return unfilteredGames.filter((game) => {
+      const expiresAt = (game?.lifecycle?.end ?? 0) * 1000;
+      const isExpired = expiresAt !== 0 && expiresAt < now;
+
+      return !isExpired;
+    }).length;
+  }, [unfilteredGames]);
 
   return (
     <>

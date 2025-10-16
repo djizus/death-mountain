@@ -6,6 +6,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
 import { screenVariants } from '@/utils/animations';
 import { getBeastImageById, getCollectableTraits, collectableImage } from '@/utils/beast';
+import { defaultSimulationResult, simulateCombatOutcomes } from '@/utils/combatSimulation';
 import { ability_based_percentage, calculateAttackDamage, calculateBeastDamage, calculateCombatStats, calculateGoldReward, calculateLevel, getNewItemsEquipped } from '@/utils/game';
 import { ItemUtils, slotIcons } from '@/utils/loot';
 import { suggestBestCombatGear } from '@/utils/gearSuggestion';
@@ -38,6 +39,11 @@ export default function BeastScreen() {
   const [combatLog, setCombatLog] = useState("");
   const [health, setHealth] = useState(adventurer!.health);
   const [beastHealth, setBeastHealth] = useState(adventurer!.beast_health);
+  const [simulationResult, setSimulationResult] = useState(defaultSimulationResult);
+  const hasNewItemsEquipped = useMemo(() => {
+    if (!adventurer?.equipment || !adventurerState?.equipment) return false;
+    return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
+  }, [adventurer?.equipment, adventurerState?.equipment]);
 
   const strike = useLottie({
     animationData: strikeAnim,
@@ -111,6 +117,62 @@ export default function BeastScreen() {
       setFleeInProgress(false);
     }
   }, [adventurer!.action_count]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!adventurer || !beast) {
+      setSimulationResult(defaultSimulationResult);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const runSimulation = async () => {
+      const result = await simulateCombatOutcomes(adventurer, beast, {
+        initialBeastStrike: hasNewItemsEquipped,
+      });
+
+      if (!cancelled) {
+        setSimulationResult(result);
+      }
+    };
+
+    void runSimulation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    adventurer?.health,
+    adventurer?.xp,
+    adventurer?.item_specials_seed,
+    adventurer?.stats.strength,
+    adventurer?.stats.luck,
+    adventurer?.equipment.weapon.id,
+    adventurer?.equipment.weapon.xp,
+    adventurer?.equipment.chest.id,
+    adventurer?.equipment.chest.xp,
+    adventurer?.equipment.head.id,
+    adventurer?.equipment.head.xp,
+    adventurer?.equipment.waist.id,
+    adventurer?.equipment.waist.xp,
+    adventurer?.equipment.hand.id,
+    adventurer?.equipment.hand.xp,
+    adventurer?.equipment.foot.id,
+    adventurer?.equipment.foot.xp,
+    adventurer?.equipment.neck.id,
+    adventurer?.equipment.neck.xp,
+    adventurer?.equipment.ring.id,
+    adventurer?.equipment.ring.xp,
+    adventurer?.beast_health,
+    beast?.health,
+    beast?.level,
+    beast?.tier,
+    beast?.specialPrefix,
+    beast?.specialSuffix,
+    hasNewItemsEquipped,
+  ]);
 
   const handleAttack = () => {
     if (beast?.isCollectable) {
@@ -200,13 +262,21 @@ export default function BeastScreen() {
   const collectableTraits = collectable ? getCollectableTraits(beast!.seed) : null;
   const isJackpot = currentNetworkConfig.beasts && JACKPOT_BEASTS.includes(beast?.name!);
 
-  const hasNewItemsEquipped = useMemo(() => {
-    if (!adventurer?.equipment || !adventurerState?.equipment) return false;
-    return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
-  }, [adventurer?.equipment]);
-
   const combatStats = beast ? calculateCombatStats(adventurer!, bag, beast) : null;
   const bestItemIds = combatStats?.bestItems.map((item: Item) => item.id) || [];
+  const formatNumber = (value: number) => value.toLocaleString();
+  const formatRange = (minValue: number, maxValue: number) => {
+    if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
+      return "-";
+    }
+
+    if (minValue === maxValue) {
+      return formatNumber(minValue);
+    }
+
+    return `${formatNumber(minValue)} - ${formatNumber(maxValue)}`;
+  };
+  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
   return (
     <motion.div
@@ -762,6 +832,105 @@ export default function BeastScreen() {
             </Box>
           </Box>
         )}
+
+        <Box sx={styles.fightDistributionSection}>
+          <Typography sx={styles.fightDistributionTitle}>
+            Fight Distribution
+          </Typography>
+          {simulationResult.hasOutcome ? (
+            <>
+              <Box sx={styles.distributionRow}>
+                <Box
+                  sx={[
+                    styles.distributionCard,
+                    styles.tipCard,
+                    simulationResult.winRate >= 100
+                      ? styles.tipCardFight
+                      : simulationResult.winRate < 10
+                        ? styles.tipCardFlee
+                        : styles.tipCardGamble,
+                  ]}
+                >
+                  <Typography sx={styles.distributionLabel}>Tip</Typography>
+                  <Typography sx={styles.distributionValue}>
+                    {simulationResult.winRate >= 100
+                      ? "Fight"
+                      : simulationResult.winRate < 10
+                        ? "Flee"
+                        : "Gamble"}
+                  </Typography>
+                </Box>
+                <Box sx={[styles.distributionCard, styles.positiveCard]}>
+                  <Typography sx={styles.distributionLabel}>Win %</Typography>
+                  <Typography sx={styles.distributionValue}>
+                    {formatPercent(simulationResult.winRate)}
+                  </Typography>
+                  <Typography sx={styles.distributionSubValue}>
+                    {`${formatNumber(Math.round(simulationResult.winRate))}/100`}
+                  </Typography>
+                </Box>
+                <Box sx={[styles.distributionCard, styles.warningCard]}>
+                  <Typography sx={styles.distributionLabel}>
+                    OTK Chance
+                  </Typography>
+                  <Typography sx={styles.distributionValue}>
+                    {formatPercent(simulationResult.otkRate)}
+                  </Typography>
+                  <Typography sx={styles.distributionSubValue}>
+                    {`${formatNumber(Math.round(simulationResult.otkRate))}/100`}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={styles.distributionRow}>
+                <Box sx={styles.distributionCard}>
+                  <Typography sx={styles.distributionLabel}>Rounds</Typography>
+                  <Typography sx={styles.distributionValue}>
+                    {formatNumber(simulationResult.modeRounds)}
+                  </Typography>
+                  <Typography sx={styles.distributionSubValue}>
+                    {formatRange(
+                      simulationResult.minRounds,
+                      simulationResult.maxRounds
+                    )}
+                  </Typography>
+                </Box>
+                <Box sx={[styles.distributionCard, styles.positiveCard]}>
+                  <Typography sx={styles.distributionLabel}>
+                    DMG Dealt
+                  </Typography>
+                  <Typography sx={styles.distributionValue}>
+                    {formatNumber(simulationResult.modeDamageDealt)}
+                  </Typography>
+                  <Typography sx={styles.distributionSubValue}>
+                    {formatRange(
+                      simulationResult.minDamageDealt,
+                      simulationResult.maxDamageDealt
+                    )}
+                  </Typography>
+                </Box>
+                <Box sx={[styles.distributionCard, styles.warningCard]}>
+                  <Typography sx={styles.distributionLabel}>
+                    DMG Taken
+                  </Typography>
+                  <Typography sx={styles.distributionValue}>
+                    {formatNumber(Math.round(simulationResult.modeDamageTaken))}
+                  </Typography>
+                  <Typography sx={styles.distributionSubValue}>
+                    {formatRange(
+                      simulationResult.minDamageTaken,
+                      simulationResult.maxDamageTaken
+                    )}
+                  </Typography>
+                </Box>
+              </Box>
+            </>
+          ) : (
+            <Typography sx={styles.distributionPlaceholder}>
+              Run a simulation to view probabilities
+            </Typography>
+          )}
+        </Box>
       </Box>
     </motion.div>
   );
@@ -1208,6 +1377,94 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: 'repeat(8, 1fr)',
     gap: '4px',
+  },
+  fightDistributionSection: {
+    mt: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    padding: '10px 12px 14px',
+    borderRadius: '10px',
+    background: 'rgba(0, 0, 0, 0.55)',
+    border: '1px solid rgba(128, 255, 0, 0.15)',
+    boxShadow: '0 6px 14px rgba(0, 0, 0, 0.35)',
+  },
+  fightDistributionTitle: {
+    color: '#80FF00',
+    fontFamily: 'VT323, monospace',
+    fontSize: '1.15rem',
+    letterSpacing: '1px',
+    textTransform: 'uppercase' as const,
+    textAlign: 'center' as const,
+  },
+  distributionRow: {
+    display: 'flex',
+    gap: '8px',
+    flexWrap: 'wrap' as const,
+  },
+  distributionCard: {
+    flex: 1,
+    minWidth: '0',
+    padding: '10px 12px',
+    borderRadius: '8px',
+    background: 'rgba(16, 24, 16, 0.8)',
+    border: '1px solid rgba(128, 255, 0, 0.18)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  distributionLabel: {
+    color: 'rgba(128, 255, 0, 0.7)',
+    fontSize: '0.68rem',
+    letterSpacing: '0.75px',
+    textTransform: 'uppercase' as const,
+    fontFamily: 'VT323, monospace',
+  },
+  distributionValue: {
+    color: '#F4F6F8',
+    fontFamily: 'VT323, monospace',
+    fontSize: '1.35rem',
+    letterSpacing: '0.5px',
+    lineHeight: 1,
+  },
+  distributionSubValue: {
+    color: 'rgba(200, 228, 210, 0.7)',
+    fontSize: '0.7rem',
+    fontFamily: 'VT323, monospace',
+  },
+  distributionPlaceholder: {
+    color: 'rgba(128, 255, 0, 0.55)',
+    fontSize: '0.9rem',
+    textAlign: 'center' as const,
+    fontFamily: 'VT323, monospace',
+    letterSpacing: '1px',
+  },
+  tipCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    border: '1px solid rgba(128, 255, 0, 0.25)',
+    background: 'linear-gradient(135deg, rgba(32, 48, 32, 0.85), rgba(12, 20, 12, 0.85))',
+  },
+  tipCardFight: {
+    boxShadow: '0 0 18px rgba(128, 255, 0, 0.35)',
+  },
+  tipCardFlee: {
+    borderColor: 'rgba(248, 27, 27, 0.45)',
+    background: 'linear-gradient(135deg, rgba(60, 16, 16, 0.85), rgba(20, 4, 4, 0.85))',
+    boxShadow: '0 0 18px rgba(248, 27, 27, 0.35)',
+  },
+  tipCardGamble: {
+    borderColor: 'rgba(237, 207, 51, 0.45)',
+    background: 'linear-gradient(135deg, rgba(48, 36, 8, 0.9), rgba(16, 12, 3, 0.85))',
+    boxShadow: '0 0 18px rgba(237, 207, 51, 0.3)',
+  },
+  positiveCard: {
+    borderColor: 'rgba(128, 255, 0, 0.35)',
+    background: 'rgba(20, 36, 20, 0.9)',
+  },
+  warningCard: {
+    borderColor: 'rgba(248, 27, 27, 0.4)',
+    background: 'rgba(46, 12, 12, 0.85)',
   },
   equippedItemSlot: {
     aspectRatio: '1',

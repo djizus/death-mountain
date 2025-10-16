@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/uiStore';
 import CloseIcon from '@mui/icons-material/Close';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import SettingsIcon from '@mui/icons-material/Settings';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -16,11 +17,16 @@ import WalletConnect from '../components/WalletConnect';
 export default function SettingsOverlay() {
   const { showSettings, setShowSettings } = useGameStore();
   const { volume, setVolume, muted, setMuted, musicVolume, setMusicVolume, musicMuted, setMusicMuted } = useSound();
-  const { skipAllAnimations, setSkipAllAnimations, skipCombatDelays, setSkipCombatDelays } = useUIStore();
+  const { setUseMobileClient, skipAllAnimations, setSkipAllAnimations, skipCombatDelays, setSkipCombatDelays } = useUIStore();
   const navigate = useNavigate();
 
   const handleExitGame = () => {
     navigate('/');
+  };
+
+  const handleSwitchToMobile = () => {
+    setUseMobileClient(true);
+    setShowSettings(false);
   };
 
   const handleVolumeChange = (_: Event, newValue: number | number[]) => {
@@ -161,6 +167,21 @@ export default function SettingsOverlay() {
               </Box>
 
               <Divider sx={{ mb: 0.5, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+              {/* Client Section */}
+              <Box sx={styles.section}>
+                <Typography sx={styles.sectionTitle}>Client</Typography>
+
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  onClick={handleSwitchToMobile}
+                  startIcon={<PhoneAndroidIcon sx={{ fontSize: 22 }} />}
+                  sx={styles.switchClientButton}
+                >
+                  Switch to Mobile Client
+                </Button>
+              </Box>
 
               {/* Game Section */}
               <Box sx={styles.section}>
@@ -388,5 +409,16 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: 0.75,
+  },
+  switchClientButton: {
+    borderColor: '#d0c98d',
+    color: '#d0c98d',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontWeight: 500,
+    textTransform: 'none',
+    '&:hover': {
+      borderColor: '#d0c98d',
+      background: 'rgba(208, 201, 141, 0.1)',
+    },
   },
 };
