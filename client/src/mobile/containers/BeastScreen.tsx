@@ -549,20 +549,28 @@ export default function BeastScreen() {
 
               let damageTaken = 0;
               let damage = 0;
+              let critDamageTaken = 0;
+              let critDamage = 0;
 
               if (beast) {
                 if (isArmorSlot && beast.health > 4) {
                   // For armor slots, show damage taken (always negative)
                   if (equippedItem && equippedItem.id !== 0) {
-                    damageTaken = calculateBeastDamage(beast, adventurer!, equippedItem).baseDamage;
+                    const damageSummary = calculateBeastDamage(beast, adventurer!, equippedItem);
+                    damageTaken = damageSummary.baseDamage;
+                    critDamageTaken = damageSummary.criticalDamage;
                   } else {
                     // For empty armor slots, show beast power * 1.5
-                    damageTaken = Math.max(BEAST_MIN_DAMAGE, Math.floor(beastPower * 1.5));
+                    const elementalDamage = Math.floor(beastPower * 1.5);
+                    damageTaken = Math.max(BEAST_MIN_DAMAGE, elementalDamage);
+                    critDamageTaken = Math.max(BEAST_MIN_DAMAGE, damageTaken + elementalDamage);
                   }
                 } else if (isWeaponSlot) {
                   // For weapon slots, show damage dealt (always positive)
                   if (equippedItem && equippedItem.id !== 0) {
-                    damage = calculateAttackDamage(equippedItem, adventurer!, beast).baseDamage;
+                    const attackSummary = calculateAttackDamage(equippedItem, adventurer!, beast);
+                    damage = attackSummary.baseDamage;
+                    critDamage = attackSummary.criticalDamage;
                   }
                 }
               }
@@ -608,18 +616,37 @@ export default function BeastScreen() {
                           }}
                         />
                         {/* Damage Indicator Overlay */}
-                        {(damage > 0 || damageTaken > 0) && (
-                          <Box sx={[
-                            styles.damageIndicator,
-                            isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
-                          ]}>
-                            <Typography sx={[
-                              styles.damageIndicatorText,
-                              isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
-                            ]}>
-                              {isArmorSlot ? `-${damageTaken}` : `+${damage}`}
-                            </Typography>
-                          </Box>
+                        {(damage > 0 || damageTaken > 0 || critDamage > 0 || critDamageTaken > 0) && (
+                          <>
+                            {(isArmorSlot ? damageTaken > 0 : damage > 0) && (
+                              <Box sx={[
+                                styles.damageIndicator,
+                                styles.damageIndicatorTop,
+                                isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
+                              ]}>
+                                <Typography sx={[
+                                  styles.damageIndicatorText,
+                                  isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                                ]}>
+                                  {isArmorSlot ? `-${damageTaken}` : `+${damage}`}
+                                </Typography>
+                              </Box>
+                            )}
+                            {(isArmorSlot ? critDamageTaken > 0 : critDamage > 0) && (
+                              <Box sx={[
+                                styles.damageIndicator,
+                                styles.damageIndicatorBottom,
+                                isArmorSlot ? styles.damageIndicatorCritRed : styles.damageIndicatorCritGreen
+                              ]}>
+                                <Typography sx={[
+                                  styles.damageIndicatorText,
+                                  isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                                ]}>
+                                  {isArmorSlot ? `-${critDamageTaken}` : `+${critDamage}`}
+                                </Typography>
+                              </Box>
+                            )}
+                          </>
                         )}
                       </Box>
                     ) : (
@@ -636,18 +663,37 @@ export default function BeastScreen() {
                           }}
                         />
                         {/* Damage Indicator Overlay for Empty Slots */}
-                        {(damage > 0 || damageTaken > 0) && (
-                          <Box sx={[
-                            styles.damageIndicator,
-                            isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
-                          ]}>
-                            <Typography sx={[
-                              styles.damageIndicatorText,
-                              isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
-                            ]}>
-                              {isArmorSlot ? `-${damageTaken}` : `+${damage}`}
-                            </Typography>
-                          </Box>
+                        {(damage > 0 || damageTaken > 0 || critDamage > 0 || critDamageTaken > 0) && (
+                          <>
+                            {(isArmorSlot ? damageTaken > 0 : damage > 0) && (
+                              <Box sx={[
+                                styles.damageIndicator,
+                                styles.damageIndicatorTop,
+                                isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
+                              ]}>
+                                <Typography sx={[
+                                  styles.damageIndicatorText,
+                                  isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                                ]}>
+                                  {isArmorSlot ? `-${damageTaken}` : `+${damage}`}
+                                </Typography>
+                              </Box>
+                            )}
+                            {(isArmorSlot ? critDamageTaken > 0 : critDamage > 0) && (
+                              <Box sx={[
+                                styles.damageIndicator,
+                                styles.damageIndicatorBottom,
+                                isArmorSlot ? styles.damageIndicatorCritRed : styles.damageIndicatorCritGreen
+                              ]}>
+                                <Typography sx={[
+                                  styles.damageIndicatorText,
+                                  isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                                ]}>
+                                  {isArmorSlot ? `-${critDamageTaken}` : `+${critDamage}`}
+                                </Typography>
+                              </Box>
+                            )}
+                          </>
                         )}
                       </Box>
                     )}
@@ -800,27 +846,59 @@ export default function BeastScreen() {
                             {(() => {
                               let swapDamage = 0;
                               let swapDamageTaken = 0;
+                              let swapCritDamage = 0;
+                              let swapCritDamageTaken = 0;
 
                               if (beast) {
                                 if (isArmorSlot) {
-                                  swapDamageTaken = calculateBeastDamage(beast, adventurer!, item).baseDamage;
+                                  const damageSummary = calculateBeastDamage(beast, adventurer!, item);
+                                  swapDamageTaken = damageSummary.baseDamage;
+                                  swapCritDamageTaken = damageSummary.criticalDamage;
                                 } else if (isWeaponSlot) {
-                                  swapDamage = calculateAttackDamage(item, adventurer!, beast).baseDamage;
+                                  const attackSummary = calculateAttackDamage(item, adventurer!, beast);
+                                  swapDamage = attackSummary.baseDamage;
+                                  swapCritDamage = attackSummary.criticalDamage;
                                 }
                               }
 
-                              return (swapDamage > 0 || swapDamageTaken > 0) && (
-                                <Box sx={[
-                                  styles.damageIndicator,
-                                  isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
-                                ]}>
-                                  <Typography sx={[
-                                    styles.damageIndicatorText,
-                                    isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
-                                  ]}>
-                                    {isArmorSlot ? `-${swapDamageTaken}` : `+${swapDamage}`}
-                                  </Typography>
-                                </Box>
+                              const showBase = isArmorSlot ? swapDamageTaken > 0 : swapDamage > 0;
+                              const showCrit = isArmorSlot ? swapCritDamageTaken > 0 : swapCritDamage > 0;
+
+                              if (!showBase && !showCrit) {
+                                return null;
+                              }
+
+                              return (
+                                <>
+                                  {showBase && (
+                                    <Box sx={[
+                                      styles.damageIndicator,
+                                      styles.damageIndicatorTop,
+                                      isArmorSlot ? styles.damageIndicatorRed : styles.damageIndicatorGreen
+                                    ]}>
+                                      <Typography sx={[
+                                        styles.damageIndicatorText,
+                                        isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                                      ]}>
+                                        {isArmorSlot ? `-${swapDamageTaken}` : `+${swapDamage}`}
+                                      </Typography>
+                                    </Box>
+                                  )}
+                                  {showCrit && (
+                                    <Box sx={[
+                                      styles.damageIndicator,
+                                      styles.damageIndicatorBottom,
+                                      isArmorSlot ? styles.damageIndicatorCritRed : styles.damageIndicatorCritGreen
+                                    ]}>
+                                      <Typography sx={[
+                                        styles.damageIndicatorText,
+                                        isArmorSlot ? styles.damageIndicatorTextRed : styles.damageIndicatorTextGreen
+                                      ]}>
+                                        {isArmorSlot ? `-${swapCritDamageTaken}` : `+${swapCritDamage}`}
+                                      </Typography>
+                                    </Box>
+                                  )}
+                                </>
                               );
                             })()}
                           </Box>
@@ -1789,10 +1867,9 @@ const styles = {
   },
   damageIndicator: {
     position: 'absolute',
-    top: '1px',
-    right: '1px',
+    right: '2px',
     minWidth: '18px',
-    height: '12px',
+    padding: '1px 4px',
     borderRadius: '4px',
     display: 'flex',
     alignItems: 'center',
@@ -1800,6 +1877,12 @@ const styles = {
     zIndex: 15,
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.4), 0 0 8px rgba(0, 0, 0, 0.2)',
     backdropFilter: 'blur(2px)',
+  },
+  damageIndicatorTop: {
+    top: '2px',
+  },
+  damageIndicatorBottom: {
+    bottom: '2px',
   },
   damageIndicatorRed: {
     background: 'linear-gradient(135deg, rgba(255, 68, 68, 0.95) 0%, rgba(220, 38, 38, 0.95) 100%)',
@@ -1810,6 +1893,16 @@ const styles = {
     background: 'linear-gradient(135deg, rgba(68, 255, 68, 0.95) 0%, rgba(38, 220, 38, 0.95) 100%)',
     border: '1px solid rgba(255, 255, 255, 0.2)',
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.4), 0 0 8px rgba(68, 255, 68, 0.3)',
+  },
+  damageIndicatorCritRed: {
+    background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.95) 0%, rgba(128, 0, 0, 0.95) 100%)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.4), 0 0 8px rgba(220, 38, 38, 0.35)',
+  },
+  damageIndicatorCritGreen: {
+    background: 'linear-gradient(135deg, rgba(38, 220, 38, 0.95) 0%, rgba(12, 128, 12, 0.95) 100%)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.4), 0 0 8px rgba(38, 220, 38, 0.35)',
   },
   damageIndicatorText: {
     fontSize: '0.65rem',
