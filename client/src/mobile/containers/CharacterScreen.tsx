@@ -4,11 +4,12 @@ import { Item } from '@/types/game';
 import { calculateLevel } from '@/utils/game';
 import { ItemUtils, typeIcons } from '@/utils/loot';
 import { Box, Button, Tooltip, Typography } from '@mui/material';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { isMobile } from 'react-device-detect';
 import AdventurerInfo from '../components/AdventurerInfo';
 import ItemTooltip from '../components/ItemTooltip';
 import { useMarketStore } from '@/stores/marketStore';
+import { getExplorationInsights } from '@/utils/exploration';
 
 type EquipmentSlot = 'weapon' | 'chest' | 'head' | 'waist' | 'foot' | 'hand' | 'neck' | 'ring';
 
@@ -133,13 +134,29 @@ const ItemSlot = memo(({
 
 export default function CharacterScreen() {
   const { executeGameAction, actionFailed } = useGameDirector();
-  const { adventurer, beast, bag, newInventoryItems, setNewInventoryItems, equipItem } = useGameStore();
+  const { adventurer, beast, bag, newInventoryItems, setNewInventoryItems, equipItem, gameSettings } = useGameStore();
   const { inProgress } = useMarketStore();
 
   const [dropInProgress, setDropInProgress] = useState(false);
   const [isDropMode, setIsDropMode] = useState(false);
   const [itemsToDrop, setItemsToDrop] = useState<number[]>([]);
   const [newItems, setNewItems] = useState<number[]>([]);
+
+  const explorationInsights = useMemo(
+    () => getExplorationInsights(adventurer ?? null, gameSettings ?? null),
+    [adventurer, gameSettings],
+  );
+
+  const formatPercent = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return '-';
+    }
+
+    return `${value.toFixed(1)}%`;
+  };
+
+  const ambushLethalChance = explorationInsights.ready ? explorationInsights.beasts.overallLethalChance : null;
+  const trapLethalChance = explorationInsights.ready ? explorationInsights.obstacles.overallLethalChance : null;
 
   // Update newItems when newInventoryItems changes and clear newInventoryItems
   useEffect(() => {
@@ -310,6 +327,20 @@ export default function CharacterScreen() {
               </Box>
             )}
           </>}
+          <Box sx={styles.lethalInfoContainer}>
+            <Typography sx={styles.lethalLabel}>
+              Ambush Lethal Chance
+              <Typography component="span" sx={styles.lethalValue}>
+                {formatPercent(ambushLethalChance)}
+              </Typography>
+            </Typography>
+            <Typography sx={styles.lethalLabel}>
+              Trap Lethal Chance
+              <Typography component="span" sx={styles.lethalValue}>
+                {formatPercent(trapLethalChance)}
+              </Typography>
+            </Typography>
+          </Box>
         </Box>
       </Box>
     </Box>
@@ -597,6 +628,45 @@ const styles = {
       background: 'rgba(128, 255, 0, 0.1)',
       color: 'rgba(128, 255, 0, 0.5)',
     },
+  },
+  lethalInfoContainer: {
+    marginTop: '12px',
+    padding: '10px 12px',
+    borderRadius: '10px',
+    background: 'rgba(0, 0, 0, 0.5)',
+    border: '1px solid rgba(128, 255, 0, 0.2)',
+    display: 'flex',
+    flexDirection: 'row' as const,
+    gap: '8px',
+    boxShadow: '0 6px 12px rgba(0, 0, 0, 0.35)',
+    justifyContent: 'space-between',
+    alignItems: 'stretch',
+  },
+  lethalLabel: {
+    color: 'rgba(128, 255, 0, 0.8)',
+    fontFamily: 'VT323, monospace',
+    fontSize: '1rem',
+    letterSpacing: '0.5px',
+    textTransform: 'uppercase' as const,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    borderRight: '1px solid rgba(128, 255, 0, 0.2)',
+    paddingRight: '8px',
+    paddingLeft: '8px',
+    '&:last-of-type': {
+      borderRight: 'none',
+      paddingRight: 0,
+      paddingLeft: '8px',
+    },
+  },
+  lethalValue: {
+    color: '#F4F6F8',
+    fontFamily: 'VT323, monospace',
+    fontSize: '1.2rem',
+    letterSpacing: '0.5px',
   },
   selectedItem: {
     border: '2px solid #FF0000',
