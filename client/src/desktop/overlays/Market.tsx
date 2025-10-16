@@ -1,5 +1,5 @@
-import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { MAX_BAG_SIZE, STARTING_HEALTH } from '@/constants/game';
+import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { calculateLevel } from '@/utils/game';
@@ -120,6 +120,7 @@ export default function MarketOverlay() {
     clearCart,
   } = useMarketStore();
 
+
   const [showCart, setShowCart] = useState(false);
   const [activeTab, setActiveTab] = useState<'market' | 'exploring' | 'events'>('market');
   const [explorationTab, setExplorationTab] = useState<'overall' | 'slot' | 'discovery'>('overall');
@@ -175,6 +176,7 @@ export default function MarketOverlay() {
         setNewInventoryItems(cart.items.map(item => item.id));
         setShowInventory(true);
       }
+
 
       setShowCart(false);
       setInProgress(false);
@@ -242,6 +244,7 @@ export default function MarketOverlay() {
         return b.price - a.price; // Both unaffordable, sort by price
       }
     });
+
   }, [marketItemIds, adventurer?.gold, adventurer?.stats?.charisma, adventurer?.item_specials_seed, isItemOwned]);
 
   const handleBuyItem = (item: MarketItem) => {
@@ -299,6 +302,7 @@ export default function MarketOverlay() {
   const maxPotionsByGold = Math.floor((adventurer!.gold - cart.items.reduce((sum, item) => sum + item.price, 0)) / potionCost);
   const maxPotions = Math.min(maxPotionsByHealth, maxPotionsByGold);
   const inventoryFull = bag.length + cart.items.length === MAX_BAG_SIZE;
+  const marketAvailable = adventurer?.stat_upgrades_available! === 0;
 
   const filteredItems = marketItems.filter(item => {
     if (slotFilter && item.slot !== slotFilter) return false;
@@ -307,6 +311,7 @@ export default function MarketOverlay() {
     if (statFilter && (!item.futureStatTags.length || !item.futureStatTags.includes(statFilter))) return false;
     return true;
   });
+
 
   const setStatsSummaries = useMemo<ArmorSetStatSummary[]>(() => {
     if (!specialsUnlocked) {
@@ -878,6 +883,7 @@ export default function MarketOverlay() {
                       <Typography>Potions</Typography>
                       <Typography sx={styles.potionHelperText}>+10 Health</Typography>
                     </Box>
+
                   </Box>
                   <Box sx={styles.potionRightSection}>
                     <Box sx={styles.potionControls}>
@@ -1022,6 +1028,7 @@ export default function MarketOverlay() {
                           <Typography sx={styles.itemType}>
                             {item.type}
                           </Typography>
+
                         </Box>
                       </Box>
 

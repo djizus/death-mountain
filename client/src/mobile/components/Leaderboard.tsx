@@ -4,7 +4,7 @@ import { getContractByName } from "@dojoengine/core";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import TheatersIcon from '@mui/icons-material/Theaters';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import { Box, Button, IconButton, Pagination, Skeleton, Typography } from "@mui/material";
+import { Box, Button, IconButton, Pagination, Skeleton, Tab, Tabs, Typography } from "@mui/material";
 import { motion } from "framer-motion";
 import { useGameTokenRanking, useGameTokens } from "metagame-sdk/sql";
 import { useNavigate } from "react-router-dom";
@@ -23,9 +23,14 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
   const { currentNetworkConfig } = useDynamicConnector();
 
   const [playerBestGame, setPlayerBestGame] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<number>(0);
 
   const handleChange = (event: any, newValue: number) => {
     goToPage(newValue - 1);
+  };
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
   };
 
   const GAME_TOKEN_ADDRESS = getContractByName(
@@ -52,6 +57,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
     sortOrder: "desc",
     mintedByAddress,
     settings_id,
+    owner: activeTab === 1 ? address : undefined,
   });
 
   const { games: playerBestGames } = useGameTokens({
@@ -113,6 +119,18 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
         </Box>}
       </Box>
 
+      <Box sx={styles.tabsContainer}>
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          variant="fullWidth"
+          sx={styles.tabs}
+        >
+          <Tab label="All" sx={styles.tab} />
+          <Tab label="My Games" sx={styles.tab} />
+        </Tabs>
+      </Box>
+
       <Box sx={styles.listContainer}>
         {(!games || games.length === 0) ? (
           <Typography sx={{ textAlign: "center", py: 2 }}>
@@ -167,7 +185,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
             <Box textAlign={'center'} display={'flex'} alignItems={'center'} gap={1}>
               <Typography>{game.score || 0} xp</Typography>
 
-              <Box textAlign={'center'}>
+              {/* <Box textAlign={'center'}>
                 {game.game_over ? (
                   <IconButton onClick={() => watchGame(game.token_id)}>
                     <TheatersIcon fontSize='small' color='primary' />
@@ -177,7 +195,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                     <VisibilityIcon fontSize='small' color='primary' />
                   </IconButton>
                 )}
-              </Box>
+              </Box> */}
             </Box>
           </Box>
         ))}
@@ -196,7 +214,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "space-between",
     width: "100%",
-    mb: 1,
+    mb: 0.5,
     pr: 1,
     boxSizing: "border-box",
   },
@@ -204,9 +222,33 @@ const styles = {
     minWidth: "auto",
     px: 1,
   },
+  tabsContainer: {
+    width: "100%",
+    mb: 1,
+  },
+  tabs: {
+    minHeight: "20px",
+    "& .MuiTabs-indicator": {
+      backgroundColor: "primary.main",
+    },
+  },
+  tab: {
+    padding: "5px 0px",
+    minHeight: "20px",
+    color: "text.primary",
+    fontSize: "12px",
+    opacity: 0.7,
+    "&.Mui-selected": {
+      color: "primary.main",
+      opacity: 1,
+    },
+    "&:hover": {
+      opacity: 0.9,
+    },
+  },
   listContainer: {
     width: "100%",
-    maxHeight: "365px",
+    maxHeight: "340px",
     display: "flex",
     flexDirection: "column",
     gap: "6px",

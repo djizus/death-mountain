@@ -5,6 +5,7 @@ import { NETWORKS } from "@/utils/networkConfig";
 import { getShortNamespace } from "@/utils/utils";
 import { gql, request } from "graphql-request";
 import { GameTokenData } from "metagame-sdk";
+import { Beast } from "@/types/game";
 
 export const useGameTokens = () => {
   const { currentNetworkConfig } = useDynamicConnector();
@@ -77,7 +78,7 @@ export const useGameTokens = () => {
         let adventurer = adventurerData?.details?.adventurer || {};
         let tokenId = game.token_id;
         let expires_at = (game.lifecycle.end || 0) * 1000;
-        let available_at = (game.lifecycle.start || 1) * 1000;
+        let available_at = (game.lifecycle.start || 0) * 1000;
 
         return {
           ...adventurer,
@@ -105,7 +106,7 @@ export const useGameTokens = () => {
   const getGameTokens = async (accountAddress: string, tokenAddress: string) => {
     let url = `${SQL_ENDPOINT}/sql?query=
       SELECT token_id FROM token_balances
-      WHERE account_address = "${accountAddress.replace(/^0x0+/, "0x")}" AND contract_address = "${tokenAddress.replace(/^0x0+/, "0x")}"
+      WHERE account_address = "${addAddressPadding(accountAddress)}" AND contract_address = "${addAddressPadding(tokenAddress)}"
       LIMIT 10000`
 
     const sql = await fetch(url, {
@@ -123,7 +124,7 @@ export const useGameTokens = () => {
     let beast_address = NETWORKS[import.meta.env.VITE_PUBLIC_CHAIN as keyof typeof NETWORKS].beasts;
     let url = `${SQL_ENDPOINT}/sql?query=
       SELECT COUNT(*) as count FROM tokens
-      WHERE contract_address = "${beast_address.replace(/^0x0+/, "0x")}"`
+      WHERE contract_address = "${addAddressPadding(beast_address)}"`
 
     try {
       const sql = await fetch(url, {
@@ -141,9 +142,42 @@ export const useGameTokens = () => {
     }
   }
 
+  const getBeastTokenId = async (beast: Beast) => {
+    let url = `${SQL_ENDPOINT}/sql?query=
+      SELECT token_id
+      FROM token_attributes
+      WHERE trait_name = 'Beast ID' AND trait_value = ${beast.id}
+      INTERSECT
+      SELECT token_id
+      FROM token_attributes
+      WHERE trait_name = 'Prefix' AND trait_value = "${beast.specialPrefix}"
+      INTERSECT
+      SELECT token_id
+      FROM token_attributes
+      WHERE trait_name = 'Suffix' AND trait_value = "${beast.specialSuffix}"
+      LIMIT 1;
+    `
+
+    try {
+      let sql = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      })
+
+      let data = await sql.json()
+      return parseInt(data[0].token_id.split(":")[1], 16)
+    } catch (error) {
+      console.error("Error getting beast token id:", error);
+      return null;
+    }
+  }
+
   return {
     fetchAdventurerData,
     getGameTokens,
     countBeasts,
+    getBeastTokenId
   };
 };

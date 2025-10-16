@@ -21,7 +21,7 @@ interface AdventurersListProps {
 
 export default function AdventurersList({ onBack }: AdventurersListProps) {
   const navigate = useNavigate();
-  const { address, gamesRefreshVersion } = useController();
+  const { address } = useController();
   const { fetchAdventurerData } = useGameTokens();
   const { currentNetworkConfig } = useDynamicConnector();
   const namespace = currentNetworkConfig.namespace;
@@ -30,7 +30,7 @@ export default function AdventurersList({ onBack }: AdventurersListProps) {
     namespace,
     "game_token_systems"
   )?.address;
-  const { games: gamesData, loading: gamesLoading, refetch } = useMetagameTokens({
+  const { games: gamesData, loading: gamesLoading } = useMetagameTokens({
     mintedByAddress:
       currentNetworkConfig.chainId === ChainId.WP_PG_SLOT
         ? GAME_TOKEN_ADDRESS
@@ -59,10 +59,6 @@ export default function AdventurersList({ onBack }: AdventurersListProps) {
     }
     fetchAdventurers();
   }, [gamesData]);
-
-  useEffect(() => {
-    refetch();
-  }, [gamesRefreshVersion, refetch]);
 
   const handleResumeGame = (gameId: number) => {
     navigate(`/survivor/play?id=${gameId}`);
@@ -220,7 +216,7 @@ export default function AdventurersList({ onBack }: AdventurersListProps) {
                     width: "50px",
                   }}
                 >
-                  {game.available_at !== 0 && game.expires_at > 0 && (
+                  {(game.available_at > 0 || game.expires_at > 0) && (
                     <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
                       {game.available_at < Date.now() ? (
                         <Box sx={{ display: "flex", alignItems: "center" }}>

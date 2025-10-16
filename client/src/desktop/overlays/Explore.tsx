@@ -187,6 +187,7 @@ export default function ExploreOverlay() {
       <InventoryOverlay disabledEquip={isExploring || isSelectingStats || inProgress} />
       <SettingsOverlay />
 
+
       {adventurer?.beast_health === 0 && <MarketOverlay />}
 
       {/* Bottom Buttons */}

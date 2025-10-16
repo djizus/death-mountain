@@ -379,6 +379,45 @@ export const useStarknetApi = () => {
     return null;
   }
 
+  const getUnclaimedAdventurerRewards = async (adventurerIds: number[]) => {
+    const BATCH_SIZE = 50;
+    const results: any[] = [];
+
+    // Process in batches of 50
+    for (let i = 0; i < adventurerIds.length; i += BATCH_SIZE) {
+      const batch = adventurerIds.slice(i, i + BATCH_SIZE);
+      const calls = batch.map((adventurerId, index) => ({
+        id: index + 1,
+        jsonrpc: "2.0",
+        method: "starknet_call",
+        params: [
+          {
+            contract_address: NETWORKS[import.meta.env.VITE_PUBLIC_CHAIN as keyof typeof NETWORKS].dungeon,
+            entry_point_selector: "0x01733c9b1238072d517a4d739fc8882257424284a5f9c78832bfa60d0cd61024",
+            calldata: [num.toHex(adventurerId)]
+          },
+          "latest"
+        ]
+      }));
+
+      const response = await fetch(NETWORKS[import.meta.env.VITE_PUBLIC_CHAIN as keyof typeof NETWORKS].rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(calls),
+      });
+
+      const batchData = await response.json();
+      results.push(...batchData);
+
+      // Wait 1 second before next batch (except for last batch)
+      if (i + BATCH_SIZE < adventurerIds.length) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    return results;
+  }
+
   const getTokenMetadata = async (tokenId: number) => {
     try {
       const response = await fetch(currentNetworkConfig.rpcUrl, {
@@ -421,6 +460,7 @@ export const useStarknetApi = () => {
 
       let tokenMetadata: Metadata = {
         player_name: hexToAscii(data[1].result[0]),
+        minted_at: parseInt(data[0].result[1], 16) * 1000,
         settings_id: parseInt(data[0].result[2]),
         expires_at: parseInt(data[0].result[3], 16) * 1000,
         available_at: parseInt(data[0].result[4], 16) * 1000,
@@ -464,7 +504,6 @@ export const useStarknetApi = () => {
         AND suffix = "${suffix}"
         LIMIT 1`;
 
-      console.log('Torii URL', toriiUrl)
       const sqlResponse = await fetch(toriiUrl, {
         method: "GET",
         headers: {
@@ -473,7 +512,6 @@ export const useStarknetApi = () => {
       });
 
       const collectableData = await sqlResponse.json();
-      console.log('Collectable Data', collectableData)
 
       if (!collectableData || collectableData.length === 0 || parseInt(collectableData[0].killed_by, 16) !== gameId) {
         return false;
@@ -498,7 +536,6 @@ export const useStarknetApi = () => {
       });
 
       const mintedData = await mintedResponse.json();
-      console.log('Minted Data', mintedData)
       const minted = parseInt(mintedData.result[0], 16);
 
       return minted === 0;
@@ -554,5 +591,6 @@ export const useStarknetApi = () => {
     getAdventurerState,
     getRewardTokensClaimed,
     unclaimedBeast,
+    getUnclaimedAdventurerRewards,
   };
 };

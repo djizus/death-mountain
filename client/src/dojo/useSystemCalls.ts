@@ -16,6 +16,8 @@ import { delay, stringToFelt } from "@/utils/utils";
 import { CairoOption, CairoOptionVariant, CallData, byteArray } from "starknet";
 import { useAnalytics } from "@/utils/analytics";
 import { useSnackbar } from "notistack";
+import { useGameTokens } from "./useGameTokens";
+import { num } from "starknet";
 
 const TICKET_PRICE_WEI = BigInt("1000000000000000000");
 
@@ -23,6 +25,7 @@ export const useSystemCalls = () => {
   const { enqueueSnackbar } = useSnackbar();
   const { getBeastTokenURI, getAdventurerState } = useStarknetApi();
   const { setCollectableTokenURI, gameId, adventurer } = useGameStore();
+  const { getBeastTokenId } = useGameTokens();
   const { account } = useController();
   const { currentNetworkConfig } = useDynamicConnector();
   const { txRevertedEvent } = useAnalytics();
@@ -155,69 +158,54 @@ export const useSystemCalls = () => {
    * @param account The Starknet account
    * @param name The name of the game
    * @param settingsId The settings ID for the game
-   */
+  */
   const buyGame = async (
     account: any,
     payment: Payment,
     name: string,
     preCalls: any[],
-    callback: () => void,
-    options?: { ticketCount?: number }
-  ): Promise<number[]> => {
-    const calls = [...preCalls];
-    const isTicketPayment = payment.paymentType === "Ticket";
-    const ticketCount =
-      isTicketPayment ? Math.max(options?.ticketCount ?? 1, 1) : 1;
-
+    amount: number,
+    callback: () => void
+  ) => {
     let paymentData =
       payment.paymentType === "Ticket"
         ? [0]
         : [1, payment.goldenPass!.address, payment.goldenPass!.tokenId];
 
-    if (isTicketPayment) {
-      const approvalAmount = (
-        TICKET_PRICE_WEI * BigInt(ticketCount)
-      ).toString();
-      calls.push({
+    if (payment.paymentType === "Ticket") {
+      preCalls.push({
         contractAddress: DUNGEON_TICKET,
         entrypoint: "approve",
-        calldata: CallData.compile([DUNGEON_ADDRESS, approvalAmount, "0"]),
+        calldata: CallData.compile([DUNGEON_ADDRESS, amount * 1e18, "0"]),
       });
     }
 
     try {
-      const buyGameCalldata = CallData.compile([
-        ...paymentData,
-        new CairoOption(CairoOptionVariant.Some, stringToFelt(name)),
-        account!.address, // send game to this address
-        false, // soulbound
-      ]);
+      let tx = await account!.execute(
+        [
+          ...preCalls,
+          ...Array.from({ length: amount }, () => ({
+            contractAddress: DUNGEON_ADDRESS,
+            entrypoint: "buy_game",
+            calldata: CallData.compile([
+              ...paymentData,
+              new CairoOption(CairoOptionVariant.Some, stringToFelt(name)),
+              account!.address, // send game to this address
+              false, // soulbound
+            ]),
+          })),
+        ]
+      );
 
-      for (let i = 0; i < ticketCount; i++) {
-        calls.push({
-          contractAddress: DUNGEON_ADDRESS,
-          entrypoint: "buy_game",
-          calldata: buyGameCalldata,
-        });
-      }
-
-      let tx = await account!.execute(calls);
-
-      callback?.();
+      callback();
 
       const receipt: any = await waitForTransaction(tx.transaction_hash, 0, account!);
 
-      const tokenMetadataEvents = receipt.events.filter(
+      const tokenMetadataEvent = receipt.events.find(
         (event: any) => event.data.length === 14
       );
 
-      if (!tokenMetadataEvents.length) {
-        throw new Error("No game minted");
-      }
-
-      return tokenMetadataEvents.map((event: any) =>
-        parseInt(event.data[1], 16)
-      );
+      return parseInt(tokenMetadataEvent.data[1], 16);
     } catch (error) {
       console.error("Error buying game:", error);
       throw error;
@@ -424,7 +412,7 @@ export const useSystemCalls = () => {
 
     try {
       await waitForClaimBeast();
-      await delay(1000);
+      await delay(3000);
 
       let tx = await account!.execute(
         [
@@ -453,7 +441,7 @@ export const useSystemCalls = () => {
       return tokenId;
     } catch (error) {
       console.error("Error claiming beast:", error);
-      await delay(3000);
+      await delay(1000);
       return claimBeast(gameId, beast, retries + 1);
     }
   };
@@ -471,6 +459,20 @@ export const useSystemCalls = () => {
       contractAddress: DUNGEON_ADDRESS,
       entrypoint: "claim_jackpot",
       calldata: [tokenId],
+    }], () => { });
+  };
+
+  const refreshDungeonStats = async (beast: Beast, waitTime: number) => {
+    if (currentNetworkConfig.name !== "Beast Mode") return;
+
+    let tokenId = await getBeastTokenId(beast);
+    if (!tokenId) return;
+
+    await delay(waitTime);
+    await executeAction([{
+      contractAddress: currentNetworkConfig.beasts,
+      entrypoint: "refresh_dungeon_stats",
+      calldata: [num.toHex(tokenId), "0x0"],
     }], () => { });
   };
 
@@ -565,5 +567,6 @@ export const useSystemCalls = () => {
     requestRandom,
     executeAction,
     claimSurvivorTokens,
+    refreshDungeonStats
   };
 };

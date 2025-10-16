@@ -26,7 +26,7 @@ import { useGameTokens } from "metagame-sdk/sql";
 
 export default function LandingPage() {
   const { account } = useAccount();
-  const { login, gamesRefreshVersion } = useController();
+  const { login } = useController();
   const { currentNetworkConfig, setCurrentNetworkConfig } =
     useDynamicConnector();
   const navigate = useNavigate();
@@ -103,7 +103,7 @@ export default function LandingPage() {
   let disableGameButtons =
     !isDungeonOpen && currentNetworkConfig.name === "Beast Mode";
 
-  const { totalCount, refetch } = useGameTokens({
+  const { totalCount } = useGameTokens({
     owner: account?.address || "0x0",
     sortBy: "minted_at",
     sortOrder: "desc",
@@ -116,10 +116,6 @@ export default function LandingPage() {
       : "0",
     countOnly: true,
   });
-
-  useEffect(() => {
-    refetch();
-  }, [gamesRefreshVersion, refetch]);
 
   const gamesCount = totalCount ?? 0;
 
@@ -244,8 +240,7 @@ export default function LandingPage() {
                 variant="contained"
                 size="large"
                 color="secondary"
-                onClick={handleShowReplays}
-                disabled={disableGameButtons}
+                disabled
                 sx={{
                   height: "36px",
                   mt: 1,
@@ -264,15 +259,11 @@ export default function LandingPage() {
                   }}
                 >
                   <VisibilityIcon
-                    sx={{ opacity: disableGameButtons ? 0.4 : 1, mr: 1 }}
+                    sx={{ opacity: 0.4, mr: 1 }}
                   />
                   <Typography
                     variant="h5"
-                    color={
-                      disableGameButtons
-                        ? "rgba(208, 201, 141, 0.4)"
-                        : "#111111"
-                    }
+                    color="rgba(208, 201, 141, 0.4)"
                   >
                     Replay Games
                   </Typography>

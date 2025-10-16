@@ -23,7 +23,7 @@ const equipMessage = "Equipping items";
 
 export default function BeastScreen() {
   const { currentNetworkConfig } = useDynamicConnector();
-  const { executeGameAction, actionFailed } = useGameDirector();
+  const { executeGameAction, actionFailed, setSkipCombat, skipCombat, showSkipCombat } = useGameDirector();
   const { gameId, adventurer, adventurerState, beast, battleEvent, bag,
     equipItem, undoEquipment, setShowBeastRewards, applyGearSuggestion } = useGameStore();
   const [untilDeath, setUntilDeath] = useState(false);
@@ -144,6 +144,11 @@ export default function BeastScreen() {
     setCombatLog(equipMessage);
     executeGameAction({ type: 'equip' });
   };
+
+  const handleSkipCombat = () => {
+    setSkipCombat(true);
+  };
+
 
   const handleSuggestGear = async () => {
     if (!adventurer || !bag || !beast) {
@@ -391,20 +396,23 @@ export default function BeastScreen() {
                     {`${calculateAttackDamage(adventurer!.equipment.weapon!, adventurer!, beast!).baseDamage} damage`}
                   </Typography>
                 </Box>
-                <Box sx={styles.actionButtonContainer}>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={handleSuggestGear}
-                    sx={styles.suggestButton}
-                    disabled={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
-                  >
-                    SUGGEST
-                  </Button>
-                  <Typography sx={styles.probabilityText}>
-                    optimal gear
-                  </Typography>
-                </Box>
+
+                {!showSkipCombat && (
+                  <Box sx={styles.actionButtonContainer}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={handleSuggestGear}
+                      sx={styles.suggestButton}
+                      disabled={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
+                    >
+                      SUGGEST
+                    </Button>
+                    <Typography sx={styles.probabilityText}>
+                      optimal gear
+                    </Typography>
+                  </Box>
+                )}
                 <Box sx={styles.actionButtonContainer}>
                   <Button
                     variant="contained"
@@ -419,6 +427,23 @@ export default function BeastScreen() {
                     {adventurer!.stats.dexterity === 0 ? 'No Dexterity' : `${fleePercentage}% chance`}
                   </Typography>
                 </Box>
+
+                {showSkipCombat && (
+                  <Box sx={styles.actionButtonContainer}>
+                    <Box sx={styles.actionButtonContainer}>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={handleSkipCombat}
+                        sx={[styles.fleeButton, { mb: '20px' }]}
+                        disabled={skipCombat}
+                      >
+                        SKIP ▶▶
+                      </Button>
+                    </Box>
+                  </Box>
+                )}
+
                 <Box sx={styles.deathCheckboxContainer} onClick={() => {
                   if (!attackInProgress && !fleeInProgress && !equipInProgress && !suggestInProgress) {
                     setUntilDeath(!untilDeath);

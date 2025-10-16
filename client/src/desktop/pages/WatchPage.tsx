@@ -183,15 +183,12 @@ export default function WatchPage() {
   }, [replayEvents, stepIndices]);
 
   useEffect(() => {
-    hasPrimedReplay.current = false;
-    setReplayIndex(prev => (prev === 0 ? prev : 0));
-    setSliderStep(prev => (prev === 0 ? prev : 0));
-
-    if (game_id) {
+    if (false) {
       setSpectating(true);
       subscribeEvents(game_id);
     } else {
       setSpectating(false);
+      enqueueSnackbar('Replays currently not available', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } })
       navigate('/survivor');
     }
   }, [game_id]);
@@ -281,7 +278,6 @@ export default function WatchPage() {
         processEvent(event, true);
       });
     } else {
-      console.log('events', events);
       setReplayEvents(events);
     }
 

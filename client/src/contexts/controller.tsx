@@ -31,15 +31,11 @@ export interface ControllerContext {
   login: () => void;
   logout: () => void;
   enterDungeon: (payment: Payment, txs: any[]) => void;
-  enterDungeonMultiple: (count: number, name?: string) => Promise<void>;
   showTermsOfService: boolean;
   acceptTermsOfService: () => void;
   openBuyTicket: () => void;
-  triggerGamesRefresh: () => void;
-  gamesRefreshVersion: number;
+  bulkMintGames: (amount: number, callback: () => void) => void;
 }
-
-const MAX_TICKET_BATCH = 50;
 
 // Create a context
 const ControllerContext = createContext<ControllerContext>(
@@ -66,7 +62,6 @@ export const ControllerProvider = ({ children }: PropsWithChildren) => {
   const [goldenPassIds, setGoldenPassIds] = useState<number[]>([]);
   const [showTermsOfService, setShowTermsOfService] = useState(false);
   const { identifyAddress } = useAnalytics();
-  const [gamesRefreshVersion, setGamesRefreshVersion] = useState(0);
 
   const demoRpcProvider = useMemo(
     () => new RpcProvider({ nodeUrl: NETWORKS.WP_PG_SLOT.rpcUrl }),
@@ -121,7 +116,18 @@ export const ControllerProvider = ({ children }: PropsWithChildren) => {
     if (connector) getUsername();
   }, [connector]);
 
-  const finalizeDungeonEntry = async (gameId?: number) => {
+  const enterDungeon = async (payment: Payment, txs: any[]) => {
+    let gameId = await buyGame(
+      account,
+      payment,
+      userName || "Adventurer",
+      txs,
+      1,
+      () => {
+        navigate(`/survivor/play?mode=entering`);
+      }
+    );
+
     if (gameId) {
       await delay(2000);
       navigate(`/survivor/play?id=${gameId}`, { replace: true });
@@ -134,95 +140,23 @@ export const ControllerProvider = ({ children }: PropsWithChildren) => {
     }
   };
 
-  const getTicketToken = () => {
-    const network =
-      NETWORKS[import.meta.env.VITE_PUBLIC_CHAIN as keyof typeof NETWORKS];
-    if (!network?.dungeonTicket) return null;
-    return network.paymentTokens.find(
-      (token: any) =>
-        token.address?.toLowerCase() === network.dungeonTicket.toLowerCase()
-    );
-  };
+  const bulkMintGames = async (amount: number, callback: () => void) => {
+    amount = Math.min(amount, 50);
 
-  const computeTicketBalance = (balances: Record<string, string>) => {
-    const ticketToken = getTicketToken();
-    if (!ticketToken) return 0;
-    return Number(balances[ticketToken.name] ?? 0);
-  };
-
-  const refreshTicketBalance = async (): Promise<number> => {
-    const balances = await getTokenBalances(
-      NETWORKS[import.meta.env.VITE_PUBLIC_CHAIN as keyof typeof NETWORKS]
-        .paymentTokens
-    );
-    setTokenBalances(balances);
-    return computeTicketBalance(balances);
-  };
-
-  const waitForTicketBalanceUpdate = async (
-    expectedCount: number,
-    retries: number = 0
-  ): Promise<void> => {
-    if (!getTicketToken()) return;
-    if (retries > 10) return;
-
-    await delay(750);
-    const currentCount = await refreshTicketBalance();
-    if (currentCount <= expectedCount) {
-      return;
-    }
-
-    await waitForTicketBalanceUpdate(expectedCount, retries + 1);
-  };
-
-  const enterDungeon = async (payment: Payment, txs: any[]) => {
-    const mintedGameIds = await buyGame(
-      account,
-      payment,
-      userName || "Adventurer",
-      txs,
-      () => {
-        navigate(`/survivor/play?mode=entering`);
-      }
-    );
-
-    const gameId = mintedGameIds[mintedGameIds.length - 1];
-    if (gameId === undefined) {
-      throw new Error("Failed to retrieve minted game id");
-    }
-
-    setGamesRefreshVersion((version) => version + 1);
-    await finalizeDungeonEntry(gameId);
-  };
-
-  const enterDungeonMultiple = async (count: number, name?: string) => {
-    if (count <= 0) return;
-
-    const finalName = name?.trim() || userName || "Adventurer";
-    let ticketsRemaining = await refreshTicketBalance();
-
-    const iterations = Math.min(count, ticketsRemaining, MAX_TICKET_BATCH);
-    if (iterations <= 0) return;
-
-    const mintedGameIds = await buyGame(
+    await buyGame(
       account,
       { paymentType: "Ticket" },
-      finalName,
+      userName || "Adventurer",
       [],
-      () => {},
-      { ticketCount: iterations }
+      amount,
+      () => {
+        setTokenBalances(prev => ({
+          ...prev,
+          "TICKET": (Number((prev as any)["TICKET"]) - amount).toString()
+        }));
+        callback();
+      }
     );
-
-    if (!mintedGameIds.length) {
-      throw new Error("Failed to retrieve minted game id");
-    }
-
-    await waitForTicketBalanceUpdate(
-      Math.max(ticketsRemaining - iterations, 0)
-    );
-
-    await fetchTokenBalances();
-    setGamesRefreshVersion((version) => version + 1);
   };
 
   const createBurner = async () => {
@@ -246,6 +180,7 @@ export const ControllerProvider = ({ children }: PropsWithChildren) => {
       NETWORKS[import.meta.env.VITE_PUBLIC_CHAIN as keyof typeof NETWORKS]
         .goldenToken;
     const allTokens = await getGameTokens(address!, goldenTokenAddress);
+
     if (allTokens.length > 0) {
       const cooldowns = await goldenPassReady(goldenTokenAddress, allTokens);
       setGoldenPassIds(cooldowns);
@@ -282,10 +217,7 @@ export const ControllerProvider = ({ children }: PropsWithChildren) => {
           }),
         logout: () => disconnect(),
         enterDungeon,
-        enterDungeonMultiple,
-        triggerGamesRefresh: () =>
-          setGamesRefreshVersion((version) => version + 1),
-        gamesRefreshVersion,
+        bulkMintGames,
       }}
     >
       {children}
