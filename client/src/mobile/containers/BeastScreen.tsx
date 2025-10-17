@@ -1351,8 +1351,8 @@ const styles = {
     fontWeight: 'bold',
   },
   adventurerImageContainer: {
-    width: '60px',
-    height: '60px',
+    width: '50px',
+    height: '50px',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
