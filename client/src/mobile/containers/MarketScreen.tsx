@@ -261,24 +261,10 @@ export default function MarketScreen() {
     }
   }, [availableSetStatsTabs, activeSetStatsTab]);
 
-  const formatBonusLines = (bonus: string | null) => {
-    if (!bonus) {
-      return ['—'];
-    }
-
-    const matches = bonus.match(/([+-]?\d+\s*[A-Za-z]+)/g);
-    if (!matches || matches.length === 0) {
-      return [bonus];
-    }
-
-    return matches.map((line) => (line.startsWith('+') || line.startsWith('-') ? line : `+${line}`));
-  };
-
   const renderSetStatsItem = (item: ArmorSetStatSummary['items'][number]) => {
     const hasItem = item.id > 0;
     const imageUrl = hasItem ? ItemUtils.getItemImage(item.id) : null;
     const tierColor = hasItem ? ItemUtils.getTierColor(ItemUtils.getItemTier(item.id)) : undefined;
-    const bonusLines = formatBonusLines(item.statBonus);
 
     return (
       <Box key={`${item.slot}-${item.id}`} sx={styles.setStatsItemRow}>
@@ -300,13 +286,7 @@ export default function MarketScreen() {
         ) : (
           <Typography sx={styles.setStatsItemSlot}>{item.slot}</Typography>
         )}
-        <Box sx={styles.setStatsItemBonus}>
-          {bonusLines.map((line, index) => (
-            <Typography key={`${item.slot}-bonus-${index}`} sx={styles.setStatsItemBonusLine}>
-              {line}
-            </Typography>
-          ))}
-        </Box>
+        <Typography sx={styles.setStatsItemBonus}>{item.statBonus ?? '—'}</Typography>
       </Box>
     );
   };
@@ -700,7 +680,6 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
-    minHeight: '100%',
   },
   gearItems: {
     display: 'flex',
@@ -1338,16 +1317,10 @@ const styles = {
     fontSize: '0.95rem',
   },
   setStatsItemBonus: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    minWidth: '64px',
-  },
-  setStatsItemBonusLine: {
     color: '#80FF00',
     fontFamily: 'VT323, monospace',
     fontSize: '0.9rem',
-    lineHeight: 1.2,
+    textAlign: 'right',
   },
   setStatsTotals: {
     display: 'flex',
