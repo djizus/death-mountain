@@ -3,7 +3,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { ItemUtils, Tier } from '@/utils/loot';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { Box, Tooltip, Typography } from '@mui/material';
+import { Box, Tooltip } from '@mui/material';
 import { useEffect } from 'react';
 
 interface BottomNavProps {
@@ -108,6 +108,7 @@ export default function BottomNav({ activeNavItem, setActiveNavItem }: BottomNav
                         backgroundColor: item.active ? 'rgba(128, 255, 0, 0.1)' : 'transparent',
                         border: `1px solid ${item.active ? 'rgba(128, 255, 0, 0.2)' : 'rgba(128, 255, 0, 0.1)'}`,
                         boxShadow: item.active ? '0 0 10px rgba(128, 255, 0, 0.2)' : 'none',
+                        ...(item.key === 'MARKET' && item.hasNew ? styles.marketPulse : {}),
                         '&:hover': item.disabled ? {} : {
                           backgroundColor: 'rgba(128, 255, 0, 0.15)',
                           border: '1px solid rgba(128, 255, 0, 0.3)',
@@ -139,6 +140,7 @@ export default function BottomNav({ activeNavItem, setActiveNavItem }: BottomNav
                     backgroundColor: item.active ? 'rgba(128, 255, 0, 0.1)' : 'transparent',
                     border: `1px solid ${item.active ? 'rgba(128, 255, 0, 0.2)' : 'rgba(128, 255, 0, 0.1)'}`,
                     boxShadow: item.active ? '0 0 10px rgba(128, 255, 0, 0.2)' : 'none',
+                    ...(item.key === 'MARKET' && item.hasNew ? styles.marketPulse : {}),
                   }}
                 >
                   {item.icon}
@@ -146,15 +148,6 @@ export default function BottomNav({ activeNavItem, setActiveNavItem }: BottomNav
                     <Box sx={styles.newIndicator}>!</Box>
                   )}
                 </Box>
-
-                {/* Forced market tooltip when new market is available */}
-                {item.key === 'MARKET' && item.hasNew && !spectating && (
-                  <Box sx={styles.forcedMarketTooltip}>
-                    <Typography sx={styles.forcedMarketTooltipText}>
-                      New Market Available
-                    </Typography>
-                  </Box>
-                )}
               </Box>
             );
           })}
@@ -254,25 +247,22 @@ const styles = {
     fontWeight: 'bold',
     zIndex: 2
   },
-  forcedMarketTooltip: {
-    position: 'absolute',
-    bottom: '100%',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    border: '1px solid rgba(128, 255, 0, 0.9)',
-    borderRadius: '6px',
-    padding: '6px 12px',
-    marginBottom: '12px',
-    zIndex: 1001,
-    whiteSpace: 'nowrap',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
-  },
-  forcedMarketTooltipText: {
-    color: '#80FF00',
-    fontSize: '14px',
-    fontWeight: 600,
-    textAlign: 'center',
-    margin: 0
+  marketPulse: {
+    animation: 'marketPulse 1.5s ease-in-out infinite',
+    boxShadow: '0 0 16px rgba(128, 255, 0, 0.45)',
+    '@keyframes marketPulse': {
+      '0%': {
+        transform: 'scale(1)',
+        boxShadow: '0 0 12px rgba(128, 255, 0, 0.3)'
+      },
+      '50%': {
+        transform: 'scale(1.08)',
+        boxShadow: '0 0 22px rgba(128, 255, 0, 0.6)'
+      },
+      '100%': {
+        transform: 'scale(1)',
+        boxShadow: '0 0 12px rgba(128, 255, 0, 0.3)'
+      }
+    }
   }
 };

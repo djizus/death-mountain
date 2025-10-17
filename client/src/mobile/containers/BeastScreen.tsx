@@ -943,9 +943,6 @@ export default function BeastScreen() {
                   <Typography sx={styles.distributionValue}>
                     {formatPercent(simulationResult.winRate)}
                   </Typography>
-                  <Typography sx={styles.distributionSubValue}>
-                    {`${formatNumber(Math.round(simulationResult.winRate))}/100`}
-                  </Typography>
                 </Box>
                 <Box sx={[styles.distributionCard, styles.warningCard]}>
                   <Typography sx={styles.distributionLabel}>
@@ -953,9 +950,6 @@ export default function BeastScreen() {
                   </Typography>
                   <Typography sx={styles.distributionValue}>
                     {formatPercent(simulationResult.otkRate)}
-                  </Typography>
-                  <Typography sx={styles.distributionSubValue}>
-                    {`${formatNumber(Math.round(simulationResult.otkRate))}/100`}
                   </Typography>
                 </Box>
               </Box>
