@@ -70,7 +70,7 @@ const STAT_ABBREVIATIONS: Record<StatDisplayName, string> = {
   Charisma: 'CHA',
 };
 
-const SET_STATS_TABS = ['Weapons', 'Rings', ItemType.Cloth, ItemType.Hide, ItemType.Metal] as const;
+const SET_STATS_TABS = [ItemType.Cloth, ItemType.Hide, ItemType.Metal, 'Weapons', 'Rings'] as const;
 type SetStatsTab = typeof SET_STATS_TABS[number];
 
 export default function MarketScreen() {
@@ -97,7 +97,7 @@ export default function MarketScreen() {
 
 
   const [showSetStats, setShowSetStats] = useState(false);
-  const [activeSetStatsTab, setActiveSetStatsTab] = useState<SetStatsTab>('Weapons');
+  const [activeSetStatsTab, setActiveSetStatsTab] = useState<SetStatsTab>(ItemType.Cloth);
 
   const specialsUnlocked = Boolean(adventurer?.item_specials_seed);
 
@@ -230,8 +230,8 @@ export default function MarketScreen() {
 
   useEffect(() => {
     if (!setStatsSummaries.length) {
-      if (activeSetStatsTab !== 'Weapons') {
-        setActiveSetStatsTab('Weapons');
+      if (activeSetStatsTab !== SET_STATS_TABS[0]) {
+        setActiveSetStatsTab(SET_STATS_TABS[0]);
       }
       return;
     }

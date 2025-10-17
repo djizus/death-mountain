@@ -1030,6 +1030,7 @@ const styles = {
     height: '100dvh',
     display: 'flex',
     flexDirection: 'column' as const,
+    paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
   },
   battleContainer: {
     height: '100%',

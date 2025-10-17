@@ -10,6 +10,7 @@ import { keyframes } from '@emotion/react';
 import { DeleteOutline, Star } from '@mui/icons-material';
 import { Box, Button, Tooltip, Typography } from '@mui/material';
 import { useCallback, useEffect, useState } from 'react';
+import type { GearPreset } from '@/utils/gearPresets';
 
 type EquipmentSlot = 'weapon' | 'chest' | 'head' | 'waist' | 'foot' | 'hand' | 'neck' | 'ring';
 
@@ -28,14 +29,24 @@ interface InventoryOverlayProps {
   disabledEquip?: boolean;
 }
 
-function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, onItemHover }: {
+function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, onItemHover, disabledEquip }: {
   isDropMode: boolean,
   itemsToDrop: number[],
   onItemClick: (item: any) => void,
   newItems: number[],
-  onItemHover: (itemId: number) => void
+  onItemHover: (itemId: number) => void,
+  disabledEquip?: boolean
 }) {
-  const { adventurer, beast } = useGameStore();
+  const { adventurer, beast, equipGearPreset } = useGameStore();
+  const isPresetDisabled = isDropMode || !!disabledEquip;
+
+  const handlePresetClick = (preset: GearPreset) => {
+    if (isPresetDisabled) {
+      return;
+    }
+
+    equipGearPreset(preset);
+  };
 
   return (
     <Box sx={styles.equipmentPanel}>
@@ -277,6 +288,26 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
             </Tooltip>
           );
         })}
+      </Box>
+      <Box sx={styles.presetHeader}>
+        <Typography variant="h6">Equip preset</Typography>
+      </Box>
+      <Box sx={styles.presetContainer}>
+        {([
+          { label: 'CLOTH', key: 'cloth' },
+          { label: 'HIDE', key: 'hide' },
+          { label: 'METAL', key: 'metal' },
+        ] as Array<{ label: string; key: GearPreset }>).map((preset) => (
+          <Button
+            key={preset.key}
+            variant="outlined"
+            sx={styles.presetButton}
+            onClick={() => handlePresetClick(preset.key)}
+            disabled={isPresetDisabled}
+          >
+            {preset.label}
+          </Button>
+        ))}
       </Box>
     </Box>
   );
@@ -636,6 +667,7 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
                 onItemClick={handleItemClick}
                 newItems={newItems}
                 onItemHover={handleItemHover}
+                disabledEquip={disabledEquip}
               />
               {/* Right: Stats */}
               <AdventurerStats variant="stats" />
@@ -759,6 +791,24 @@ const styles = {
     borderRadius: '8px',
     boxShadow: '0 0 8px #000a',
     padding: 1.5,
+  },
+  presetHeader: {
+    width: '100%',
+    display: 'flex',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  presetContainer: {
+    display: 'flex',
+    width: '100%',
+    gap: 0.5,
+    marginTop: 0.5,
+  },
+  presetButton: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+    height: '34px',
   },
   characterPortraitWrapper: {
     position: 'relative',

@@ -4,6 +4,7 @@ import { GameEvent } from '@/utils/events';
 import { ItemUtils } from '@/utils/loot';
 import { getNewItemsEquipped } from '@/utils/game';
 import { Settings } from '@/dojo/useGameSettings';
+import { applyGearPreset, GearPreset } from '@/utils/gearPresets';
 
 interface GameState {
   gameId: number | null;
@@ -45,6 +46,7 @@ interface GameState {
   setBattleEvent: (data: GameEvent | null) => void;
   setQuest: (data: Quest | null) => void;
   equipItem: (data: Item) => void;
+  equipGearPreset: (preset: GearPreset) => void;
   undoEquipment: () => void;
   applyGearSuggestion: (data: { adventurer: Adventurer; bag: Item[] }) => void;
   setShowInventory: (show: boolean) => void;
@@ -171,6 +173,23 @@ export const useGameStore = create<GameState>((set, get) => ({
           stats: updatedStats,
         },
         bag: updatedBag,
+      };
+    });
+  },
+  equipGearPreset: (preset: GearPreset) => {
+    set((state) => {
+      if (!state.adventurer) {
+        return state;
+      }
+
+      const result = applyGearPreset(state.adventurer, state.bag, preset);
+      if (!result) {
+        return state;
+      }
+
+      return {
+        adventurer: result.adventurer,
+        bag: result.bag,
       };
     });
   },

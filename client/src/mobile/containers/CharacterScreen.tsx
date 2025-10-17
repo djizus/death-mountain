@@ -134,7 +134,16 @@ const ItemSlot = memo(({
 
 export default function CharacterScreen() {
   const { executeGameAction, actionFailed } = useGameDirector();
-  const { adventurer, beast, bag, newInventoryItems, setNewInventoryItems, equipItem, gameSettings } = useGameStore();
+  const {
+    adventurer,
+    beast,
+    bag,
+    newInventoryItems,
+    setNewInventoryItems,
+    equipItem,
+    equipGearPreset,
+    gameSettings,
+  } = useGameStore();
   const { inProgress } = useMarketStore();
 
   const [dropInProgress, setDropInProgress] = useState(false);
@@ -208,6 +217,13 @@ export default function CharacterScreen() {
   const handleCancelDrop = () => {
     setIsDropMode(false);
     setItemsToDrop([]);
+  };
+
+  const handlePresetClick = (preset: 'cloth' | 'hide' | 'metal') => {
+    if (isDropMode || dropInProgress || inProgress) {
+      return;
+    }
+    equipGearPreset(preset);
   };
 
   return (
@@ -328,6 +344,23 @@ export default function CharacterScreen() {
             )}
           </>}
           {!beast && (
+            <Box sx={styles.presetButtonGroup}>
+              {['cloth', 'hide', 'metal'].map((preset) => (
+                <Button
+                  key={preset}
+                  variant="outlined"
+                  color="primary"
+                  size="small"
+                  sx={styles.presetButton}
+                  onClick={() => handlePresetClick(preset as 'cloth' | 'hide' | 'metal')}
+                  disabled={isDropMode || dropInProgress || inProgress}
+                >
+                  {preset.toUpperCase()}
+                </Button>
+              ))}
+            </Box>
+          )}
+          {!beast && (
             <Box sx={styles.lethalInfoContainer}>
               <Typography sx={styles.lethalLabel}>
                 Ambush Lethal Chance
@@ -361,6 +394,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     overflowY: 'auto',
+    paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
   },
   characterContainer: {
     height: '100%',
@@ -630,6 +664,16 @@ const styles = {
       background: 'rgba(128, 255, 0, 0.1)',
       color: 'rgba(128, 255, 0, 0.5)',
     },
+  },
+  presetButtonGroup: {
+    display: 'flex',
+    gap: '8px',
+    marginTop: '12px',
+  },
+  presetButton: {
+    flex: 1,
+    minWidth: 0,
+    letterSpacing: '0.08em',
   },
   lethalInfoContainer: {
     marginTop: '12px',
