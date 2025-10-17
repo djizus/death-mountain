@@ -70,7 +70,7 @@ const STAT_ABBREVIATIONS: Record<StatDisplayName, string> = {
   Charisma: 'CHA',
 };
 
-const SET_STATS_TABS = [ItemType.Cloth, ItemType.Hide, ItemType.Metal, 'Weapons', 'Rings'] as const;
+const SET_STATS_TABS = ['Armor', 'Weaponry'] as const;
 type SetStatsTab = typeof SET_STATS_TABS[number];
 
 export default function MarketScreen() {
@@ -97,7 +97,7 @@ export default function MarketScreen() {
 
 
   const [showSetStats, setShowSetStats] = useState(false);
-  const [activeSetStatsTab, setActiveSetStatsTab] = useState<SetStatsTab>(ItemType.Cloth);
+  const [activeSetStatsTab, setActiveSetStatsTab] = useState<SetStatsTab>('Armor');
 
   const specialsUnlocked = Boolean(adventurer?.item_specials_seed);
 
@@ -223,31 +223,43 @@ export default function MarketScreen() {
 
     return getTierOneArmorSetStats(adventurer?.item_specials_seed || 0);
   }, [specialsUnlocked, adventurer?.item_specials_seed]);
-  const activeSetStatsSummary = useMemo(
-    () => setStatsSummaries.find((summary) => summary.type === activeSetStatsTab) ?? null,
-    [setStatsSummaries, activeSetStatsTab]
+  const armorSummaries = useMemo(
+    () => setStatsSummaries.filter((summary) => summary.category === 'Armor'),
+    [setStatsSummaries]
+  );
+  const weaponSummary = useMemo(
+    () => setStatsSummaries.find((summary) => summary.type === 'Weapons') ?? null,
+    [setStatsSummaries]
+  );
+  const ringSummary = useMemo(
+    () => setStatsSummaries.find((summary) => summary.type === 'Rings') ?? null,
+    [setStatsSummaries]
   );
 
+  const availableSetStatsTabs = useMemo(() => {
+    const tabAvailability: Record<SetStatsTab, boolean> = {
+      Armor: armorSummaries.some((summary) => summary.items.length > 0),
+      Weaponry: Boolean(
+        (weaponSummary && weaponSummary.items.length > 0) ||
+        (ringSummary && ringSummary.items.length > 0)
+      ),
+    };
+
+    return SET_STATS_TABS.filter((tab) => tabAvailability[tab]);
+  }, [armorSummaries, weaponSummary, ringSummary]);
+
   useEffect(() => {
-    if (!setStatsSummaries.length) {
-      if (activeSetStatsTab !== SET_STATS_TABS[0]) {
-        setActiveSetStatsTab(SET_STATS_TABS[0]);
+    if (!availableSetStatsTabs.length) {
+      if (activeSetStatsTab !== 'Armor') {
+        setActiveSetStatsTab('Armor');
       }
       return;
     }
 
-    const availableTabs = SET_STATS_TABS.filter((tab) =>
-      setStatsSummaries.some((summary) => summary.type === tab && summary.items.length > 0)
-    );
-
-    if (!availableTabs.length) {
-      return;
+    if (!availableSetStatsTabs.includes(activeSetStatsTab)) {
+      setActiveSetStatsTab(availableSetStatsTabs[0]);
     }
-
-    if (!availableTabs.includes(activeSetStatsTab)) {
-      setActiveSetStatsTab(availableTabs[0]);
-    }
-  }, [setStatsSummaries, activeSetStatsTab]);
+  }, [availableSetStatsTabs, activeSetStatsTab]);
 
   const renderSetStatsItem = (item: ArmorSetStatSummary['items'][number]) => {
     const hasItem = item.id > 0;
@@ -277,6 +289,13 @@ export default function MarketScreen() {
         <Typography sx={styles.setStatsItemBonus}>{item.statBonus ?? '—'}</Typography>
       </Box>
     );
+  };
+
+  const formatStatTotal = (value: number) => {
+    if (value === 0) {
+      return '—';
+    }
+    return value > 0 ? `+${value}` : `${value}`;
   };
 
   return (
@@ -342,8 +361,7 @@ export default function MarketScreen() {
                   sx={styles.setStatsTabs}
                 >
                   {SET_STATS_TABS.map((tab) => {
-                    const summary = setStatsSummaries.find((entry) => entry.type === tab);
-                    const disabled = !summary || summary.items.length === 0;
+                    const disabled = !availableSetStatsTabs.includes(tab);
                     return (
                       <Tab
                         key={tab}
@@ -356,24 +374,56 @@ export default function MarketScreen() {
                   })}
                 </Tabs>
                 <Box sx={styles.setStatsContent}>
-                  {activeSetStatsSummary && activeSetStatsSummary.items.length > 0 ? (
-                    <Box sx={styles.setStatsPanel}>
-                      <Typography sx={styles.setStatsSectionTitle}>{activeSetStatsSummary.type.toUpperCase()}</Typography>
-                      <Box sx={styles.setStatsItems}>
-                        {activeSetStatsSummary.items.map(renderSetStatsItem)}
+                  {activeSetStatsTab === 'Armor' ? (
+                    armorSummaries.length > 0 ? (
+                      <Box sx={styles.armorColumns}>
+                        {armorSummaries.map((summary) => (
+                          <Box key={summary.type} sx={styles.armorColumn}>
+                            <Typography sx={styles.armorColumnTitle}>{summary.type.toUpperCase()}</Typography>
+                            <Box sx={styles.armorItems}>
+                              {summary.items.map(renderSetStatsItem)}
+                            </Box>
+                            <Box sx={styles.armorTotals}>
+                              {STAT_FILTER_OPTIONS.map((stat) => (
+                                <Box key={`${summary.type}-${stat}`} sx={styles.armorTotalRow}>
+                                  <Typography sx={styles.armorTotalLabel}>{STAT_ABBREVIATIONS[stat]}</Typography>
+                                  <Typography sx={styles.armorTotalValue}>
+                                    {formatStatTotal(summary.totals[stat])}
+                                  </Typography>
+                                </Box>
+                              ))}
+                            </Box>
+                          </Box>
+                        ))}
                       </Box>
-                      {activeSetStatsSummary.category === 'Armor' && (
-                        <Box sx={styles.setStatsTotals}>
-                          {STAT_FILTER_OPTIONS.map((stat) => (
-                            <Typography key={stat} sx={styles.setStatsTotalValue}>
-                              {`+${activeSetStatsSummary.totals[stat]} ${STAT_ABBREVIATIONS[stat]}`}
-                            </Typography>
-                          ))}
-                        </Box>
-                      )}
+                    ) : (
+                      <Typography sx={styles.setStatsEmpty}>No armor stats available.</Typography>
+                    )
+                  ) : (weaponSummary && weaponSummary.items.length > 0) || (ringSummary && ringSummary.items.length > 0) ? (
+                    <Box sx={styles.gearColumns}>
+                      <Box sx={styles.gearColumn}>
+                        <Typography sx={styles.armorColumnTitle}>WEAPONS</Typography>
+                        {weaponSummary && weaponSummary.items.length > 0 ? (
+                          <Box sx={styles.gearItems}>
+                            {weaponSummary.items.map(renderSetStatsItem)}
+                          </Box>
+                        ) : (
+                          <Typography sx={styles.setStatsEmpty}>No weapons available.</Typography>
+                        )}
+                      </Box>
+                      <Box sx={styles.gearColumn}>
+                        <Typography sx={styles.armorColumnTitle}>RINGS</Typography>
+                        {ringSummary && ringSummary.items.length > 0 ? (
+                          <Box sx={styles.gearItems}>
+                            {ringSummary.items.map(renderSetStatsItem)}
+                          </Box>
+                        ) : (
+                          <Typography sx={styles.setStatsEmpty}>No rings available.</Typography>
+                        )}
+                      </Box>
                     </Box>
                   ) : (
-                    <Typography sx={styles.setStatsEmpty}>No stats available for this category.</Typography>
+                    <Typography sx={styles.setStatsEmpty}>No weaponry stats available.</Typography>
                   )}
                 </Box>
               </>
@@ -615,6 +665,28 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     overflowY: 'auto',
+  },
+  gearColumns: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '12px',
+    height: '100%',
+  },
+  gearColumn: {
+    border: '1px solid rgba(128, 255, 0, 0.25)',
+    borderRadius: '6px',
+    padding: '12px',
+    background: 'rgba(0, 0, 0, 0.35)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    minHeight: '100%',
+  },
+  gearItems: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    flex: 1,
   },
   topBar: {
     display: 'flex',
@@ -1086,7 +1158,7 @@ const styles = {
     background: 'rgba(17, 17, 17, 0.98)',
     borderRadius: '10px',
     padding: '18px',
-    width: 'min(96vw, 540px)',
+    width: 'min(82vw, 380px)',
     maxHeight: '80dvh',
     border: '1px solid rgba(128, 255, 0, 0.2)',
     display: 'flex',
@@ -1147,6 +1219,60 @@ const styles = {
     flexDirection: 'column',
     gap: '12px',
     marginTop: '8px',
+    minHeight: '320px',
+  },
+  armorColumns: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: '12px',
+  },
+  armorColumn: {
+    border: '1px solid rgba(128, 255, 0, 0.25)',
+    borderRadius: '6px',
+    padding: '12px',
+    background: 'rgba(0, 0, 0, 0.35)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  armorColumnTitle: {
+    color: '#EDCF33',
+    fontFamily: 'VT323, monospace',
+    fontSize: '1rem',
+    letterSpacing: '0.08em',
+    textAlign: 'center',
+  },
+  armorItems: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    flex: 1,
+  },
+  armorTotals: {
+    borderTop: '1px solid rgba(128, 255, 0, 0.2)',
+    paddingTop: '8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    marginTop: 'auto',
+  },
+  armorTotalRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px',
+  },
+  armorTotalLabel: {
+    color: 'rgba(128, 255, 0, 0.75)',
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.85rem',
+    letterSpacing: '0.08em',
+  },
+  armorTotalValue: {
+    color: '#EDCF33',
+    fontFamily: 'VT323, monospace',
+    fontSize: '0.95rem',
+    fontWeight: 'bold',
   },
   setStatsPanel: {
     border: '1px solid rgba(128, 255, 0, 0.25)',
@@ -1156,6 +1282,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
+    flex: 1,
   },
   setStatsSectionTitle: {
     color: '#EDCF33',
