@@ -389,17 +389,17 @@ export default function BeastScreen() {
 
         {/* Bottom Section - Adventurer */}
         <Box sx={styles.bottomSection}>
-          <Box sx={styles.adventurerImageContainer}>
-            <img
-              src={'/images/mobile/adventurer.png'}
-              alt="Adventurer"
-              style={styles.adventurerImage}
-            />
-            {beastStrike.View}
-          </Box>
+          <Box sx={styles.adventurerStatusRow}>
+            <Box sx={styles.adventurerImageContainer}>
+              <img
+                src={'/images/mobile/adventurer.png'}
+                alt="Adventurer"
+                style={styles.adventurerImage}
+              />
+              {beastStrike.View}
+            </Box>
 
-          <Box sx={styles.adventurerInfo}>
-            <Box sx={styles.adventurerHeader}>
+            <Box sx={styles.adventurerVitals}>
               <Box sx={styles.healthContainer}>
                 <Box sx={styles.healthRow}>
                   <Typography sx={styles.healthLabel}>Health</Typography>
@@ -421,118 +421,120 @@ export default function BeastScreen() {
                 </Box>
               </Box>
             </Box>
+          </Box>
 
-            {hasNewItemsEquipped && (
-              <Box sx={styles.actionsContainer}>
-                <Box sx={styles.actionButtonContainer}>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={handleEquipItems}
-                    sx={[styles.attackButton, { mb: '20px' }]}
-                    disabled={equipInProgress}
-                  >
-                    EQUIP
-                  </Button>
-                </Box>
-
-                <Box sx={styles.actionButtonContainer}>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={undoEquipment}
-                    sx={[styles.fleeButton, { mb: '20px' }]}
-                    disabled={equipInProgress}
-                  >
-                    UNDO
-                  </Button>
-                </Box>
+          {hasNewItemsEquipped && (
+            <Box sx={styles.actionsContainer}>
+              <Box sx={styles.actionButtonContainer}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={handleEquipItems}
+                  sx={[styles.attackButton, { mb: '12px' }]}
+                  disabled={equipInProgress}
+                >
+                  EQUIP
+                </Button>
               </Box>
-            )}
 
-            {!hasNewItemsEquipped && (
-              <Box sx={styles.actionsContainer}>
+              <Box sx={styles.actionButtonContainer}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={undoEquipment}
+                  sx={[styles.fleeButton, { mb: '12px' }]}
+                  disabled={equipInProgress}
+                >
+                  UNDO
+                </Button>
+              </Box>
+            </Box>
+          )}
+
+          {!hasNewItemsEquipped && (
+            <Box sx={styles.actionsContainer}>
+              <Box sx={styles.actionButtonContainer}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={handleAttack}
+                  sx={styles.attackButton}
+                  disabled={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
+                >
+                  ATTACK
+                </Button>
+                <Typography sx={styles.probabilityText}>
+                  {`${calculateAttackDamage(adventurer!.equipment.weapon!, adventurer!, beast!).baseDamage} damage`}
+                </Typography>
+              </Box>
+
+              {!showSkipCombat && (
                 <Box sx={styles.actionButtonContainer}>
                   <Button
                     variant="contained"
                     size="small"
-                    onClick={handleAttack}
-                    sx={styles.attackButton}
+                    onClick={handleSuggestGear}
+                    sx={styles.suggestButton}
                     disabled={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
                   >
-                    ATTACK
+                    SUGGEST
                   </Button>
                   <Typography sx={styles.probabilityText}>
-                    {`${calculateAttackDamage(adventurer!.equipment.weapon!, adventurer!, beast!).baseDamage} damage`}
+                    optimal gear
                   </Typography>
                 </Box>
+              )}
 
-                {!showSkipCombat && (
-                  <Box sx={styles.actionButtonContainer}>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={handleSuggestGear}
-                      sx={styles.suggestButton}
-                      disabled={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
-                    >
-                      SUGGEST
-                    </Button>
-                    <Typography sx={styles.probabilityText}>
-                      optimal gear
-                    </Typography>
-                  </Box>
-                )}
+              <Box sx={styles.actionButtonContainer}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={handleFlee}
+                  sx={styles.fleeButton}
+                  disabled={adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress || equipInProgress || suggestInProgress}
+                >
+                  FLEE
+                </Button>
+                <Typography sx={styles.probabilityText}>
+                  {adventurer!.stats.dexterity === 0 ? 'No Dexterity' : `${fleePercentage}% chance`}
+                </Typography>
+              </Box>
+
+              {showSkipCombat && (
                 <Box sx={styles.actionButtonContainer}>
                   <Button
                     variant="contained"
                     size="small"
-                    onClick={handleFlee}
+                    onClick={handleSkipCombat}
                     sx={styles.fleeButton}
-                    disabled={adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress || equipInProgress || suggestInProgress}
+                    disabled={skipCombat}
                   >
-                    FLEE
+                    SKIP ▶▶
                   </Button>
-                  <Typography sx={styles.probabilityText}>
-                    {adventurer!.stats.dexterity === 0 ? 'No Dexterity' : `${fleePercentage}% chance`}
-                  </Typography>
                 </Box>
+              )}
 
-                {showSkipCombat && (
-                  <Box sx={styles.actionButtonContainer}>
-                    <Box sx={styles.actionButtonContainer}>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        onClick={handleSkipCombat}
-                        sx={[styles.fleeButton, { mb: '20px' }]}
-                        disabled={skipCombat}
-                      >
-                        SKIP ▶▶
-                      </Button>
-                    </Box>
-                  </Box>
-                )}
-
-                <Box sx={styles.deathCheckboxContainer} onClick={() => {
+              <Box
+                sx={styles.deathCheckboxContainer}
+                onClick={() => {
                   if (!attackInProgress && !fleeInProgress && !equipInProgress && !suggestInProgress) {
                     setUntilDeath(!untilDeath);
                   }
-                }}>
-                  <Typography sx={styles.deathCheckboxLabel}>
-                    until<br />death
-                  </Typography>
-                  <Checkbox
-                    checked={untilDeath}
-                    disabled={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
-                    onChange={(e) => setUntilDeath(e.target.checked)}
-                    size="small"
-                    sx={styles.deathCheckbox}
-                  />
-                </Box>
+                }}
+              >
+                <Checkbox
+                  checked={untilDeath}
+                  disabled={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
+                  onChange={(e) => setUntilDeath(e.target.checked)}
+                  size="small"
+                  sx={styles.deathCheckbox}
+                />
+                <Typography sx={styles.deathCheckboxLabel}>
+                  until<br />death
+                </Typography>
               </Box>
-            )}
-          </Box>
+            </Box>
+          )}
         </Box>
 
         {/* Equipped Items Section */}
@@ -912,9 +914,6 @@ export default function BeastScreen() {
         )}
 
         <Box sx={styles.fightDistributionSection}>
-          <Typography sx={styles.fightDistributionTitle}>
-            Fight Distribution
-          </Typography>
           {simulationResult.hasOutcome ? (
             <>
               <Box sx={styles.distributionRow}>
@@ -998,9 +997,7 @@ export default function BeastScreen() {
               </Box>
             </>
           ) : (
-            <Typography sx={styles.distributionPlaceholder}>
-              Run a simulation to view probabilities
-            </Typography>
+            <Box />
           )}
         </Box>
       </Box>
@@ -1220,6 +1217,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',
+    flex: 1,
   },
   healthValue: {
     color: '#80FF00',
@@ -1281,19 +1279,19 @@ const styles = {
   },
   actionsContainer: {
     display: 'flex',
-    gap: 1,
     width: '100%',
-    justifyContent: 'flex-end',
-    paddingLeft: '12px',
+    alignItems: 'stretch',
+    gap: '8px',
+    flexWrap: 'nowrap',
   },
   actionButtonContainer: {
-    flex: '0 0 32%',
-    maxWidth: '32%',
+    flex: 1,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '2px',
-    width: '100%',
+    justifyContent: 'center',
+    gap: '4px',
+    minWidth: 0,
   },
   attackButton: {
     width: '100%',
@@ -1323,10 +1321,10 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '1px',
-    minWidth: '32px',
+    justifyContent: 'center',
+    gap: '4px',
+    minWidth: '60px',
     cursor: 'pointer',
-    marginLeft: '8px',
   },
   deathCheckboxLabel: {
     color: 'rgba(128, 255, 0, 0.7)',
@@ -1344,23 +1342,22 @@ const styles = {
   },
   bottomSection: {
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    flexDirection: 'column',
+    gap: '12px',
     padding: '8px 12px',
     background: 'rgba(128, 255, 0, 0.05)',
     borderRadius: '10px',
     border: '1px solid rgba(128, 255, 0, 0.1)',
-    gap: 2
   },
-  adventurerInfo: {
+  adventurerStatusRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  adventurerVitals: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-  },
-  adventurerHeader: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
   },
   playerName: {
     color: '#80FF00',
@@ -1383,8 +1380,8 @@ const styles = {
     fontWeight: 'bold',
   },
   adventurerImageContainer: {
-    width: '90px',
-    height: '90px',
+    width: '60px',
+    height: '60px',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1457,17 +1454,8 @@ const styles = {
     gap: '8px',
     padding: '10px 12px 14px',
     borderRadius: '10px',
-    background: 'rgba(0, 0, 0, 0.55)',
-    border: '1px solid rgba(128, 255, 0, 0.15)',
-    boxShadow: '0 6px 14px rgba(0, 0, 0, 0.35)',
-  },
-  fightDistributionTitle: {
-    color: '#80FF00',
-    fontFamily: 'VT323, monospace',
-    fontSize: '1.15rem',
-    letterSpacing: '1px',
-    textTransform: 'uppercase' as const,
-    textAlign: 'center' as const,
+    background: 'rgba(128, 255, 0, 0.05)',
+    border: '1px solid rgba(128, 255, 0, 0.1)',
   },
   distributionRow: {
     display: 'flex',
@@ -1479,7 +1467,7 @@ const styles = {
     minWidth: '0',
     padding: '10px 12px',
     borderRadius: '8px',
-    background: 'rgba(16, 24, 16, 0.8)',
+    background: 'rgba(0, 0, 0, 0.35)',
     border: '1px solid rgba(128, 255, 0, 0.18)',
     display: 'flex',
     flexDirection: 'column',
@@ -1503,13 +1491,6 @@ const styles = {
     color: 'rgba(200, 228, 210, 0.7)',
     fontSize: '0.7rem',
     fontFamily: 'VT323, monospace',
-  },
-  distributionPlaceholder: {
-    color: 'rgba(128, 255, 0, 0.55)',
-    fontSize: '0.9rem',
-    textAlign: 'center' as const,
-    fontFamily: 'VT323, monospace',
-    letterSpacing: '1px',
   },
   tipCard: {
     position: 'relative',
