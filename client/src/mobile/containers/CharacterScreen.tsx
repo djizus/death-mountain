@@ -327,20 +327,22 @@ export default function CharacterScreen() {
               </Box>
             )}
           </>}
-          <Box sx={styles.lethalInfoContainer}>
-            <Typography sx={styles.lethalLabel}>
-              Ambush Lethal Chance
-              <Typography component="span" sx={styles.lethalValue}>
-                {formatPercent(ambushLethalChance)}
+          {!beast && (
+            <Box sx={styles.lethalInfoContainer}>
+              <Typography sx={styles.lethalLabel}>
+                Ambush Lethal Chance
+                <Typography component="span" sx={styles.lethalValue}>
+                  {formatPercent(ambushLethalChance)}
+                </Typography>
               </Typography>
-            </Typography>
-            <Typography sx={styles.lethalLabel}>
-              Trap Lethal Chance
-              <Typography component="span" sx={styles.lethalValue}>
-                {formatPercent(trapLethalChance)}
+              <Typography sx={styles.lethalLabel}>
+                Trap Lethal Chance
+                <Typography component="span" sx={styles.lethalValue}>
+                  {formatPercent(trapLethalChance)}
+                </Typography>
               </Typography>
-            </Typography>
-          </Box>
+            </Box>
+          )}
         </Box>
       </Box>
     </Box>

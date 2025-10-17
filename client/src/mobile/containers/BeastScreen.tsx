@@ -265,17 +265,6 @@ export default function BeastScreen() {
   const combatStats = beast ? calculateCombatStats(adventurer!, bag, beast) : null;
   const bestItemIds = combatStats?.bestItems.map((item: Item) => item.id) || [];
   const formatNumber = (value: number) => value.toLocaleString();
-  const formatRange = (minValue: number, maxValue: number) => {
-    if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
-      return "-";
-    }
-
-    if (minValue === maxValue) {
-      return formatNumber(minValue);
-    }
-
-    return `${formatNumber(minValue)} - ${formatNumber(maxValue)}`;
-  };
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
   return (
@@ -955,43 +944,25 @@ export default function BeastScreen() {
 
               <Box sx={styles.distributionRow}>
                 <Box sx={styles.distributionCard}>
-                  <Typography sx={styles.distributionLabel}>Rounds</Typography>
+                  <Typography sx={styles.distributionLabel}>Avg Rounds</Typography>
                   <Typography sx={styles.distributionValue}>
                     {formatNumber(simulationResult.modeRounds)}
-                  </Typography>
-                  <Typography sx={styles.distributionSubValue}>
-                    {formatRange(
-                      simulationResult.minRounds,
-                      simulationResult.maxRounds
-                    )}
                   </Typography>
                 </Box>
                 <Box sx={[styles.distributionCard, styles.positiveCard]}>
                   <Typography sx={styles.distributionLabel}>
-                    DMG Dealt
+                    Avg DMG Dealt
                   </Typography>
                   <Typography sx={styles.distributionValue}>
                     {formatNumber(simulationResult.modeDamageDealt)}
                   </Typography>
-                  <Typography sx={styles.distributionSubValue}>
-                    {formatRange(
-                      simulationResult.minDamageDealt,
-                      simulationResult.maxDamageDealt
-                    )}
-                  </Typography>
                 </Box>
                 <Box sx={[styles.distributionCard, styles.warningCard]}>
                   <Typography sx={styles.distributionLabel}>
-                    DMG Taken
+                    Avg DMG Taken
                   </Typography>
                   <Typography sx={styles.distributionValue}>
                     {formatNumber(Math.round(simulationResult.modeDamageTaken))}
-                  </Typography>
-                  <Typography sx={styles.distributionSubValue}>
-                    {formatRange(
-                      simulationResult.minDamageTaken,
-                      simulationResult.maxDamageTaken
-                    )}
                   </Typography>
                 </Box>
               </Box>
@@ -1486,11 +1457,6 @@ const styles = {
     fontSize: '1.35rem',
     letterSpacing: '0.5px',
     lineHeight: 1,
-  },
-  distributionSubValue: {
-    color: 'rgba(200, 228, 210, 0.7)',
-    fontSize: '0.7rem',
-    fontFamily: 'VT323, monospace',
   },
   tipCard: {
     position: 'relative',
