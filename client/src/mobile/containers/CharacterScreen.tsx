@@ -395,7 +395,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     overflowY: 'auto',
-    paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 0px))',
+    paddingBottom: 'calc(90px + env(safe-area-inset-bottom, 0px))',
   },
   characterContainer: {
     height: 'auto',
