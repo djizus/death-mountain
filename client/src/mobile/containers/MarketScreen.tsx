@@ -70,8 +70,11 @@ const STAT_ABBREVIATIONS: Record<StatDisplayName, string> = {
   Charisma: 'CHA',
 };
 
-const SET_STATS_TABS = ['Armor', 'Weaponry'] as const;
+const SET_STATS_TABS = [ItemType.Cloth, ItemType.Hide, ItemType.Metal, 'Weaponry'] as const;
 type SetStatsTab = typeof SET_STATS_TABS[number];
+type ArmorTab = Extract<SetStatsTab, ItemType.Cloth | ItemType.Hide | ItemType.Metal>;
+const isArmorTab = (tab: SetStatsTab): tab is ArmorTab =>
+  tab === ItemType.Cloth || tab === ItemType.Hide || tab === ItemType.Metal;
 
 export default function MarketScreen() {
   const { adventurer, bag, marketItemIds } = useGameStore();
@@ -97,7 +100,7 @@ export default function MarketScreen() {
 
 
   const [showSetStats, setShowSetStats] = useState(false);
-  const [activeSetStatsTab, setActiveSetStatsTab] = useState<SetStatsTab>('Armor');
+  const [activeSetStatsTab, setActiveSetStatsTab] = useState<SetStatsTab>(ItemType.Cloth);
 
   const specialsUnlocked = Boolean(adventurer?.item_specials_seed);
 
@@ -227,6 +230,13 @@ export default function MarketScreen() {
     () => setStatsSummaries.filter((summary) => summary.category === 'Armor'),
     [setStatsSummaries]
   );
+  const armorSummariesByType = useMemo(
+    () => armorSummaries.reduce((acc, summary) => {
+      acc[summary.type as ArmorTab] = summary;
+      return acc;
+    }, {} as Partial<Record<ArmorTab, ArmorSetStatSummary>>),
+    [armorSummaries]
+  );
   const weaponSummary = useMemo(
     () => setStatsSummaries.find((summary) => summary.type === 'Weapons') ?? null,
     [setStatsSummaries]
@@ -238,7 +248,9 @@ export default function MarketScreen() {
 
   const availableSetStatsTabs = useMemo(() => {
     const tabAvailability: Record<SetStatsTab, boolean> = {
-      Armor: armorSummaries.some((summary) => summary.items.length > 0),
+      [ItemType.Cloth]: Boolean(armorSummariesByType[ItemType.Cloth]?.items.length),
+      [ItemType.Hide]: Boolean(armorSummariesByType[ItemType.Hide]?.items.length),
+      [ItemType.Metal]: Boolean(armorSummariesByType[ItemType.Metal]?.items.length),
       Weaponry: Boolean(
         (weaponSummary && weaponSummary.items.length > 0) ||
         (ringSummary && ringSummary.items.length > 0)
@@ -246,12 +258,12 @@ export default function MarketScreen() {
     };
 
     return SET_STATS_TABS.filter((tab) => tabAvailability[tab]);
-  }, [armorSummaries, weaponSummary, ringSummary]);
+  }, [armorSummariesByType, weaponSummary, ringSummary]);
 
   useEffect(() => {
     if (!availableSetStatsTabs.length) {
-      if (activeSetStatsTab !== 'Armor') {
-        setActiveSetStatsTab('Armor');
+      if (activeSetStatsTab !== SET_STATS_TABS[0]) {
+        setActiveSetStatsTab(SET_STATS_TABS[0]);
       }
       return;
     }
@@ -265,6 +277,9 @@ export default function MarketScreen() {
     const hasItem = item.id > 0;
     const imageUrl = hasItem ? ItemUtils.getItemImage(item.id) : null;
     const tierColor = hasItem ? ItemUtils.getTierColor(ItemUtils.getItemTier(item.id)) : undefined;
+    const statLines = item.statBonus
+      ? item.statBonus.match(/[+-]?\d+\s*(STR|DEX|VIT|INT|WIS|CHA)/gi) ?? []
+      : [];
 
     return (
       <Box key={`${item.slot}-${item.id}`} sx={styles.setStatsItemRow}>
@@ -286,17 +301,30 @@ export default function MarketScreen() {
         ) : (
           <Typography sx={styles.setStatsItemSlot}>{item.slot}</Typography>
         )}
-        <Typography sx={styles.setStatsItemBonus}>{item.statBonus ?? '—'}</Typography>
+        <Box sx={styles.setStatsItemBonus}>
+          {statLines.length > 0 ? statLines.map((line, index) => (
+            <Typography key={`${item.slot}-${line}-${index}`} sx={styles.setStatsItemBonusLine}>
+              {line.replace(/\s+/g, ' ').toUpperCase()}
+            </Typography>
+          )) : (
+            <Typography sx={styles.setStatsItemBonusLine}>—</Typography>
+          )}
+        </Box>
       </Box>
     );
   };
 
-  const formatStatTotal = (value: number) => {
+  const formatStatTotal = (stat: StatDisplayName, value: number) => {
     if (value === 0) {
       return '—';
     }
-    return value > 0 ? `+${value}` : `${value}`;
+    const prefix = value > 0 ? `+${value}` : `${value}`;
+    return `${prefix} ${STAT_ABBREVIATIONS[stat]}`;
   };
+
+  const activeArmorSummary = isArmorTab(activeSetStatsTab)
+    ? armorSummariesByType[activeSetStatsTab] ?? null
+    : null;
 
   return (
     <Box sx={styles.container}>
@@ -374,27 +402,22 @@ export default function MarketScreen() {
                   })}
                 </Tabs>
                 <Box sx={styles.setStatsContent}>
-                  {activeSetStatsTab === 'Armor' ? (
-                    armorSummaries.length > 0 ? (
+                  {isArmorTab(activeSetStatsTab) ? (
+                    activeArmorSummary && activeArmorSummary.items.length > 0 ? (
                       <Box sx={styles.armorColumns}>
-                        {armorSummaries.map((summary) => (
-                          <Box key={summary.type} sx={styles.armorColumn}>
-                            <Typography sx={styles.armorColumnTitle}>{summary.type.toUpperCase()}</Typography>
-                            <Box sx={styles.armorItems}>
-                              {summary.items.map(renderSetStatsItem)}
-                            </Box>
-                            <Box sx={styles.armorTotals}>
-                              {STAT_FILTER_OPTIONS.map((stat) => (
-                                <Box key={`${summary.type}-${stat}`} sx={styles.armorTotalRow}>
-                                  <Typography sx={styles.armorTotalLabel}>{STAT_ABBREVIATIONS[stat]}</Typography>
-                                  <Typography sx={styles.armorTotalValue}>
-                                    {formatStatTotal(summary.totals[stat])}
-                                  </Typography>
-                                </Box>
-                              ))}
-                            </Box>
+                        <Box sx={styles.armorColumn}>
+                          <Typography sx={styles.armorColumnTitle}>{activeSetStatsTab.toUpperCase()}</Typography>
+                          <Box sx={styles.armorItems}>
+                            {activeArmorSummary.items.map(renderSetStatsItem)}
                           </Box>
-                        ))}
+                          <Box sx={styles.armorTotals}>
+                            {STAT_FILTER_OPTIONS.map((stat) => (
+                              <Typography key={`${activeSetStatsTab}-${stat}`} sx={styles.armorTotalValue}>
+                                {formatStatTotal(stat, activeArmorSummary.totals[stat])}
+                              </Typography>
+                            ))}
+                          </Box>
+                        </Box>
                       </Box>
                     ) : (
                       <Typography sx={styles.setStatsEmpty}>No armor stats available.</Typography>
@@ -1221,8 +1244,8 @@ const styles = {
     minHeight: '320px',
   },
   armorColumns: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    display: 'flex',
+    flexDirection: 'column',
     gap: '12px',
   },
   armorColumn: {
@@ -1254,18 +1277,8 @@ const styles = {
     flexDirection: 'column',
     gap: '6px',
     marginTop: 'auto',
-  },
-  armorTotalRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '8px',
-  },
-  armorTotalLabel: {
-    color: 'rgba(128, 255, 0, 0.75)',
-    fontFamily: 'VT323, monospace',
-    fontSize: '0.85rem',
-    letterSpacing: '0.08em',
+    alignItems: 'flex-end',
+    textAlign: 'right',
   },
   armorTotalValue: {
     color: '#EDCF33',
@@ -1315,12 +1328,22 @@ const styles = {
     color: 'rgba(255, 255, 255, 0.8)',
     fontFamily: 'VT323, monospace',
     fontSize: '0.95rem',
+    flex: 1,
   },
   setStatsItemBonus: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: '2px',
+    minWidth: '68px',
+    justifyContent: 'center',
+  },
+  setStatsItemBonusLine: {
     color: '#80FF00',
     fontFamily: 'VT323, monospace',
     fontSize: '0.9rem',
     textAlign: 'right',
+    whiteSpace: 'nowrap',
   },
   setStatsTotals: {
     display: 'flex',
