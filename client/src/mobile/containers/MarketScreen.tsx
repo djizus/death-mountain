@@ -277,9 +277,9 @@ export default function MarketScreen() {
     const hasItem = item.id > 0;
     const imageUrl = hasItem ? ItemUtils.getItemImage(item.id) : null;
     const tierColor = hasItem ? ItemUtils.getTierColor(ItemUtils.getItemTier(item.id)) : undefined;
-    const statLines = item.statBonus
-      ? item.statBonus.match(/[+-]?\d+\s*(STR|DEX|VIT|INT|WIS|CHA)/gi) ?? []
-      : [];
+    const statText = item.statBonus
+      ? item.statBonus.replace(/\s+/g, ' ').toUpperCase()
+      : '—';
 
     return (
       <Box key={`${item.slot}-${item.id}`} sx={styles.setStatsItemRow}>
@@ -301,15 +301,7 @@ export default function MarketScreen() {
         ) : (
           <Typography sx={styles.setStatsItemSlot}>{item.slot}</Typography>
         )}
-        <Box sx={styles.setStatsItemBonus}>
-          {statLines.length > 0 ? statLines.map((line, index) => (
-            <Typography key={`${item.slot}-${line}-${index}`} sx={styles.setStatsItemBonusLine}>
-              {line.replace(/\s+/g, ' ').toUpperCase()}
-            </Typography>
-          )) : (
-            <Typography sx={styles.setStatsItemBonusLine}>—</Typography>
-          )}
-        </Box>
+        <Typography sx={styles.setStatsItemBonus}>{statText}</Typography>
       </Box>
     );
   };
@@ -1331,14 +1323,10 @@ const styles = {
     flex: 1,
   },
   setStatsItemBonus: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    gap: '2px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
     minWidth: '68px',
-    justifyContent: 'center',
-  },
-  setStatsItemBonusLine: {
     color: '#80FF00',
     fontFamily: 'VT323, monospace',
     fontSize: '0.9rem',
