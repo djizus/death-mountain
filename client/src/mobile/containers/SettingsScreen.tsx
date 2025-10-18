@@ -5,13 +5,15 @@ import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import MusicOffIcon from '@mui/icons-material/MusicOff';
 import SportsEsportsIcon from '@mui/icons-material/SportsEsports';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { Box, Button, Slider, Typography } from '@mui/material';
+import { Box, Button, Slider, Typography, FormControlLabel, Checkbox } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useUIStore } from '@/stores/uiStore';
 
 export default function SettingsScreen() {
   const navigate = useNavigate();
   const { muted, setMuted, volume, setVolume } = useSound();
   const { account, address, playerName, login, openProfile } = useController();
+  const { skipCombatDelays, setSkipCombatDelays } = useUIStore();
 
   const handleExitGame = () => {
     navigate('/survivor');
@@ -105,6 +107,24 @@ export default function SettingsScreen() {
       <Box sx={styles.section}>
         <Box sx={styles.sectionHeader}>
           <Typography sx={styles.sectionTitle}>Game</Typography>
+        </Box>
+
+        <Box sx={styles.settingItem}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={skipCombatDelays}
+                onChange={(e) => setSkipCombatDelays(e.target.checked)}
+                sx={{
+                  color: '#80FF00',
+                  '&.Mui-checked': {
+                    color: '#80FF00',
+                  },
+                }}
+              />
+            }
+            label={<Typography color="#ffffff">Skip combat delay</Typography>}
+          />
         </Box>
 
         <Box sx={styles.settingItem}>

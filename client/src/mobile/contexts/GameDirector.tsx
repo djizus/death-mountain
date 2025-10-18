@@ -23,6 +23,7 @@ import {
 } from "react";
 import { useAnalytics } from "@/utils/analytics";
 import { BEAST_SPECIAL_NAME_LEVEL_UNLOCK } from "@/constants/beast";
+import { useUIStore } from "@/stores/uiStore";
 
 export interface GameDirectorContext {
   executeGameAction: (action: GameAction) => void;
@@ -134,6 +135,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
   const [skipCombat, setSkipCombat] = useState(false);
   const [showSkipCombat, setShowSkipCombat] = useState(false);
   const [beastDefeated, setBeastDefeated] = useState(false);
+  const { skipCombatDelays } = useUIStore();
 
   useEffect(() => {
     if (gameId && !metadata) {
@@ -170,7 +172,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       if (eventQueue.length > 0 && !isProcessing) {
         setIsProcessing(true);
         const event = eventQueue[0];
-        await processEvent(event, skipCombat);
+        await processEvent(event, skipCombatDelays || skipCombat);
         setEventQueue((prev) => prev.slice(1));
         setIsProcessing(false);
         setEventsProcessed((prev) => prev + 1);
@@ -178,7 +180,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     };
 
     processNextEvent();
-  }, [eventQueue, isProcessing]);
+  }, [eventQueue, isProcessing, skipCombat, skipCombatDelays]);
 
   useEffect(() => {
     if (beastDefeated && collectable && currentNetworkConfig.beasts) {

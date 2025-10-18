@@ -27,7 +27,10 @@ interface HeaderMenuProps {
 
 function HeaderMenu({ anchorEl, handleClose }: HeaderMenuProps) {
   const { muted, setMuted, volume, setVolume } = useSound();
-  const { setGameSettingsListOpen, setUseMobileClient } = useUIStore();
+  const {
+    setGameSettingsListOpen,
+    setUseMobileClient,
+  } = useUIStore();
 
   const handleVolumeChange = (_: Event, newValue: number | number[]) => {
     setVolume((newValue as number) / 100);
