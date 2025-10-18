@@ -70,11 +70,14 @@ const STAT_ABBREVIATIONS: Record<StatDisplayName, string> = {
   Charisma: 'CHA',
 };
 
-const SET_STATS_TABS = [ItemType.Cloth, ItemType.Hide, ItemType.Metal, 'Weaponry'] as const;
+const SET_STATS_TABS = [ItemType.Cloth, ItemType.Hide, ItemType.Metal, 'Weapons', 'Rings'] as const;
 type SetStatsTab = typeof SET_STATS_TABS[number];
 type ArmorTab = Extract<SetStatsTab, ItemType.Cloth | ItemType.Hide | ItemType.Metal>;
 const isArmorTab = (tab: SetStatsTab): tab is ArmorTab =>
   tab === ItemType.Cloth || tab === ItemType.Hide || tab === ItemType.Metal;
+type GearTab = Extract<SetStatsTab, 'Weapons' | 'Rings'>;
+const isGearTab = (tab: SetStatsTab): tab is GearTab =>
+  tab === 'Weapons' || tab === 'Rings';
 
 export default function MarketScreen() {
   const { adventurer, bag, marketItemIds } = useGameStore();
@@ -251,10 +254,8 @@ export default function MarketScreen() {
       [ItemType.Cloth]: Boolean(armorSummariesByType[ItemType.Cloth]?.items.length),
       [ItemType.Hide]: Boolean(armorSummariesByType[ItemType.Hide]?.items.length),
       [ItemType.Metal]: Boolean(armorSummariesByType[ItemType.Metal]?.items.length),
-      Weaponry: Boolean(
-        (weaponSummary && weaponSummary.items.length > 0) ||
-        (ringSummary && ringSummary.items.length > 0)
-      ),
+      Weapons: Boolean(weaponSummary && weaponSummary.items.length > 0),
+      Rings: Boolean(ringSummary && ringSummary.items.length > 0),
     };
 
     return SET_STATS_TABS.filter((tab) => tabAvailability[tab]);
@@ -316,6 +317,11 @@ export default function MarketScreen() {
 
   const activeArmorSummary = isArmorTab(activeSetStatsTab)
     ? armorSummariesByType[activeSetStatsTab] ?? null
+    : null;
+  const activeGearSummary = isGearTab(activeSetStatsTab)
+    ? activeSetStatsTab === 'Weapons'
+      ? (weaponSummary ?? null)
+      : (ringSummary ?? null)
     : null;
 
   return (
@@ -398,7 +404,6 @@ export default function MarketScreen() {
                     activeArmorSummary && activeArmorSummary.items.length > 0 ? (
                       <Box sx={styles.armorColumns}>
                         <Box sx={styles.armorColumn}>
-                          <Typography sx={styles.armorColumnTitle}>{activeSetStatsTab.toUpperCase()}</Typography>
                           <Box sx={styles.armorItems}>
                             {activeArmorSummary.items.map(renderSetStatsItem)}
                           </Box>
@@ -414,31 +419,22 @@ export default function MarketScreen() {
                     ) : (
                       <Typography sx={styles.setStatsEmpty}>No armor stats available.</Typography>
                     )
-                  ) : (weaponSummary && weaponSummary.items.length > 0) || (ringSummary && ringSummary.items.length > 0) ? (
-                    <Box sx={styles.gearColumns}>
-                      <Box sx={styles.gearColumn}>
-                        <Typography sx={styles.armorColumnTitle}>WEAPONS</Typography>
-                        {weaponSummary && weaponSummary.items.length > 0 ? (
-                          <Box sx={styles.gearItems}>
-                            {weaponSummary.items.map(renderSetStatsItem)}
+                  ) : isGearTab(activeSetStatsTab) ? (
+                    activeGearSummary && activeGearSummary.items.length > 0 ? (
+                      <Box sx={styles.armorColumns}>
+                        <Box sx={styles.armorColumn}>
+                          <Box sx={styles.armorItems}>
+                            {activeGearSummary.items.map(renderSetStatsItem)}
                           </Box>
-                        ) : (
-                          <Typography sx={styles.setStatsEmpty}>No weapons available.</Typography>
-                        )}
+                        </Box>
                       </Box>
-                      <Box sx={styles.gearColumn}>
-                        <Typography sx={styles.armorColumnTitle}>RINGS</Typography>
-                        {ringSummary && ringSummary.items.length > 0 ? (
-                          <Box sx={styles.gearItems}>
-                            {ringSummary.items.map(renderSetStatsItem)}
-                          </Box>
-                        ) : (
-                          <Typography sx={styles.setStatsEmpty}>No rings available.</Typography>
-                        )}
-                      </Box>
-                    </Box>
+                    ) : (
+                      <Typography sx={styles.setStatsEmpty}>
+                        {activeSetStatsTab === 'Weapons' ? 'No weapons available.' : 'No rings available.'}
+                      </Typography>
+                    )
                   ) : (
-                    <Typography sx={styles.setStatsEmpty}>No weaponry stats available.</Typography>
+                    <Typography sx={styles.setStatsEmpty}>No stats available.</Typography>
                   )}
                 </Box>
               </>
@@ -680,27 +676,6 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     overflowY: 'auto',
-  },
-  gearColumns: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '12px',
-    height: '100%',
-  },
-  gearColumn: {
-    border: '1px solid rgba(128, 255, 0, 0.25)',
-    borderRadius: '6px',
-    padding: '12px',
-    background: 'rgba(0, 0, 0, 0.35)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-  },
-  gearItems: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-    flex: 1,
   },
   topBar: {
     display: 'flex',
@@ -1209,9 +1184,23 @@ const styles = {
   setStatsTabs: {
     borderBottom: '1px solid rgba(128, 255, 0, 0.2)',
     minHeight: '40px',
+    '& .MuiTabs-flexContainer': {
+      justifyContent: 'flex-start',
+      marginLeft: 0,
+    },
     '& .MuiTabs-indicator': {
       backgroundColor: '#80FF00',
       height: '3px',
+    },
+    '& .MuiTabs-scroller': {
+      marginLeft: '0 !important',
+    },
+    '& .MuiTabs-scrollButtons': {
+      color: '#FFFFFF',
+    },
+    '& .MuiTabs-scrollButtons.Mui-disabled': {
+      opacity: 0.35,
+      color: '#FFFFFF',
     },
   },
   setStatsTab: {
@@ -1248,13 +1237,6 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
-  },
-  armorColumnTitle: {
-    color: '#EDCF33',
-    fontFamily: 'VT323, monospace',
-    fontSize: '1rem',
-    letterSpacing: '0.08em',
-    textAlign: 'center',
   },
   armorItems: {
     display: 'flex',
