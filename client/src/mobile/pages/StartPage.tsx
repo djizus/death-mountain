@@ -149,8 +149,11 @@ export default function LandingPage() {
             width: "100%",
             gap: 2,
             textAlign: "center",
-            height: "440px",
+            minHeight: "440px",
             position: "relative",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "stretch",
           }}
         >
           {!showAdventurers &&

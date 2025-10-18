@@ -6,7 +6,11 @@ import Typography from '@mui/material/Typography';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
 // Price indicator component
-export default function PriceIndicator() {
+interface PriceIndicatorProps {
+  sxOverride?: Record<string, any>;
+}
+
+export default function PriceIndicator({ sxOverride }: PriceIndicatorProps = {}) {
   const { gamePrice, gamePriceHistory, lordsPrice, fetchGamePrice } = useStatistics();
 
   // Handle case where data is not available
@@ -19,6 +23,7 @@ export default function PriceIndicator() {
         padding: '10px',
         background: 'rgba(24, 40, 24, 0.3)',
         boxSizing: 'border-box',
+        ...sxOverride,
       }}>
         <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, letterSpacing: 0.5 }}>
           Game Price
@@ -43,6 +48,7 @@ export default function PriceIndicator() {
         padding: '10px',
         background: 'rgba(24, 40, 24, 0.3)',
         boxSizing: 'border-box',
+        ...sxOverride,
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -178,6 +184,7 @@ export default function PriceIndicator() {
       padding: '10px 10px 5px',
       background: 'rgba(24, 40, 24, 0.3)',
       boxSizing: 'border-box',
+      ...sxOverride,
     }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
