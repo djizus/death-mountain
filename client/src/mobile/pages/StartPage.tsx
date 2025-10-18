@@ -200,34 +200,6 @@ export default function LandingPage() {
                 </Typography>
               </Button>
 
-              {isMainNetwork && (
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  color="secondary"
-                  onClick={handleClaimRewards}
-                  sx={{
-                    height: "36px",
-                    mt: 1,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "100%",
-                    }}
-                  >
-                    <AttachMoneyIcon sx={{ mr: 1 }} />
-                    <Typography variant="h5" color="#111111">
-                      Claim Tokens
-                    </Typography>
-                  </Box>
-                </Button>
-              )}
-
               <Button
                 fullWidth
                 variant="contained"
@@ -324,7 +296,7 @@ export default function LandingPage() {
                 size="large"
                 color="secondary"
                 onClick={switchMode}
-                sx={{ height: "36px", mt: 1, mb: 1 }}
+                sx={{ height: "36px", mt: 1 }}
               >
                 <Typography variant="h5" color="#111111">
                   {currentNetworkConfig.name === "Beast Mode"
@@ -334,6 +306,34 @@ export default function LandingPage() {
               </Button>
 
               <Divider sx={{ width: "100%", my: 0.5 }} />
+
+              {isMainNetwork && (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  color="secondary"
+                  onClick={handleClaimRewards}
+                  sx={{
+                    height: "36px",
+                    mt: 1,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "100%",
+                    }}
+                  >
+                    <AttachMoneyIcon sx={{ mr: 1 }} />
+                    <Typography variant="h5" color="#111111">
+                      Claim Tokens
+                    </Typography>
+                  </Box>
+                </Button>
+              )}
 
               <Button
                 fullWidth
