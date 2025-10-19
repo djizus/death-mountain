@@ -196,9 +196,18 @@ const buildDamageDistribution = (samples: WeightedSample[], maxBuckets = 6): Dam
 
   if (overflowValues.length > 0) {
     const overflowWeight = overflowValues.reduce((sum, damage) => sum + (totals.get(damage) ?? 0), 0);
+    let minOverflow = overflowValues[0];
+    let maxOverflow = overflowValues[0];
+
+    for (let i = 1; i < overflowValues.length; i += 1) {
+      const value = overflowValues[i];
+      if (value < minOverflow) minOverflow = value;
+      if (value > maxOverflow) maxOverflow = value;
+    }
+
     buckets.push({
-      start: Math.min(...overflowValues),
-      end: Math.max(...overflowValues),
+      start: minOverflow,
+      end: maxOverflow,
       percentage: Number(((overflowWeight / totalWeight) * 100).toFixed(2)),
       label: '>1024',
     });
