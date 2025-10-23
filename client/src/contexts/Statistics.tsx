@@ -65,13 +65,13 @@ export const StatisticsProvider = ({ children }: PropsWithChildren) => {
   };
 
   const fetchPriceHistory = async () => {
-    await delay(1000);
+    await delay(2000);
     const priceChart = await getPriceChart(DungeonTicket, LORDS);
     setGamePriceHistory(priceChart.data);
   };
 
   const fetchGameLordsPrice = async () => {
-    await delay(1000);
+    await delay(2000);
     const lordsPrice = await getSwapQuote(-1e18, DungeonTicket, LORDS);
     setLordsPrice(((lordsPrice.total * -1) / 1e18).toFixed(2));
   };
@@ -82,6 +82,7 @@ export const StatisticsProvider = ({ children }: PropsWithChildren) => {
   };
 
   const fetchStrkPrice = async () => {
+    await delay(3000)
     const swap = await getSwapQuote(100e18, STRK, USDC);
     setStrkPrice((swap.total / 1e6 / 100).toFixed(2));
   };

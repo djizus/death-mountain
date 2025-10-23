@@ -185,9 +185,38 @@ export default function DungeonRewards() {
               "Pain Whisper" Warlock
             </Typography>
           </Box>
-          <Box>
+          <Box sx={{ position: "relative" }}>
             <img src="/images/jackpot_dragon.png" alt="beast" height={80} />
-            <Typography fontWeight={500} fontSize={13}>
+            <Box
+              sx={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 16,
+                "&::before, &::after": {
+                  content: '""',
+                  position: "absolute",
+                  backgroundColor: "red",
+                  transformOrigin: "center",
+                },
+                "&::before": {
+                  top: "40%",
+                  left: 0,
+                  right: 0,
+                  height: 2,
+                  transform: "rotate(45deg)",
+                },
+                "&::after": {
+                  top: "40%",
+                  left: 0,
+                  right: 0,
+                  height: 2,
+                  transform: "rotate(-45deg)",
+                },
+              }}
+            />
+            <Typography fontWeight={500} fontSize={13} sx={{ opacity: 0.5 }}>
               "Demon Grasp" Dragon
             </Typography>
           </Box>
