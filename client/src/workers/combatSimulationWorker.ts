@@ -1,18 +1,55 @@
 /// <reference lib="webworker" />
 
 import type { Adventurer, Beast } from '@/types/game';
-import { calculateDeterministicCombatResult, type CombatSimulationOptions } from '@/utils/combatSimulationCore';
+import {
+  calculateDeterministicCombatResult,
+  type CombatSimulationOptions,
+  type CombatSimulationResult,
+} from '@/utils/combatSimulationCore';
 
-interface CombatSimulationRequest {
+interface CombatSimulationPayload {
   adventurer: Adventurer;
   beast: Beast;
   options?: CombatSimulationOptions;
 }
 
+interface CombatSimulationRequest {
+  id: number;
+  payload: CombatSimulationPayload;
+}
+
+type CombatSimulationResponse =
+  | { id: number; result: CombatSimulationResult }
+  | { id: number; error: string };
+
+const serializeError = (error: unknown): string => {
+  if (!error) {
+    return 'Unknown worker error';
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  if (error instanceof Error) {
+    return error.message || error.name || 'Unknown worker error';
+  }
+
+  return (error as { message?: unknown })?.message?.toString() ?? 'Unknown worker error';
+};
+
 const ctx: DedicatedWorkerGlobalScope = self as DedicatedWorkerGlobalScope;
 
 ctx.onmessage = (event: MessageEvent<CombatSimulationRequest>) => {
-  const { adventurer, beast, options } = event.data;
-  const result = calculateDeterministicCombatResult(adventurer, beast, options);
-  ctx.postMessage(result);
+  const { id, payload } = event.data;
+  const { adventurer, beast, options } = payload;
+
+  try {
+    const result = calculateDeterministicCombatResult(adventurer, beast, options);
+    const response: CombatSimulationResponse = { id, result };
+    ctx.postMessage(response);
+  } catch (error) {
+    const response: CombatSimulationResponse = { id, error: serializeError(error) };
+    ctx.postMessage(response);
+  }
 };
