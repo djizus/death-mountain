@@ -12,7 +12,15 @@ interface SettingsProps {
 }
 
 export default function Settings({ onBack }: SettingsProps) {
-  const { setUseMobileClient, skipAllAnimations, setSkipAllAnimations, skipIntroOutro, setSkipIntroOutro } = useUIStore();
+  const {
+    setUseMobileClient,
+    skipAllAnimations,
+    setSkipAllAnimations,
+    skipIntroOutro,
+    setSkipIntroOutro,
+    showUntilBeastToggle,
+    setShowUntilBeastToggle,
+  } = useUIStore();
   const { volume, setVolume, muted, setMuted, musicVolume, setMusicVolume, musicMuted, setMusicMuted } = useSound();
 
   const handleSwitchToMobile = () => {
@@ -141,6 +149,27 @@ export default function Settings({ onBack }: SettingsProps) {
                 />
               }
               label="Skip all animations"
+              sx={styles.checkboxLabel}
+            />
+          </Box>
+        </Box>
+
+        <Divider sx={{ my: 0.5, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+        {/* Exploration Section */}
+        <Box sx={styles.settingSection}>
+          <Typography sx={styles.sectionTitle}>Exploration</Typography>
+
+          <Box sx={styles.animationsControl}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={showUntilBeastToggle}
+                  onChange={(e) => setShowUntilBeastToggle(e.target.checked)}
+                  sx={styles.checkbox}
+                />
+              }
+              label='Display "until beast" checkbox'
               sx={styles.checkboxLabel}
             />
           </Box>

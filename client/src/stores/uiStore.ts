@@ -23,6 +23,10 @@ interface UIState {
   skipIntroOutro: boolean
   skipAllAnimations: boolean
   skipCombatDelays: boolean
+
+  // Exploration controls
+  setShowUntilBeastToggle: (show: boolean) => void
+  showUntilBeastToggle: boolean
 }
 
 export const useUIStore = create<UIState>()(
@@ -46,6 +50,10 @@ export const useUIStore = create<UIState>()(
       skipAllAnimations: false,
       skipCombatDelays: false,
 
+      // Exploration controls
+      setShowUntilBeastToggle: (show) => set({ showUntilBeastToggle: show }),
+      showUntilBeastToggle: false,
+
       // Client preferences
       setUseMobileClient: (useMobile) => set({ useMobileClient: useMobile }),
       useMobileClient: false,
@@ -57,6 +65,7 @@ export const useUIStore = create<UIState>()(
         skipIntroOutro: state.skipIntroOutro,
         skipAllAnimations: state.skipAllAnimations,
         skipCombatDelays: state.skipCombatDelays,
+        showUntilBeastToggle: state.showUntilBeastToggle,
       }),
     }
   )

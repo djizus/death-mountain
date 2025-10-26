@@ -20,7 +20,7 @@ export default function ExploreOverlay() {
   const { exploreLog, adventurer, gameSettings, setShowOverlay, collectable, collectableTokenURI,
     setCollectable, selectedStats, setSelectedStats, claimInProgress } = useGameStore();
   const { cart, inProgress, setInProgress } = useMarketStore();
-  const { skipAllAnimations } = useUIStore();
+  const { skipAllAnimations, showUntilBeastToggle } = useUIStore();
   const { enqueueSnackbar } = useSnackbar()
   const [untilBeast, setUntilBeast] = useState(false);
 
@@ -254,8 +254,7 @@ export default function ExploreOverlay() {
                   </Typography>
                 )}
               </Button>
-              {/* Temporarily hide the until beast toggle */}
-              {false && (
+              {showUntilBeastToggle && (
                 <Box
                   sx={styles.deathCheckboxContainer}
                   onClick={() => {
