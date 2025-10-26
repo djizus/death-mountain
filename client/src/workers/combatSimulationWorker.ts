@@ -2,7 +2,7 @@
 
 import type { Adventurer, Beast } from '@/types/game';
 import {
-  calculateDeterministicCombatResult,
+  calculateCombatResult,
   type CombatSimulationOptions,
   type CombatSimulationResult,
 } from '@/utils/combatSimulationCore';
@@ -45,7 +45,7 @@ ctx.onmessage = (event: MessageEvent<CombatSimulationRequest>) => {
   const { adventurer, beast, options } = payload;
 
   try {
-    const result = calculateDeterministicCombatResult(adventurer, beast, options);
+    const result = calculateCombatResult(adventurer, beast, options);
     const response: CombatSimulationResponse = { id, result };
     ctx.postMessage(response);
   } catch (error) {

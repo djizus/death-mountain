@@ -3,6 +3,15 @@ import type { Adventurer, Beast, Equipment } from '@/types/game';
 
 export const ARMOR_TARGET_SLOTS: Array<keyof Equipment> = ['chest', 'head', 'waist', 'foot', 'hand'];
 export const MAX_ROUNDS_PER_FIGHT = 500;
+export const MAX_DETERMINISTIC_STATE_VISITS = 80_000;
+export const DEFAULT_MONTE_CARLO_SAMPLES = 10_000;
+
+export class DeterministicSimulationOverflowError extends Error {
+  constructor(message = 'Combat simulation exceeded safe complexity threshold.') {
+    super(message);
+    this.name = 'DeterministicSimulationOverflowError';
+  }
+}
 
 export interface CombatSimulationOptions {
   initialBeastStrike?: boolean;
@@ -21,6 +30,7 @@ export interface CombatSimulationResult {
   maxDamageTaken: number;
   minRounds: number;
   maxRounds: number;
+  computedVia?: 'deterministic' | 'monteCarlo';
 }
 
 export const defaultSimulationResult: CombatSimulationResult = {
@@ -173,13 +183,21 @@ const getMaxFromDistribution = (distribution: Map<number, number>) => {
   return maxValue;
 };
 
-export const calculateDeterministicCombatResult = (
+interface SimulationContext {
+  heroDamageOptions: DamageOption[];
+  beastDamageOptions: DamageOption[];
+  effectiveBeastHp: number;
+  initialHeroHp: number;
+  initialBeastStrike: boolean;
+}
+
+const createSimulationContext = (
   adventurer: Adventurer,
   beast: Beast,
   options: CombatSimulationOptions = {},
-): CombatSimulationResult => {
+): SimulationContext | null => {
   if (!adventurer || !beast || adventurer.health <= 0 || beast.health <= 0) {
-    return defaultSimulationResult;
+    return null;
   }
 
   const weaponDamage = calculateAttackDamage(adventurer.equipment.weapon, adventurer, beast);
@@ -206,20 +224,70 @@ export const calculateDeterministicCombatResult = (
   );
 
   if (heroDamageOptions.length === 0 || beastDamageOptions.length === 0) {
-    return defaultSimulationResult;
+    return null;
   }
 
   const startingBeastHp = Math.max(0, adventurer.beast_health ?? 0);
   const effectiveBeastHp = startingBeastHp > 0 ? startingBeastHp : beast.health;
 
   if (effectiveBeastHp <= 0) {
+    return null;
+  }
+
+  return {
+    heroDamageOptions,
+    beastDamageOptions,
+    effectiveBeastHp,
+    initialHeroHp: adventurer.health,
+    initialBeastStrike: options.initialBeastStrike ?? false,
+  };
+};
+
+const sampleFromDistribution = (options: DamageOption[]) => {
+  if (options.length === 1) {
+    return options[0]!.damage;
+  }
+
+  const roll = Math.random();
+  let cumulative = 0;
+
+  for (let index = 0; index < options.length; index += 1) {
+    const option = options[index]!;
+    cumulative += option.probability;
+
+    if (roll <= cumulative + PROBABILITY_EPSILON || index === options.length - 1) {
+      return option.damage;
+    }
+  }
+
+  return options[options.length - 1]!.damage;
+};
+
+const incrementCount = (distribution: Map<number, number>, value: number) => {
+  const existing = distribution.get(value) ?? 0;
+  distribution.set(value, existing + 1);
+};
+
+export const calculateDeterministicCombatResult = (
+  adventurer: Adventurer,
+  beast: Beast,
+  options: CombatSimulationOptions = {},
+): CombatSimulationResult => {
+  const context = createSimulationContext(adventurer, beast, options);
+  if (!context) {
     return defaultSimulationResult;
   }
 
-  const initialHeroHp = adventurer.health;
-  const { initialBeastStrike = false } = options;
+  const {
+    heroDamageOptions,
+    beastDamageOptions,
+    effectiveBeastHp,
+    initialHeroHp,
+    initialBeastStrike,
+  } = context;
 
   const memo = new Map<string, StateOutcome>();
+  let visitedStates = 0;
 
   const solve = (heroHp: number, beastHp: number, rounds: number): StateOutcome => {
     if (heroHp <= 0) {
@@ -256,6 +324,15 @@ export const calculateDeterministicCombatResult = (
     const cached = memo.get(memoKey);
     if (cached) {
       return cached;
+    }
+
+    if (memo.size >= MAX_DETERMINISTIC_STATE_VISITS) {
+      throw new DeterministicSimulationOverflowError(`Combat simulation memo exceeded ${MAX_DETERMINISTIC_STATE_VISITS} states.`);
+    }
+
+    visitedStates += 1;
+    if (visitedStates > MAX_DETERMINISTIC_STATE_VISITS) {
+      throw new DeterministicSimulationOverflowError(`Combat simulation visited more than ${MAX_DETERMINISTIC_STATE_VISITS} states.`);
     }
 
     let winProbability = 0;
@@ -465,5 +542,138 @@ export const calculateDeterministicCombatResult = (
     maxDamageTaken: Math.round(maxDamageTaken),
     minRounds: Math.round(minRounds),
     maxRounds: Math.round(maxRounds),
+    computedVia: 'deterministic',
   };
+};
+
+export const calculateMonteCarloCombatResult = (
+  adventurer: Adventurer,
+  beast: Beast,
+  options: CombatSimulationOptions = {},
+  sampleCount = DEFAULT_MONTE_CARLO_SAMPLES,
+): CombatSimulationResult => {
+  const context = createSimulationContext(adventurer, beast, options);
+  if (!context) {
+    return defaultSimulationResult;
+  }
+
+  const iterations = Math.max(1, Math.floor(sampleCount));
+  const {
+    heroDamageOptions,
+    beastDamageOptions,
+    effectiveBeastHp,
+    initialHeroHp,
+    initialBeastStrike,
+  } = context;
+
+  let wins = 0;
+  let otkCount = 0;
+
+  const damageDealtDistribution = new Map<number, number>();
+  const damageTakenDistribution = new Map<number, number>();
+  const roundsDistribution = new Map<number, number>();
+
+  for (let i = 0; i < iterations; i += 1) {
+    let heroHp = initialHeroHp;
+    let beastHp = effectiveBeastHp;
+    let rounds = 0;
+    let totalHeroDamage = 0;
+    let totalBeastDamage = 0;
+    let otk = false;
+
+    if (initialBeastStrike) {
+      const initialDamage = sampleFromDistribution(beastDamageOptions);
+      totalBeastDamage += initialDamage;
+      heroHp -= initialDamage;
+
+      if (heroHp <= 0) {
+        otk = true;
+      }
+    }
+
+    while (heroHp > 0 && beastHp > 0 && rounds < MAX_ROUNDS_PER_FIGHT) {
+      const heroDamage = sampleFromDistribution(heroDamageOptions);
+      totalHeroDamage += heroDamage;
+      rounds += 1;
+      beastHp -= heroDamage;
+
+      if (beastHp <= 0) {
+        break;
+      }
+
+      const beastDamage = sampleFromDistribution(beastDamageOptions);
+      totalBeastDamage += beastDamage;
+      heroHp -= beastDamage;
+
+      if (heroHp <= 0) {
+        if (rounds === 1) {
+          otk = true;
+        }
+        break;
+      }
+    }
+
+    if (heroHp > 0 && beastHp > 0) {
+      heroHp = 0;
+    }
+
+    const heroWon = heroHp > 0 && beastHp <= 0;
+
+    if (heroWon) {
+      wins += 1;
+    } else if (otk) {
+      otkCount += 1;
+    }
+
+    incrementCount(damageDealtDistribution, Math.round(totalHeroDamage));
+    incrementCount(damageTakenDistribution, Math.round(totalBeastDamage));
+    incrementCount(roundsDistribution, rounds);
+  }
+
+  const winRate = Number(((wins / iterations) * 100).toFixed(1));
+  const otkRate = Number(((otkCount / iterations) * 100).toFixed(1));
+
+  const modeDamageDealt = getModeFromDistribution(damageDealtDistribution);
+  const modeDamageTaken = getModeFromDistribution(damageTakenDistribution);
+  const modeRounds = getModeFromDistribution(roundsDistribution);
+  const minDamageDealt = getMinFromDistribution(damageDealtDistribution);
+  const maxDamageDealt = getMaxFromDistribution(damageDealtDistribution);
+  const minDamageTaken = getMinFromDistribution(damageTakenDistribution);
+  const maxDamageTaken = getMaxFromDistribution(damageTakenDistribution);
+  const minRounds = getMinFromDistribution(roundsDistribution);
+  const maxRounds = getMaxFromDistribution(roundsDistribution);
+
+  return {
+    hasOutcome: true,
+    winRate,
+    otkRate,
+    modeDamageDealt: Math.round(modeDamageDealt),
+    modeDamageTaken: Math.round(modeDamageTaken),
+    modeRounds: Math.round(modeRounds),
+    minDamageDealt: Math.round(minDamageDealt),
+    maxDamageDealt: Math.round(maxDamageDealt),
+    minDamageTaken: Math.round(minDamageTaken),
+    maxDamageTaken: Math.round(maxDamageTaken),
+    minRounds: Math.round(minRounds),
+    maxRounds: Math.round(maxRounds),
+    computedVia: 'monteCarlo',
+  };
+};
+
+export const calculateCombatResult = (
+  adventurer: Adventurer,
+  beast: Beast,
+  options: CombatSimulationOptions = {},
+  sampleCount = DEFAULT_MONTE_CARLO_SAMPLES,
+): CombatSimulationResult => {
+  try {
+    return calculateDeterministicCombatResult(adventurer, beast, options);
+  } catch (error) {
+    if (error instanceof DeterministicSimulationOverflowError) {
+      console.warn('Deterministic combat simulation exceeded complexity threshold; using Monte Carlo fallback.');
+      return calculateMonteCarloCombatResult(adventurer, beast, options, sampleCount);
+    }
+
+    throw error;
+  }
 };

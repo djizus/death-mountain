@@ -16,7 +16,7 @@ import {
   toScore,
 } from '@/utils/gearSuggestionShared';
 import type { Adventurer, Beast, Item } from '@/types/game';
-import { calculateDeterministicCombatResult } from '@/utils/combatSimulationCore';
+import { calculateCombatResult } from '@/utils/combatSimulationCore';
 
 const shouldLogSuggestions =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_GEAR_LOGS === 'true';
@@ -199,7 +199,7 @@ export const suggestBestCombatGear = async (
     logSuggestion(`Candidates for ${slot}`, candidates[slot].map((item) => getItemLabel(item)));
   });
 
-  const baseResult = calculateDeterministicCombatResult(adventurer, beast, { initialBeastStrike: false });
+  const baseResult = calculateCombatResult(adventurer, beast, { initialBeastStrike: false });
   let bestScore = toScore(baseResult);
   let bestSelection: Partial<Record<EquipmentSlot, Item>> | null = null;
   let bestChangeCount = 0;
@@ -269,7 +269,7 @@ export const suggestBestCombatGearSync = (
   }
 
   const candidates = buildCandidates(adventurer, bag, beast);
-  const baseResult = calculateDeterministicCombatResult(adventurer, beast, { initialBeastStrike: false });
+  const baseResult = calculateCombatResult(adventurer, beast, { initialBeastStrike: false });
   let bestScore = toScore(baseResult);
   let bestSelection: Partial<Record<EquipmentSlot, Item>> | null = null;
   let bestChangeCount = 0;

@@ -3,7 +3,7 @@ import {
   type CombatSimulationOptions,
   CombatSimulationResult,
   defaultSimulationResult,
-  calculateDeterministicCombatResult,
+  calculateCombatResult,
 } from './combatSimulationCore';
 
 export type { CombatSimulationResult } from './combatSimulationCore';
@@ -147,7 +147,7 @@ const runSimulationInline = (
   options: CombatSimulationOptions,
 ): CombatSimulationResult => {
   try {
-    return calculateDeterministicCombatResult(adventurer, beast, options);
+    return calculateCombatResult(adventurer, beast, options);
   } catch (error) {
     if (isStackOverflowError(error)) {
       console.warn('Combat simulation exceeded call stack limit; returning default result instead.');

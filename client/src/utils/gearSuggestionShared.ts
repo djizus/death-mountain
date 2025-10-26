@@ -1,7 +1,7 @@
 import { calculateAttackDamage, calculateBeastDamage } from '@/utils/game';
 import { ItemUtils } from '@/utils/loot';
 import type { Adventurer, Beast, Equipment, Item } from '@/types/game';
-import { calculateDeterministicCombatResult } from '@/utils/combatSimulationCore';
+import { calculateCombatResult } from '@/utils/combatSimulationCore';
 
 export type EquipmentSlot = keyof Equipment;
 
@@ -38,7 +38,7 @@ export const cloneBag = (bag: Item[]): Item[] => bag.map(cloneItem);
 
 export const itemsEqual = (a: Item, b: Item) => a.id === b.id && a.xp === b.xp;
 
-export const toScore = (result: ReturnType<typeof calculateDeterministicCombatResult>): GearSuggestionScore => ({
+export const toScore = (result: ReturnType<typeof calculateCombatResult>): GearSuggestionScore => ({
   winRate: result.winRate,
   modeDamageTaken: result.modeDamageTaken,
   modeDamageDealt: result.modeDamageDealt,
@@ -320,7 +320,7 @@ export const evaluateSelections = (
   selections.forEach((selection) => {
     const changeCount = Object.keys(selection).length;
     const candidateAdventurer = applyGearSet(adventurer, selection);
-    const result = calculateDeterministicCombatResult(candidateAdventurer, beast, { initialBeastStrike: true });
+    const result = calculateCombatResult(candidateAdventurer, beast, { initialBeastStrike: true });
     const score = toScore(result);
 
     if (!bestScore || isBetterScore(score, bestScore) || (changeCount < bestChangeCount && !isBetterScore(bestScore, score))) {
