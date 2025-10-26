@@ -17,7 +17,15 @@ import WalletConnect from '../components/WalletConnect';
 export default function SettingsOverlay() {
   const { showSettings, setShowSettings } = useGameStore();
   const { volume, setVolume, muted, setMuted, musicVolume, setMusicVolume, musicMuted, setMusicMuted } = useSound();
-  const { setUseMobileClient, skipAllAnimations, setSkipAllAnimations, skipCombatDelays, setSkipCombatDelays } = useUIStore();
+  const {
+    setUseMobileClient,
+    skipAllAnimations,
+    setSkipAllAnimations,
+    skipCombatDelays,
+    setSkipCombatDelays,
+    showUntilBeastToggle,
+    setShowUntilBeastToggle,
+  } = useUIStore();
   const navigate = useNavigate();
 
   const handleExitGame = () => {
@@ -161,6 +169,27 @@ export default function SettingsOverlay() {
                       />
                     }
                     label="Skip combat delays"
+                    sx={styles.checkboxLabel}
+                  />
+                </Box>
+              </Box>
+
+              <Divider sx={{ mb: 0.5, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+              {/* Exploration Section */}
+              <Box sx={styles.section}>
+                <Typography sx={styles.sectionTitle}>Exploration</Typography>
+
+                <Box sx={styles.animationsControl}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={showUntilBeastToggle}
+                        onChange={(e) => setShowUntilBeastToggle(e.target.checked)}
+                        sx={styles.checkbox}
+                      />
+                    }
+                    label='Display "until beast" checkbox'
                     sx={styles.checkboxLabel}
                   />
                 </Box>

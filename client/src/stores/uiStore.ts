@@ -52,7 +52,7 @@ export const useUIStore = create<UIState>()(
 
       // Exploration controls
       setShowUntilBeastToggle: (show) => set({ showUntilBeastToggle: show }),
-      showUntilBeastToggle: false,
+      showUntilBeastToggle: true,
 
       // Client preferences
       setUseMobileClient: (useMobile) => set({ useMobileClient: useMobile }),
