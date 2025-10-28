@@ -2,7 +2,7 @@ import AnimatedText from '@/desktop/components/AnimatedText';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
 import { defaultSimulationResult, simulateCombatOutcomes } from '@/utils/combatSimulation';
-import { ability_based_percentage, calculateAttackDamage, calculateCombatStats, calculateLevel, getNewItemsEquipped } from '@/utils/game';
+import { ability_based_percentage, calculateCombatStats, calculateLevel, getNewItemsEquipped } from '@/utils/game';
 import { potionPrice } from '@/utils/market';
 import { Box, Button, Checkbox, Typography } from '@mui/material';
 import { keyframes } from '@emotion/react';
@@ -191,6 +191,9 @@ export default function CombatOverlay() {
 
   const fleePercentage = ability_based_percentage(adventurer!.xp, adventurer!.stats.dexterity);
   const combatStats = calculateCombatStats(adventurer!, bag, beast);
+  const attackPreviewDamage = combatStats.critChance >= 100
+    ? combatStats.criticalDamage
+    : combatStats.baseDamage;
 
   const hasNewItemsEquipped = useMemo(() => {
     if (!adventurer?.equipment || !adventurerState?.equipment) return false;
@@ -621,7 +624,7 @@ export default function CombatOverlay() {
                   </Typography>
 
                   <Typography sx={styles.buttonHelperText}>
-                    {`${calculateAttackDamage(adventurer!.equipment.weapon!, adventurer!, beast!).baseDamage} damage`}
+                    {`${formatNumber(Math.round(attackPreviewDamage))} damage`}
                   </Typography>
                 </Box>
               </Button>
