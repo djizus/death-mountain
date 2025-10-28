@@ -247,20 +247,66 @@ export default function CombatOverlay() {
 
   useEffect(() => {
     let cancelled = false;
+    let resolved = false;
 
     if (!adventurer || !beast || !combatOverview) {
+      console.log('[CombatSimulation] skipping run due to incomplete data', {
+        hasAdventurer: Boolean(adventurer),
+        hasBeast: Boolean(beast),
+        hasOverview: Boolean(combatOverview),
+      });
       setSimulationResult(defaultSimulationResult);
       return () => {
         cancelled = true;
       };
     }
 
+    const now = () => {
+      if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+        return performance.now();
+      }
+
+      return Date.now();
+    };
+
+    const startTime = now();
+    console.log('[CombatSimulation] starting run', {
+      heroHp: adventurer.health,
+      beastHp: beast.health,
+      beast: beast.baseName,
+      initialBeastStrike: hasNewItemsEquipped,
+    });
+
     const runSimulation = async () => {
-      const result = await simulateCombatOutcomes(adventurer, beast, {
-        initialBeastStrike: hasNewItemsEquipped,
-      });
-      if (!cancelled) {
+      try {
+        const result = await simulateCombatOutcomes(adventurer, beast, {
+          initialBeastStrike: hasNewItemsEquipped,
+        });
+        if (cancelled) {
+          console.log('[CombatSimulation] discarding result received after cancellation', {
+            durationMs: Math.round(now() - startTime),
+            computedVia: result.computedVia ?? 'unknown',
+          });
+          return;
+        }
+
+        resolved = true;
+        const durationMs = Math.round(now() - startTime);
+        console.log('[CombatSimulation] completed run', {
+          durationMs,
+          computedVia: result.computedVia ?? 'unknown',
+          winRate: result.winRate,
+          otkRate: result.otkRate,
+          hasOutcome: result.hasOutcome,
+        });
         setSimulationResult(result);
+      } catch (error) {
+        if (cancelled) {
+          console.log('[CombatSimulation] received error after cancellation', error);
+          return;
+        }
+
+        console.error('[CombatSimulation] failed to compute outcomes', error);
       }
     };
 
@@ -268,6 +314,11 @@ export default function CombatOverlay() {
 
     return () => {
       cancelled = true;
+      if (!resolved) {
+        console.log('[CombatSimulation] cancelling run before completion', {
+          durationMs: Math.round(now() - startTime),
+        });
+      }
     };
   }, [
     adventurer?.health,

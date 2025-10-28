@@ -189,6 +189,8 @@ interface SimulationContext {
   effectiveBeastHp: number;
   initialHeroHp: number;
   initialBeastStrike: boolean;
+  minHeroDamage: number;
+  minBeastDamage: number;
 }
 
 const createSimulationContext = (
@@ -234,13 +236,82 @@ const createSimulationContext = (
     return null;
   }
 
+  const minHeroDamage = heroDamageOptions.reduce((min, option) => {
+    if (option.damage > 0 && option.damage < min) {
+      return option.damage;
+    }
+    return min;
+  }, Number.POSITIVE_INFINITY);
+
+  const minBeastDamage = beastDamageOptions.reduce((min, option) => {
+    if (option.damage > 0 && option.damage < min) {
+      return option.damage;
+    }
+    return min;
+  }, Number.POSITIVE_INFINITY);
+
   return {
     heroDamageOptions,
     beastDamageOptions,
     effectiveBeastHp,
     initialHeroHp: adventurer.health,
     initialBeastStrike: options.initialBeastStrike ?? false,
+    minHeroDamage: Number.isFinite(minHeroDamage) ? minHeroDamage : 0,
+    minBeastDamage: Number.isFinite(minBeastDamage) ? minBeastDamage : 0,
   };
+};
+
+interface DeterministicComplexityEstimate {
+  heroStates: number;
+  beastStates: number;
+  branchingFactor: number;
+  estimatedTransitions: number;
+  weightedComplexity: number;
+}
+
+const estimateDeterministicComplexity = (context: SimulationContext): DeterministicComplexityEstimate => {
+  const minBeastDamage = Math.max(1, Math.floor(context.minBeastDamage));
+  const minHeroDamage = Math.max(1, Math.floor(context.minHeroDamage));
+
+  const heroStates = Math.max(
+    1,
+    Math.min(MAX_ROUNDS_PER_FIGHT, Math.ceil(context.initialHeroHp / minBeastDamage)),
+  );
+
+  const beastStates = Math.max(
+    1,
+    Math.ceil(context.effectiveBeastHp / minHeroDamage),
+  );
+
+  const branchingFactor = Math.max(1, context.heroDamageOptions.length * context.beastDamageOptions.length);
+  const estimatedTransitions = heroStates * beastStates * branchingFactor;
+  const estimatedRounds = Math.max(1, Math.min(MAX_ROUNDS_PER_FIGHT, heroStates + beastStates));
+  const weightedComplexity = Math.round(estimatedTransitions * Math.max(1, Math.log2(estimatedRounds + 1)));
+
+  return {
+    heroStates,
+    beastStates,
+    branchingFactor,
+    estimatedTransitions,
+    weightedComplexity,
+  };
+};
+
+const shouldSkipDeterministicSimulation = (estimate: DeterministicComplexityEstimate): boolean => {
+  if (estimate.weightedComplexity >= MAX_DETERMINISTIC_STATE_VISITS) {
+    return true;
+  }
+
+  if (estimate.estimatedTransitions >= MAX_DETERMINISTIC_STATE_VISITS) {
+    return true;
+  }
+
+  const extremeStateCount = MAX_DETERMINISTIC_STATE_VISITS / 4;
+  if (estimate.heroStates >= extremeStateCount || estimate.beastStates >= extremeStateCount) {
+    return true;
+  }
+
+  return false;
 };
 
 const sampleFromDistribution = (options: DamageOption[]) => {
@@ -268,16 +339,9 @@ const incrementCount = (distribution: Map<number, number>, value: number) => {
   distribution.set(value, existing + 1);
 };
 
-export const calculateDeterministicCombatResult = (
-  adventurer: Adventurer,
-  beast: Beast,
-  options: CombatSimulationOptions = {},
+const calculateDeterministicCombatResultForContext = (
+  context: SimulationContext,
 ): CombatSimulationResult => {
-  const context = createSimulationContext(adventurer, beast, options);
-  if (!context) {
-    return defaultSimulationResult;
-  }
-
   const {
     heroDamageOptions,
     beastDamageOptions,
@@ -546,6 +610,19 @@ export const calculateDeterministicCombatResult = (
   };
 };
 
+export const calculateDeterministicCombatResult = (
+  adventurer: Adventurer,
+  beast: Beast,
+  options: CombatSimulationOptions = {},
+): CombatSimulationResult => {
+  const context = createSimulationContext(adventurer, beast, options);
+  if (!context) {
+    return defaultSimulationResult;
+  }
+
+  return calculateDeterministicCombatResultForContext(context);
+};
+
 export const calculateMonteCarloCombatResult = (
   adventurer: Adventurer,
   beast: Beast,
@@ -666,11 +743,34 @@ export const calculateCombatResult = (
   options: CombatSimulationOptions = {},
   sampleCount = DEFAULT_MONTE_CARLO_SAMPLES,
 ): CombatSimulationResult => {
+  const context = createSimulationContext(adventurer, beast, options);
+  if (!context) {
+    return defaultSimulationResult;
+  }
+
+  const complexityEstimate = estimateDeterministicComplexity(context);
+  if (shouldSkipDeterministicSimulation(complexityEstimate)) {
+    console.info('Deterministic combat simulation skipped due to estimated complexity; using Monte Carlo fallback.', {
+      heroStates: complexityEstimate.heroStates,
+      beastStates: complexityEstimate.beastStates,
+      branchingFactor: complexityEstimate.branchingFactor,
+      estimatedTransitions: complexityEstimate.estimatedTransitions,
+      weightedComplexity: complexityEstimate.weightedComplexity,
+    });
+    return calculateMonteCarloCombatResult(adventurer, beast, options, sampleCount);
+  }
+
   try {
-    return calculateDeterministicCombatResult(adventurer, beast, options);
+    return calculateDeterministicCombatResultForContext(context);
   } catch (error) {
     if (error instanceof DeterministicSimulationOverflowError) {
-      console.warn('Deterministic combat simulation exceeded complexity threshold; using Monte Carlo fallback.');
+      console.warn('Deterministic combat simulation exceeded complexity threshold; using Monte Carlo fallback.', {
+        heroStates: complexityEstimate.heroStates,
+        beastStates: complexityEstimate.beastStates,
+        branchingFactor: complexityEstimate.branchingFactor,
+        estimatedTransitions: complexityEstimate.estimatedTransitions,
+        weightedComplexity: complexityEstimate.weightedComplexity,
+      });
       return calculateMonteCarloCombatResult(adventurer, beast, options, sampleCount);
     }
 

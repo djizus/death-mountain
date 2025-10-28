@@ -216,18 +216,30 @@ export const useGameStore = create<GameState>((set, get) => ({
       // Get the currently equipped item in this slot (if any)
       const newItemsEquipped = getNewItemsEquipped(state.adventurer?.equipment!, state.adventurerState?.equipment!);
 
+      const baselineEquipmentEntries = Object.entries(state.adventurerState.equipment) as Array<
+        [keyof Adventurer['equipment'], Adventurer['equipment'][keyof Adventurer['equipment']]]
+      >;
+      const baselineEquipmentIds = new Set(
+        baselineEquipmentEntries.map(([, item]) => item.id).filter((id) => id !== 0),
+      );
+
+      const restoredEquipment = baselineEquipmentEntries.reduce<Adventurer['equipment']>((acc, [slot, item]) => {
+        acc[slot] = { ...item };
+        return acc;
+      }, {} as Adventurer['equipment']);
+
       // restore the bag
       const updatedBag = [
-        ...state.bag.filter(item => !Object.values(state.adventurerState?.equipment!).find(newItem => newItem.id === item.id)),
-        ...newItemsEquipped,
+        ...state.bag.filter((item) => !baselineEquipmentIds.has(item.id)),
+        ...newItemsEquipped.map((item) => ({ ...item })),
       ];
 
       return {
         adventurer: {
           ...state.adventurer,
-          equipment: state.adventurerState?.equipment,
+          equipment: restoredEquipment,
+          stats: { ...state.adventurerState.stats },
         },
-        stats: state.adventurerState?.stats,
         bag: updatedBag,
       };
     });
