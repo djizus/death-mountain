@@ -70,7 +70,7 @@ export const useStarknetApi = () => {
     }
   }
 
-  const getRewardTokensClaimed = async (): Promise<number | null> => {
+  const getSurvivorTokensLeft = async (): Promise<number | null> => {
     try {
       const response = await fetch(currentNetworkConfig.rpcUrl, {
         method: "POST",
@@ -81,9 +81,9 @@ export const useStarknetApi = () => {
           method: "starknet_call",
           params: [
             {
-              contract_address: currentNetworkConfig.dungeon,
-              entry_point_selector: "0x00f35723a44bb7019f945d4e33d732e4c70779272d603c301add5c3edc68ff06",
-              calldata: []
+              contract_address: "0x042DD777885AD2C116be96d4D634abC90A26A790ffB5871E037Dd5Ae7d2Ec86B",
+              entry_point_selector: "0x02e4263afad30923c891518314c3c95dbe830a16874e8abc5777a9a20b54c76e",
+              calldata: [currentNetworkConfig.dungeon]
             },
             "latest"
           ]
@@ -93,7 +93,7 @@ export const useStarknetApi = () => {
       const data = await response.json();
       return parseInt(data.result[0], 16);
     } catch (error) {
-      console.error('Error in getRewardTokensClaimed:', error);
+      console.error('Error in getSurvivorTokensLeft:', error);
       return null;
     }
   }
@@ -379,45 +379,6 @@ export const useStarknetApi = () => {
     return null;
   }
 
-  const getUnclaimedAdventurerRewards = async (adventurerIds: number[]) => {
-    const BATCH_SIZE = 50;
-    const results: any[] = [];
-
-    // Process in batches of 50
-    for (let i = 0; i < adventurerIds.length; i += BATCH_SIZE) {
-      const batch = adventurerIds.slice(i, i + BATCH_SIZE);
-      const calls = batch.map((adventurerId, index) => ({
-        id: index + 1,
-        jsonrpc: "2.0",
-        method: "starknet_call",
-        params: [
-          {
-            contract_address: NETWORKS[import.meta.env.VITE_PUBLIC_CHAIN as keyof typeof NETWORKS].dungeon,
-            entry_point_selector: "0x01733c9b1238072d517a4d739fc8882257424284a5f9c78832bfa60d0cd61024",
-            calldata: [num.toHex(adventurerId)]
-          },
-          "latest"
-        ]
-      }));
-
-      const response = await fetch(NETWORKS[import.meta.env.VITE_PUBLIC_CHAIN as keyof typeof NETWORKS].rpcUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(calls),
-      });
-
-      const batchData = await response.json();
-      results.push(...batchData);
-
-      // Wait 1 second before next batch (except for last batch)
-      if (i + BATCH_SIZE < adventurerIds.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    return results;
-  }
-
   const getTokenMetadata = async (tokenId: number) => {
     try {
       const response = await fetch(currentNetworkConfig.rpcUrl, {
@@ -589,8 +550,7 @@ export const useStarknetApi = () => {
     getSettingsDetails,
     getTokenMetadata,
     getAdventurerState,
-    getRewardTokensClaimed,
+    getSurvivorTokensLeft,
     unclaimedBeast,
-    getUnclaimedAdventurerRewards,
   };
 };

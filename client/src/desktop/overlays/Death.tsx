@@ -1,30 +1,23 @@
 import { BEAST_SPECIAL_NAME_LEVEL_UNLOCK } from '@/constants/beast';
 import { OBSTACLE_NAMES } from '@/constants/obstacle';
 import { useDynamicConnector } from '@/contexts/starknet';
-import { useStatistics } from '@/contexts/Statistics';
-import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useSystemCalls } from '@/dojo/useSystemCalls';
-import RewardsOverlay from '@/dungeons/beasts/RewardsOverlay';
 import { useGameStore } from '@/stores/gameStore';
 import { useAnalytics } from '@/utils/analytics';
-import { calculateLevel } from '@/utils/game';
 import { ChainId } from '@/utils/networkConfig';
 import { getContractByName } from '@dojoengine/core';
 import { Box, Button, Typography } from '@mui/material';
 import { useGameTokenRanking } from 'metagame-sdk/sql';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { addAddressPadding } from 'starknet';
 
 export default function DeathOverlay() {
   const { currentNetworkConfig } = useDynamicConnector();
-  const { spectating } = useGameDirector();
-  const { remainingSurvivorTokens } = useStatistics();
   const { gameId, exploreLog, battleEvent, beast, quest, adventurer } = useGameStore();
   const { refreshDungeonStats } = useSystemCalls();
   const navigate = useNavigate();
   const { playerDiedEvent } = useAnalytics();
-  const [showRewards, setShowRewards] = useState(false);
 
   const finalBattleEvent = battleEvent || exploreLog.find(event => event.type === 'obstacle');
   let collectableCount = parseInt(localStorage.getItem(`beast_collected_${gameId}`) || "0");
@@ -53,14 +46,6 @@ export default function DeathOverlay() {
     }
   };
 
-  const continueToRewards = () => {
-    if (currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT && adventurer?.xp! >= 9) {
-      setShowRewards(true);
-    } else {
-      backToMenu();
-    }
-  }
-
   useEffect(() => {
     if (beast && beast.level >= BEAST_SPECIAL_NAME_LEVEL_UNLOCK && !beast.isCollectable) {
       refreshDungeonStats(beast, 10000);
@@ -87,16 +72,6 @@ export default function DeathOverlay() {
     mintedByAddress: currentNetworkConfig.chainId === ChainId.WP_PG_SLOT ? GAME_TOKEN_ADDRESS : addAddressPadding(currentNetworkConfig.dungeon),
     settings_id: currentNetworkConfig.chainId === ChainId.WP_PG_SLOT ? 0 : undefined
   });
-
-  if (
-    !spectating &&
-    showRewards &&
-    remainingSurvivorTokens !== null &&
-    remainingSurvivorTokens > 0 &&
-    adventurer?.xp! >= 9
-  ) {
-    return <RewardsOverlay gameId={gameId!} adventurerLevel={calculateLevel(adventurer?.xp!)} onClose={backToMenu} />;
-  }
 
   return (
     <Box sx={styles.container}>
@@ -146,10 +121,10 @@ export default function DeathOverlay() {
           </Button>
           <Button
             variant="contained"
-            onClick={continueToRewards}
-            sx={(currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT && adventurer?.xp! >= 9) ? styles.claimRewardButton : styles.restartButton}
+            onClick={backToMenu}
+            sx={styles.restartButton}
           >
-            {(currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT && adventurer?.xp! >= 9) ? "Claim Reward" : "Play Again"}
+            Play Again
           </Button>
         </Box>
       </Box>

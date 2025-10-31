@@ -16,7 +16,7 @@ export interface StatisticsContext {
   gamePriceHistory: any[];
   lordsPrice: string | null;
   strkPrice: string | null;
-  fetchRewardTokensClaimed: () => Promise<void>;
+  fetchSurvivorTokensLeft: () => Promise<void>;
   fetchGamePrice: () => Promise<void>;
   remainingSurvivorTokens: number | null;
   collectedBeasts: number;
@@ -45,7 +45,7 @@ const LORDS = NETWORKS.SN_MAIN.paymentTokens.find(
 
 // Create a provider component
 export const StatisticsProvider = ({ children }: PropsWithChildren) => {
-  const { getRewardTokensClaimed } = useStarknetApi();
+  const { getSurvivorTokensLeft } = useStarknetApi();
   const { countBeasts } = useGameTokens();
 
   const [gamePrice, setGamePrice] = useState<string | null>(null);
@@ -87,10 +87,10 @@ export const StatisticsProvider = ({ children }: PropsWithChildren) => {
     setStrkPrice((swap.total / 1e6 / 100).toFixed(2));
   };
 
-  const fetchRewardTokensClaimed = async () => {
-    const result = await getRewardTokensClaimed();
+  const fetchSurvivorTokensLeft = async () => {
+    const result = await getSurvivorTokensLeft();
     setRemainingSurvivorTokens(
-      result !== null ? totalSurvivorTokens - result : null
+      result ? Math.floor(result / 1e18) : null
     );
   };
 
@@ -99,7 +99,7 @@ export const StatisticsProvider = ({ children }: PropsWithChildren) => {
     fetchStrkPrice();
     fetchPriceHistory();
     fetchGameLordsPrice();
-    fetchRewardTokensClaimed();
+    fetchSurvivorTokensLeft();
     fetchCollectedBeasts();
   }, []);
 
@@ -110,7 +110,7 @@ export const StatisticsProvider = ({ children }: PropsWithChildren) => {
         gamePriceHistory,
         lordsPrice,
         strkPrice,
-        fetchRewardTokensClaimed,
+        fetchSurvivorTokensLeft,
         fetchGamePrice,
         remainingSurvivorTokens,
         collectedBeasts,

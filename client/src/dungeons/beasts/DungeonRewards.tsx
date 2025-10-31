@@ -1,8 +1,7 @@
 import {
   JACKPOT_AMOUNT,
   totalCollectableBeasts,
-  totalSurvivorTokens,
-  useStatistics,
+  useStatistics
 } from "@/contexts/Statistics";
 import { useUIStore } from "@/stores/uiStore";
 import { formatRewardNumber } from "@/utils/utils";
@@ -21,6 +20,11 @@ export default function DungeonRewards() {
   const { useMobileClient } = useUIStore();
   const { remainingSurvivorTokens, collectedBeasts } = useStatistics();
   const beastsRemaining = totalCollectableBeasts - collectedBeasts;
+  const BEAST_ENTITLEMENTS_ORIGINAL = 931500;
+
+  const beastEntitlementsPercentage = remainingSurvivorTokens !== null
+    ? Math.round((remainingSurvivorTokens / BEAST_ENTITLEMENTS_ORIGINAL) * 100)
+    : 0;
 
   return (
     <>
@@ -32,25 +36,62 @@ export default function DungeonRewards() {
       )}
 
       <Box sx={styles.rewardSection}>
-        <Box mb={0.5}>
+        <Box sx={styles.headerRow}>
           <img src="/images/survivor_token.png" alt="beast" height={52} />
+          <Typography sx={styles.rewardTitle}>Survivor Tokens</Typography>
         </Box>
 
-        <Box sx={styles.rewardHeader}>
-          <Box sx={{ flex: 1 }}>
-            <Typography sx={styles.rewardTitle}>Survivor Tokens</Typography>
-            <Typography sx={styles.rewardSubtitle}>
-              Earn by playing games
-            </Typography>
-          </Box>
+        {/* Beast Entitlements Section */}
+        <Box sx={styles.subsection}>
+          <Typography sx={styles.subsectionTitle}>Beast Entitlements</Typography>
+          {remainingSurvivorTokens !== null ? (
+            <>
+              <Box sx={[styles.progressContainer, { mt: 0 }]}>
+                <Box sx={styles.progressBar}>
+                  <LinearProgress
+                    variant="determinate"
+                    value={(remainingSurvivorTokens / BEAST_ENTITLEMENTS_ORIGINAL) * 100}
+                    sx={{
+                      width: "100%",
+                      height: "100%",
+                      background: "transparent",
+                      "& .MuiLinearProgress-bar": {
+                        background: "#656217",
+                        borderRadius: 4,
+                      },
+                    }}
+                  />
+                </Box>
+                <Box sx={styles.progressOverlay}>
+                  <Typography sx={styles.progressText}>
+                    {formatRewardNumber(remainingSurvivorTokens)} /{" "}
+                    {formatRewardNumber(BEAST_ENTITLEMENTS_ORIGINAL)}
+                  </Typography>
+                </Box>
+              </Box>
+
+              {remainingSurvivorTokens !== null && (
+                <Typography sx={styles.remainingText}>
+                  {remainingSurvivorTokens.toLocaleString()} tokens remaining
+                </Typography>
+              )}
+            </>
+          ) : (
+            <Skeleton
+              variant="rectangular"
+              sx={{ height: 18, borderRadius: 4 }}
+            />
+          )}
         </Box>
 
-        {remainingSurvivorTokens !== null ? (
-          <Box sx={styles.progressContainer}>
+        {/* Death Rewards Section */}
+        <Box sx={[styles.subsection, { opacity: 0.8 }]} mt={1}>
+          <Typography sx={styles.subsectionTitle}>Death Rewards</Typography>
+          <Box sx={[styles.progressContainer, { mt: 0 }]}>
             <Box sx={styles.progressBar}>
               <LinearProgress
                 variant="determinate"
-                value={(remainingSurvivorTokens / totalSurvivorTokens) * 100}
+                value={100}
                 sx={{
                   width: "100%",
                   height: "100%",
@@ -63,24 +104,10 @@ export default function DungeonRewards() {
               />
             </Box>
             <Box sx={styles.progressOverlay}>
-              <Typography sx={styles.progressText}>
-                {formatRewardNumber(remainingSurvivorTokens)} /{" "}
-                {formatRewardNumber(totalSurvivorTokens)}
-              </Typography>
+              <Typography sx={styles.progressText}>100% Claimed</Typography>
             </Box>
           </Box>
-        ) : (
-          <Skeleton
-            variant="rectangular"
-            sx={{ height: 18, borderRadius: 4 }}
-          />
-        )}
-
-        {remainingSurvivorTokens !== null && (
-          <Typography sx={styles.remainingText}>
-            {remainingSurvivorTokens.toLocaleString()} tokens remaining
-          </Typography>
-        )}
+        </Box>
 
         <Link
           href="#"
@@ -100,18 +127,13 @@ export default function DungeonRewards() {
       <Divider sx={{ width: "100%", my: 1.5 }} />
 
       <Box sx={styles.rewardSection}>
-        <Box>
-          <img src="/images/beast.png" alt="beast" height={64} />
+        <Box sx={styles.headerRow}>
+          <img src="/images/beast.png" alt="beast" height={54} />
+          <Typography sx={styles.rewardTitle}>Collectable Beast</Typography>
         </Box>
-
-        <Box sx={styles.rewardHeader}>
-          <Box sx={{ flex: 1 }}>
-            <Typography sx={styles.rewardTitle}>Collectable Beast</Typography>
-            <Typography sx={styles.rewardSubtitle}>
-              Defeat beasts to collect NFTs
-            </Typography>
-          </Box>
-        </Box>
+        <Typography sx={styles.rewardSubtitle}>
+          Defeat beasts to collect NFTs & Survivor Tokens
+        </Typography>
 
         {beastsRemaining > 0 ? (
           <Box sx={styles.progressContainer}>
@@ -257,7 +279,7 @@ const styles = {
   },
   header: {
     textAlign: "center",
-    mb: 2,
+    mb: 1.5,
   },
   title: {
     fontSize: "1.2rem",
@@ -279,6 +301,13 @@ const styles = {
     textAlign: "center",
     width: "100%",
   },
+  headerRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 1,
+    mb: 0.5,
+  },
   rewardHeader: {
     display: "flex",
     justifyContent: "center",
@@ -293,14 +322,15 @@ const styles = {
   rewardSubtitle: {
     fontSize: "0.8rem",
     color: "#d7c529",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+    lineHeight: 1.2,
     opacity: 0.95,
+    mb: '2px',
   },
   progressContainer: {
     position: "relative",
     display: "flex",
     justifyContent: "center",
-    mt: 1,
     mb: 0.5,
   },
   progressOverlay: {
@@ -346,5 +376,14 @@ const styles = {
     color: "rgba(208, 201, 141, 0.6)",
     letterSpacing: 0.8,
     textTransform: "uppercase",
+  },
+  subsection: {
+  },
+  subsectionTitle: {
+    fontSize: "0.85rem",
+    fontWeight: 500,
+    color: "text.primary",
+    letterSpacing: 0.3,
+    opacity: 0.9,
   },
 };

@@ -26,8 +26,8 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
-import Typography from "@mui/material/Typography";
 import Link from "@mui/material/Link";
+import Typography from "@mui/material/Typography";
 import { useAccount } from "@starknet-react/core";
 import { AnimatePresence } from "framer-motion";
 import { useGameTokens } from "metagame-sdk/sql";
@@ -77,7 +77,6 @@ export default function MainMenu() {
       const isInBoostPeriod = now >= boostStartTime && now < boostEndTime;
       setShowBoost(isInBoostPeriod);
 
-      // Calculate time remaining for boost (only once at load)
       if (isInBoostPeriod) {
         setTimeRemaining(boostEndTime - now);
       } else {
@@ -188,7 +187,6 @@ export default function MainMenu() {
       return 'Less than 1h';
     }
   };
-
   return (
     <>
       <Box sx={{ ...styles.container, left: `${left + 32}px` }}>

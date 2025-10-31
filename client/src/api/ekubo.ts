@@ -70,13 +70,12 @@ export const generateSwapCalls = (ROUTER_CONTRACT: RouterContract, purchaseToken
     totalQuoteSum = total < 0n ? -total : total;
   }
 
-  const doubledTotal = totalQuoteSum * 2n;
-  totalQuoteSum = doubledTotal < (totalQuoteSum + BigInt(1e19)) ? doubledTotal : (totalQuoteSum + BigInt(1e19));
+  const totalWithBuffer = totalQuoteSum * 100n / 99n;
 
   const transferCall: SwapCall = {
     contractAddress: purchaseToken,
     entrypoint: "transfer",
-    calldata: [ROUTER_CONTRACT.address, num.toHex(totalQuoteSum), "0x0"],
+    calldata: [ROUTER_CONTRACT.address, num.toHex(totalWithBuffer), "0x0"],
   };
 
   const clearCall: SwapCall = {
