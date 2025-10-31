@@ -55,8 +55,6 @@ export default function MainMenu() {
   const [isDungeonOpen, setIsDungeonOpen] = useState(false);
   const [showBoost, setShowBoost] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
-  const isMainNetwork =
-    currentNetworkConfig.chainId === import.meta.env.VITE_PUBLIC_CHAIN;
 
   useEffect(() => {
     function handleResize() {
@@ -124,15 +122,6 @@ export default function MainMenu() {
 
     setShowAdventurers(false);
     setShowReplays(true);
-  };
-
-  const handleClaimRewards = () => {
-    if (isMainNetwork && !account) {
-      login();
-      return;
-    }
-
-    navigate("/survivor/claim");
   };
 
   const switchMode = () => {
@@ -333,28 +322,6 @@ export default function MainMenu() {
               </Button>
 
               <Divider sx={{ width: "100%", my: 0.5 }} />
-
-              {isMainNetwork && (
-                <Button
-                  variant="outlined"
-                  fullWidth
-                  size="large"
-                  onClick={handleClaimRewards}
-                  sx={{ pl: 1, height: "36px" }}
-                >
-                  <AttachMoneyIcon sx={{ fontSize: 20, mr: 1 }} />
-                  <Typography
-                    sx={{
-                      fontSize: "0.85rem",
-                      fontWeight: 500,
-                      letterSpacing: 0.5,
-                      color: "#d0c98d",
-                    }}
-                  >
-                    Claim Tokens
-                  </Typography>
-                </Button>
-              )}
 
               <Button
                 variant="outlined"
