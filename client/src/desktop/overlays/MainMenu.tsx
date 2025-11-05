@@ -205,7 +205,7 @@ export default function MainMenu() {
                 fullWidth
                 size="large"
                 onClick={handleStartGame}
-                disabled={disableGameButtons}
+                disabled={true}
                 sx={{
                   px: 1,
                   display: "flex",
@@ -377,22 +377,25 @@ export default function MainMenu() {
                 </Typography>
               </Button> */}
 
-              {currentNetworkConfig.name === "Beast Mode" &&
+              {currentNetworkConfig.name === "Beast Mode" && (
                 <>
-                  <PriceIndicator />
+                  {/* <PriceIndicator /> */}
 
                   <Link
                     href="#"
                     sx={styles.learnMoreLink}
                     onClick={(e) => {
                       e.preventDefault();
-                      window.open('https://docs.provable.games/lootsurvivor/dungeon-tickets', '_blank');
+                      window.open(
+                        "https://docs.provable.games/lootsurvivor/dungeon-tickets",
+                        "_blank"
+                      );
                     }}
                   >
                     Learn more about Dungeon Tickets
                   </Link>
                 </>
-              }
+              )}
 
               <Box sx={styles.bottom}>
                 {showBoost && (
@@ -634,36 +637,37 @@ const styles = {
     },
   },
   learnMoreLink: {
-    fontSize: '0.9rem',
-    color: 'rgba(208, 201, 141, 0.6)',
-    textDecoration: 'underline !important',
-    cursor: 'pointer',
-    '&:hover': {
-      color: 'rgba(208, 201, 141, 0.8)',
+    fontSize: "0.9rem",
+    color: "rgba(208, 201, 141, 0.6)",
+    textDecoration: "underline !important",
+    cursor: "pointer",
+    "&:hover": {
+      color: "rgba(208, 201, 141, 0.8)",
     },
   },
   boostIndicator: {
-    background: 'linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(139, 195, 74, 0.2))',
-    border: '1px solid #4caf50',
-    borderRadius: '8px',
-    padding: '5px 10px',
-    marginBottom: '4px',
-    textAlign: 'center',
-    width: '100%',
-    boxSizing: 'border-box',
+    background:
+      "linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(139, 195, 74, 0.2))",
+    border: "1px solid #4caf50",
+    borderRadius: "8px",
+    padding: "5px 10px",
+    marginBottom: "4px",
+    textAlign: "center",
+    width: "100%",
+    boxSizing: "border-box",
   },
   boostText: {
-    fontSize: '0.8rem',
-    fontWeight: 'bold',
-    color: '#4caf50',
-    textShadow: '0 0 5px rgba(76, 175, 80, 0.5)',
-    letterSpacing: '0.3px',
+    fontSize: "0.8rem",
+    fontWeight: "bold",
+    color: "#4caf50",
+    textShadow: "0 0 5px rgba(76, 175, 80, 0.5)",
+    letterSpacing: "0.3px",
   },
   countdownText: {
-    fontSize: '0.7rem',
-    fontWeight: '600',
-    color: '#8bc34a',
-    textShadow: '0 0 3px rgba(139, 195, 74, 0.4)',
-    letterSpacing: '0.2px',
+    fontSize: "0.7rem",
+    fontWeight: "600",
+    color: "#8bc34a",
+    textShadow: "0 0 3px rgba(139, 195, 74, 0.4)",
+    letterSpacing: "0.2px",
   },
 };
