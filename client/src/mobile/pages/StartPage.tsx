@@ -175,7 +175,7 @@ export default function LandingPage() {
                 variant="contained"
                 size="large"
                 onClick={handleStartGame}
-                disabled={true}
+                disabled={currentNetworkConfig.name === "Beast Mode"}
                 startIcon={
                   <img
                     src={"/images/mobile/dice.png"}
