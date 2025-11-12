@@ -1,29 +1,26 @@
+import PaymentOptionsModal from "@/components/PaymentOptionsModal";
+import PriceIndicator from "@/components/PriceIndicator";
 import { useController } from "@/contexts/controller";
 import { useDynamicConnector } from "@/contexts/starknet";
 import { OPENING_TIME } from "@/contexts/Statistics";
-import BeastsCollected from "@/components/BeastsCollected";
-import PriceIndicator from "@/components/PriceIndicator";
+import DungeonRewards from "@/dungeons/beasts/DungeonRewards";
+import { ChainId, NetworkConfig, getNetworkConfig } from "@/utils/networkConfig";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
-import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
-import LeaderboardIcon from "@mui/icons-material/Leaderboard";
-import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import LeaderboardIcon from "@mui/icons-material/Leaderboard";
+import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import { Box, Button, Divider, Typography } from "@mui/material";
 import { useAccount } from "@starknet-react/core";
-import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import GameTokensList from "../components/GameTokensList";
-import ReplayGamesList from "../components/ReplayGamesList";
-import CountdownMobile from "../components/CountdownMobile";
-import PaymentOptionsModal from "@/components/PaymentOptionsModal";
-import Leaderboard from "../components/Leaderboard";
-import { ChainId } from "@/utils/networkConfig";
-import { NetworkConfig, getNetworkConfig } from "@/utils/networkConfig";
-import DungeonRewards from "@/dungeons/beasts/DungeonRewards";
-import { addAddressPadding } from "starknet";
 import { useGameTokens } from "metagame-sdk/sql";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { addAddressPadding } from "starknet";
+import CountdownMobile from "../components/CountdownMobile";
+import GameTokensList from "../components/GameTokensList";
+import Leaderboard from "../components/Leaderboard";
+import ReplayGamesList from "../components/ReplayGamesList";
 
 export default function LandingPage() {
   const { account } = useAccount();
@@ -175,7 +172,7 @@ export default function LandingPage() {
                 variant="contained"
                 size="large"
                 onClick={handleStartGame}
-                disabled={currentNetworkConfig.name === "Beast Mode"}
+                disabled={disableGameButtons}
                 startIcon={
                   <img
                     src={"/images/mobile/dice.png"}
@@ -368,7 +365,7 @@ export default function LandingPage() {
                 </Button>
               )}
 
-              {/* {currentNetworkConfig.name === "Beast Mode" && <PriceIndicator />} */}
+              {currentNetworkConfig.name === "Beast Mode" && <PriceIndicator />}
             </>
           )}
 
