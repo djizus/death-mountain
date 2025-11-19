@@ -1,6 +1,6 @@
 import { useDynamicConnector } from "@/contexts/starknet";
 import { processGameEvent } from "@/utils/events";
-import { num } from "starknet";
+import { addAddressPadding, num } from "starknet";
 
 export const useGameEvents = () => {
   const { currentNetworkConfig } = useDynamicConnector();
@@ -10,7 +10,7 @@ export const useGameEvents = () => {
       let url = `${currentNetworkConfig.toriiUrl}/sql?query=
       SELECT data
         FROM "event_messages_historical"
-        WHERE keys = "${num.toHex(gameId)}/"
+        WHERE keys = "${addAddressPadding(num.toHex(gameId))}/"
         LIMIT 10000`
 
       const sql = await fetch(url, {

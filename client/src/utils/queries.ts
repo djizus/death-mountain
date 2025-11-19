@@ -19,7 +19,7 @@ export const useQueries = () => {
       .withEntityModels([
         `${currentNetworkConfig.namespace}-GameEvent`,
       ])
-      .withLimit(10000)
+      .withLimit(1)
   };
 
   return { gameEventsQuery };

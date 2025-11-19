@@ -22,10 +22,6 @@ export default function DungeonRewards() {
   const beastsRemaining = totalCollectableBeasts - collectedBeasts;
   const BEAST_ENTITLEMENTS_ORIGINAL = 931500;
 
-  const beastEntitlementsPercentage = remainingSurvivorTokens !== null
-    ? Math.round((remainingSurvivorTokens / BEAST_ENTITLEMENTS_ORIGINAL) * 100)
-    : 0;
-
   return (
     <>
       {!(isMobile || useMobileClient) && (

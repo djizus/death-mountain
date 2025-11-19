@@ -261,14 +261,10 @@ export default function LandingPage() {
                 variant="contained"
                 size="large"
                 color="secondary"
-                disabled
+                onClick={handleShowReplays}
                 sx={{
                   height: "36px",
                   mt: 1,
-                  "&.Mui-disabled": {
-                    backgroundColor: "rgba(208, 201, 141, 0.12)",
-                    color: "rgba(208, 201, 141, 0.4)",
-                  },
                 }}
               >
                 <Box
@@ -280,11 +276,11 @@ export default function LandingPage() {
                   }}
                 >
                   <VisibilityIcon
-                    sx={{ opacity: 0.4, mr: 1 }}
+                    sx={{ mr: 1 }}
                   />
                   <Typography
                     variant="h5"
-                    color="rgba(208, 201, 141, 0.4)"
+                    color="#111111"
                   >
                     Replay Games
                   </Typography>

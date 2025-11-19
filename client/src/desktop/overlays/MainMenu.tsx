@@ -274,7 +274,7 @@ export default function MainMenu() {
                 variant="outlined"
                 fullWidth
                 size="large"
-                disabled
+                onClick={handleShowReplays}
                 sx={{ pl: 1, height: "36px" }}
               >
                 <VisibilityIcon sx={{ fontSize: 20, mr: 1 }} />
@@ -283,7 +283,7 @@ export default function MainMenu() {
                     fontSize: "0.85rem",
                     fontWeight: 500,
                     letterSpacing: 0.5,
-                    color: "rgba(208, 201, 141, 0.3)",
+                    color: "#d0c98d",
                   }}
                 >
                   Replay Games

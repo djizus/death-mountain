@@ -1,10 +1,9 @@
 import { useStarknetApi } from '@/api/starknet';
+import { useGameEvents } from '@/dojo/useGameEvents';
 import { useGameDirector } from '@/mobile/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
-import { useEntityModel } from '@/types/game';
-import { ExplorerReplayEvents, processRawGameEvent } from '@/utils/events';
-import { useQueries } from '@/utils/queries';
-import { useDojoSDK } from '@dojoengine/sdk/react';
+import { ExplorerReplayEvents } from '@/utils/events';
+import { calculateLevel } from '@/utils/game';
 import CloseIcon from '@mui/icons-material/Close';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import PauseIcon from '@mui/icons-material/Pause';
@@ -15,79 +14,87 @@ import VideocamIcon from '@mui/icons-material/Videocam';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { Box, Button, Slider, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import GamePage from './GamePage';
 
 export default function WatchPage() {
-  const { sdk } = useDojoSDK();
   const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar()
-  const { gameEventsQuery } = useQueries();
-  const { getEntityModel } = useEntityModel();
+  const { enqueueSnackbar } = useSnackbar();
   const { spectating, setSpectating, processEvent, setEventQueue, eventsProcessed, setEventsProcessed } = useGameDirector();
   const { gameId, adventurer, popExploreLog } = useGameStore();
   const { getGameState } = useStarknetApi();
+  const { getGameEvents } = useGameEvents();
 
-  const [subscription, setSubscription] = useState<any>(null);
   const [replayEvents, setReplayEvents] = useState<any[]>([]);
   const [replayIndex, setReplayIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [sliderStep, setSliderStep] = useState(0);
-
-  const stepIndices = useMemo<number[]>(() => {
-    if (replayEvents.length === 0) return [];
-
-    const indices = new Set<number>();
-    indices.add(0);
-
-    replayEvents.forEach((event, index) => {
-      if (index === 0) return;
-      if (event.type === "adventurer" && event.adventurer?.stat_upgrades_available === 0) {
-        indices.add(index);
-      }
-    });
-
-    indices.add(replayEvents.length - 1);
-
-    return Array.from(indices).sort((a, b) => a - b);
-  }, [replayEvents]);
-
+  const [sliderValue, setSliderValue] = useState(0);
   const [searchParams] = useSearchParams();
   const game_id = Number(searchParams.get('id'));
   const hasPrimedReplay = useRef(false);
 
-  const stepForwardOnce = useCallback((startIndex: number) => {
-    if (replayEvents.length === 0) return startIndex;
-    if (startIndex >= replayEvents.length - 1) return startIndex;
+  const subscribeEvents = async (gameId: number) => {
+    const events = await getGameEvents(gameId!);
+    const gameState = await getGameState(gameId!);
 
-    let currentIndex = startIndex;
-    let nextIndex = startIndex + 1;
+    if (!gameState || events.length === 0) {
+      enqueueSnackbar('Failed to load game', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } });
+      return navigate("/survivor");
+    }
 
-    while (nextIndex <= replayEvents.length - 1) {
-      const currentEvent = replayEvents[nextIndex];
+    setReplayEvents(events);
+  };
+
+  const handleEndWatching = () => {
+    setSpectating(false);
+    navigate('/survivor');
+  };
+
+  const handlePlayPause = (play: boolean) => {
+    if (play) {
+      setEventQueue(replayEvents.slice(replayIndex));
+    } else {
+      setReplayIndex(prev => prev + eventsProcessed + 1);
+      setEventQueue([]);
+      setEventsProcessed(0);
+    }
+
+    setIsPlaying(play);
+  };
+
+  const replayForward = () => {
+    if (replayIndex >= replayEvents.length - 1) return;
+
+    let currentIndex = replayIndex + 1;
+    while (currentIndex <= replayEvents.length - 1) {
+      const currentEvent = replayEvents[currentIndex];
       processEvent(currentEvent, true);
-      currentIndex = nextIndex;
 
       if (currentEvent.type === 'adventurer' && currentEvent.adventurer?.stat_upgrades_available === 0) {
         break;
       }
 
-      nextIndex += 1;
+      if (currentEvent.type === 'attack' && replayEvents[currentIndex + 1]?.type !== 'adventurer') {
+        break;
+      }
+
+      if (currentEvent.type === 'beast_attack' && replayEvents[currentIndex + 1]?.type !== 'adventurer') {
+        break;
+      }
+
+      currentIndex++;
     }
 
-    return currentIndex;
-  }, [replayEvents, processEvent]);
+    setReplayIndex(currentIndex);
+  };
 
-  const stepBackwardOnce = useCallback((startIndex: number) => {
-    if (replayEvents.length === 0) return startIndex;
-    if (startIndex <= 0) return 0;
+  const replayBackward = () => {
+    if (replayIndex < 1) return;
 
-    let currentIndex = startIndex - 1;
-
+    let currentIndex = replayIndex - 1;
     while (currentIndex > 0) {
       const event = replayEvents[currentIndex];
-
       if (ExplorerReplayEvents.includes(event.type)) {
         popExploreLog();
       } else {
@@ -96,104 +103,65 @@ export default function WatchPage() {
 
       if (event.type === 'adventurer' && event.adventurer?.stat_upgrades_available === 0) {
         if (event.adventurer?.beast_health > 0) {
-          const previous = replayEvents[currentIndex - 1];
-          if (previous?.type === 'beast') {
-            processEvent(previous, true);
-          } else if (previous?.type === 'ambush') {
-            const ambushSource = replayEvents[currentIndex - 2];
-            if (ambushSource) {
-              processEvent(ambushSource, true);
-            }
+          if (replayEvents[currentIndex - 1]?.type === 'beast') {
+            processEvent(replayEvents[currentIndex - 1], true);
+          } else if (replayEvents[currentIndex - 1]?.type === 'ambush') {
+            processEvent(replayEvents[currentIndex - 2], true);
           }
         }
 
         break;
       }
 
-      currentIndex -= 1;
+      currentIndex--;
     }
 
-    return Math.max(currentIndex, 0);
-  }, [replayEvents, processEvent, popExploreLog]);
+    setReplayIndex(currentIndex);
+  };
 
-  const replayForward = useCallback(() => {
-    if (isPlaying) return;
-    setReplayIndex(prevIndex => stepForwardOnce(prevIndex));
-  }, [isPlaying, stepForwardOnce]);
+  const jumpToIndex = (targetIndex: number) => {
+    if (targetIndex < 0 || targetIndex >= replayEvents.length) return;
+    if (targetIndex === replayIndex) return;
 
-  const replayBackward = useCallback(() => {
-    if (isPlaying) return;
-    setReplayIndex(prevIndex => stepBackwardOnce(prevIndex));
-  }, [isPlaying, stepBackwardOnce]);
-
-  const seekToStep = useCallback((targetStep: number) => {
-    const targetIndex = stepIndices[targetStep];
-    if (targetIndex === undefined) return;
-
-    setReplayIndex(prevIndex => {
-      let workingIndex = prevIndex;
-
-      if (targetIndex > prevIndex) {
-        while (workingIndex < targetIndex) {
-          const nextIndex = stepForwardOnce(workingIndex);
-          if (nextIndex === workingIndex) break;
-          workingIndex = nextIndex;
-        }
-      } else if (targetIndex < prevIndex) {
-        while (workingIndex > targetIndex) {
-          const nextIndex = stepBackwardOnce(workingIndex);
-          if (nextIndex === workingIndex) break;
-          workingIndex = nextIndex;
+    // Process events rapidly from current index to target index
+    if (targetIndex > replayIndex) {
+      // Move forward - process all events from current to target
+      for (let i = replayIndex + 1; i <= targetIndex; i++) {
+        processEvent(replayEvents[i], true);
+      }
+    } else {
+      // Move backward - process events in reverse
+      for (let i = replayIndex; i > targetIndex; i--) {
+        const event = replayEvents[i];
+        if (ExplorerReplayEvents.includes(event.type)) {
+          popExploreLog();
+        } else {
+          processEvent(event, true);
         }
       }
-
-      return workingIndex;
-    });
-
-    setIsPlaying(false);
-    setEventQueue([]);
-    setEventsProcessed(0);
-  }, [stepIndices, stepForwardOnce, stepBackwardOnce, setEventQueue, setEventsProcessed]);
-
-  const handleSliderChange = (_event: unknown, value: number | number[]) => {
-    if (typeof value === 'number') {
-      setSliderStep(value);
-    }
-  };
-
-  const handleSliderChangeCommitted = (_event: unknown, value: number | number[]) => {
-    if (typeof value !== 'number') return;
-    seekToStep(value);
-  };
-
-  const formatEventLabel = useCallback((step: number) => {
-    const eventIndex = stepIndices[step];
-    const event = replayEvents[eventIndex];
-    if (!event) return '';
-
-    const action = event.action_count ?? eventIndex;
-
-    if (event.type === 'adventurer') {
-      const details = [
-        typeof event.adventurer?.depth === 'number' ? `Depth ${event.adventurer.depth}` : null,
-        event.adventurer?.room,
-      ].filter(Boolean);
-
-      return details.length > 0
-        ? `Action ${action} · ${details.join(' · ')}`
-        : `Action ${action}`;
     }
 
-    return `Action ${action} · ${event.type}`;
-  }, [replayEvents, stepIndices]);
+    setReplayIndex(targetIndex);
+  };
+
+  const handleSliderChange = (_event: Event, newValue: number | number[]) => {
+    // Update slider value for visual feedback while dragging
+    const value = Array.isArray(newValue) ? newValue[0] : newValue;
+    setSliderValue(Math.round(value));
+  };
+
+  const handleSliderChangeCommitted = (_event: Event | React.SyntheticEvent, newValue: number | number[]) => {
+    // Only jump when user releases the slider
+    const targetIndex = Array.isArray(newValue) ? newValue[0] : newValue;
+    jumpToIndex(Math.max(1, Math.round(targetIndex)));
+  };
 
   useEffect(() => {
-    if (false) {
+    if (game_id) {
       setSpectating(true);
       subscribeEvents(game_id);
     } else {
       setSpectating(false);
-      enqueueSnackbar('Replays currently not available', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } })
       navigate('/survivor');
     }
   }, [game_id]);
@@ -217,6 +185,34 @@ export default function WatchPage() {
     };
   }, [replayEvents, replayIndex, replayForward, processEvent]);
 
+  // Sync slider value with replayIndex
+  useEffect(() => {
+    setSliderValue(replayIndex);
+  }, [replayIndex]);
+
+  // Build efficient mapping of event index to adventurer level
+  const eventLevelMap = useMemo(() => {
+    if (replayEvents.length === 0) return new Map<number, number>();
+
+    const levelMap = new Map<number, number>();
+    let lastKnownXP = 0;
+    let hasAdventurerXP = false;
+
+    // Single pass: for each event, track the last known adventurer XP
+    for (let i = 0; i < replayEvents.length; i++) {
+      const event = replayEvents[i];
+      if (event.type === 'adventurer' && event.adventurer?.xp !== undefined) {
+        lastKnownXP = event.adventurer.xp;
+        hasAdventurerXP = true;
+      }
+      // Map this index to the level based on the last known XP
+      // If we haven't seen any adventurer events yet, default to level 1
+      levelMap.set(i, hasAdventurerXP ? calculateLevel(lastKnownXP) : 1);
+    }
+
+    return levelMap;
+  }, [replayEvents]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isPlaying) return; // Don't handle keyboard events while playing
@@ -232,85 +228,9 @@ export default function WatchPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [replayForward, replayBackward, isPlaying]);
 
-  useEffect(() => {
-    if (stepIndices.length === 0) {
-      setSliderStep(prev => (prev === 0 ? prev : 0));
-      return;
-    }
-
-    const current = stepIndices.indexOf(replayIndex);
-    if (current === -1) return;
-
-    setSliderStep(prev => (prev === current ? prev : current));
-  }, [replayIndex, stepIndices]);
-
-  const subscribeEvents = async (gameId: number) => {
-    if (subscription) {
-      try {
-        subscription.cancel();
-      } catch (error) { }
-    }
-
-    const [initialData, sub] = await sdk.subscribeEventQuery({
-      query: gameEventsQuery(gameId),
-      callback: ({ data, error }: { data?: any[]; error?: Error }) => {
-        if (data && data.length > 0) {
-          let events = data
-            .filter((entity: any) =>
-              Boolean(getEntityModel(entity, "GameEvent"))
-            )
-            .map((entity: any) => processRawGameEvent(getEntityModel(entity, "GameEvent")));
-
-          setEventQueue((prev: any) => [...prev, ...events]);
-        }
-      },
-    });
-
-    let events = (initialData?.getItems() || [])
-      .filter((entity: any) => Boolean(getEntityModel(entity, "GameEvent")))
-      .map((entity: any) => processRawGameEvent(getEntityModel(entity, "GameEvent")))
-      .sort((a, b) => a.action_count - b.action_count);
-
-    const gameState = await getGameState(gameId!);
-
-    if (!gameState || events.length === 0) {
-      enqueueSnackbar('Failed to load game', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } })
-      return navigate("/survivor");
-    }
-
-    if (gameState.adventurer.health > 0) {
-      events.forEach((event: any) => {
-        processEvent(event, true);
-      });
-    } else {
-      setReplayEvents(events);
-    }
-
-    setSubscription(sub);
-  };
-
-  const handleEndWatching = () => {
-    setSpectating(false);
-    navigate('/survivor');
-  };
-
-  const handlePlayPause = (play: boolean) => {
-    if (play) {
-      setEventQueue(replayEvents.slice(replayIndex));
-    } else {
-      setReplayIndex(prev => prev + eventsProcessed + 1);
-      setEventQueue([]);
-      setEventsProcessed(0);
-    }
-
-    setIsPlaying(play);
-  };
-
   if (!spectating) return null;
 
   const isLoading = !gameId || !adventurer;
-  const sliderMax = stepIndices.length > 0 ? stepIndices.length - 1 : 0;
-  const sliderDisabled = isPlaying || stepIndices.length <= 1;
 
   return (
     <>
@@ -329,50 +249,58 @@ export default function WatchPage() {
             <CloseIcon sx={styles.closeIcon} onClick={handleEndWatching} />
           </>
         ) : (
-          <>
-            <VideocamIcon sx={styles.theatersIcon} />
-
-            <Box sx={styles.controlsContainer}>
-              <Button
-                disabled={isPlaying}
-                onClick={replayBackward}
-                sx={styles.controlButton}
-              >
-                <SkipPreviousIcon />
-              </Button>
-
+          <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+            {/* Slider row */}
+            <Box sx={{ width: '100%' }}>
               <Slider
-                min={0}
-                max={sliderMax}
-                step={1}
-                marks={false}
-                value={Math.min(sliderStep, sliderMax)}
+                value={sliderValue}
+                min={1}
+                max={Math.max(0, replayEvents.length - 1)}
                 onChange={handleSliderChange}
                 onChangeCommitted={handleSliderChangeCommitted}
-                disabled={sliderDisabled}
+                disabled={isPlaying || replayEvents.length === 0}
+                valueLabelDisplay="auto"
+                valueLabelFormat={(value) => {
+                  const level = eventLevelMap.get(value) || 1;
+                  return `Lvl ${level}`;
+                }}
                 sx={styles.slider}
-                valueLabelDisplay="on"
-                valueLabelFormat={formatEventLabel}
+                size="small"
               />
-
-              <Button
-                onClick={() => handlePlayPause(!isPlaying)}
-                sx={styles.controlButton}
-              >
-                {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-              </Button>
-
-              <Button
-                onClick={replayForward}
-                disabled={isPlaying}
-                sx={styles.controlButton}
-              >
-                <SkipNextIcon />
-              </Button>
             </Box>
 
-            <ExitToAppIcon sx={styles.closeIcon} onClick={handleEndWatching} />
-          </>
+            {/* Controls row */}
+            <Box sx={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
+              <VideocamIcon sx={styles.theatersIcon} />
+
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-evenly', flex: 1 }}>
+                <Button
+                  disabled={isPlaying}
+                  onClick={replayBackward}
+                  sx={styles.controlButton}
+                >
+                  <SkipPreviousIcon />
+                </Button>
+
+                <Button
+                  onClick={() => handlePlayPause(!isPlaying)}
+                  sx={styles.controlButton}
+                >
+                  {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+                </Button>
+
+                <Button
+                  onClick={replayForward}
+                  disabled={isPlaying}
+                  sx={styles.controlButton}
+                >
+                  <SkipNextIcon />
+                </Button>
+              </Box>
+
+              <ExitToAppIcon sx={styles.closeIcon} onClick={handleEndWatching} />
+            </Box>
+          </Box>
         )}
       </Box>}
 
@@ -383,7 +311,7 @@ export default function WatchPage() {
 
 const styles = {
   overlay: {
-    height: '52px',
+    minHeight: '52px',
     width: '444px',
     maxWidth: 'calc(100dvw - 6px)',
     position: 'fixed',
@@ -391,7 +319,7 @@ const styles = {
     left: '50%',
     transform: 'translateX(-50%)',
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    padding: '0 16px',
+    padding: '8px 16px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -425,29 +353,36 @@ const styles = {
   theatersIcon: {
     color: '#EDCF33',
   },
-  controlsContainer: {
-    display: 'flex',
-    width: '100%',
-    alignItems: 'center',
-    gap: '12px',
-    minWidth: 0,
-  },
   slider: {
-    flexGrow: 1,
     color: 'rgba(128, 255, 0, 1)',
-    '.MuiSlider-track': {
-      border: 'none',
+    '& .MuiSlider-thumb': {
+      '&:hover, &.Mui-focusVisible': {
+        boxShadow: '0 0 0 8px rgba(128, 255, 0, 0.16)',
+      },
     },
-    '.MuiSlider-rail': {
-      opacity: 0.4,
+    '& .MuiSlider-track': {
+      backgroundColor: 'rgba(128, 255, 0, 1)',
     },
-    '.MuiSlider-thumb': {
-      backgroundColor: '#EDCF33',
+    '& .MuiSlider-rail': {
+      backgroundColor: 'rgba(128, 255, 0, 0.3)',
     },
-    '.MuiSlider-valueLabel': {
-      backgroundColor: 'rgba(0, 0, 0, 0.85)',
-      color: '#EDCF33',
-      border: '1px solid rgba(128, 255, 0, 0.6)',
+    '& .MuiSlider-valueLabel': {
+      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+      color: 'rgba(128, 255, 0, 1)',
+      border: '1px solid rgba(128, 255, 0, 0.4)',
+      fontSize: '0.75rem',
+      '&::before': {
+        borderTopColor: 'rgba(128, 255, 0, 0.4)',
+      },
+    },
+    '&.Mui-disabled': {
+      color: 'rgba(128, 255, 0, 0.5)',
+      '& .MuiSlider-track': {
+        backgroundColor: 'rgba(128, 255, 0, 0.5)',
+      },
+      '& .MuiSlider-rail': {
+        backgroundColor: 'rgba(128, 255, 0, 0.2)',
+      },
     },
   },
 };

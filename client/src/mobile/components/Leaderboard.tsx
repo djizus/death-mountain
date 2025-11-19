@@ -12,6 +12,7 @@ import { addAddressPadding } from "starknet";
 import { useController } from "@/contexts/controller";
 import { useEffect, useState } from "react";
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import { calculateLevel } from "@/utils/game";
 
 interface LeaderboardProps {
   onBack: () => void;
@@ -183,9 +184,18 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
             </Box>
 
             <Box textAlign={'center'} display={'flex'} alignItems={'center'} gap={1}>
-              <Typography>{game.score || 0} xp</Typography>
+              <Box>
+                <Typography lineHeight={1}>{game.score || 0} xp</Typography>
+                <Typography
+                  color="secondary"
+                  sx={{ fontSize: "12px", opacity: 0.8 }}
+                >
+                  Lvl: {calculateLevel(game.score)}
+                </Typography>
 
-              {/* <Box textAlign={'center'}>
+              </Box>
+
+              <Box textAlign={'center'}>
                 {game.game_over ? (
                   <IconButton onClick={() => watchGame(game.token_id)}>
                     <TheatersIcon fontSize='small' color='primary' />
@@ -195,7 +205,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                     <VisibilityIcon fontSize='small' color='primary' />
                   </IconButton>
                 )}
-              </Box> */}
+              </Box>
             </Box>
           </Box>
         ))}

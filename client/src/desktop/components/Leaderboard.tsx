@@ -1,5 +1,6 @@
 import { useController } from "@/contexts/controller";
 import { useDynamicConnector } from "@/contexts/starknet";
+import { calculateLevel } from "@/utils/game";
 import { ChainId } from '@/utils/networkConfig';
 import { getContractByName } from "@dojoengine/core";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -165,6 +166,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                     width: "100%",
+                    maxWidth: "100px",
                     overflow: "hidden",
                   }}
                 >
@@ -180,9 +182,17 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
             </Box>
 
             <Box textAlign={'center'} display={'flex'} alignItems={'center'} gap={1}>
-              <Typography>{game.score || 0} xp</Typography>
+              <Box>
+                <Typography lineHeight={1}>{game.score || 0} xp</Typography>
+                <Typography
+                  color="secondary"
+                  sx={{ fontSize: "12px", opacity: 0.8 }}
+                >
+                  Lvl: {calculateLevel(game.score)}
+                </Typography>
+              </Box>
 
-              {/* <Box textAlign={'center'}>
+              <Box textAlign={'center'}>
                 {game.game_over ? (
                   <IconButton onClick={() => watchGame(game.token_id)}>
                     <TheatersIcon fontSize='small' color='primary' />
@@ -192,7 +202,7 @@ export default function Leaderboard({ onBack }: LeaderboardProps) {
                     <VisibilityIcon fontSize='small' color='primary' />
                   </IconButton>
                 )}
-              </Box> */}
+              </Box>
             </Box>
           </Box>
         ))}

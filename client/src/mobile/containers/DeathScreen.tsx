@@ -7,8 +7,9 @@ import { useAnalytics } from "@/utils/analytics";
 import { screenVariants } from "@/utils/animations";
 import { ChainId } from "@/utils/networkConfig";
 import { getContractByName } from "@dojoengine/core";
-import { Box, Button, Typography } from "@mui/material";
+import { Box, Button, IconButton, Typography } from "@mui/material";
 import { motion } from "framer-motion";
+import ShareIcon from "@mui/icons-material/Share";
 import { useGameTokenRanking } from "metagame-sdk/sql";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -108,7 +109,20 @@ export default function DeathScreen() {
         <Box sx={styles.statsContainer}>
           <Box sx={styles.statCard}>
             <Typography sx={styles.statLabel}>Final Score</Typography>
-            <Typography sx={styles.statValue}>{tokenResult.ranking?.score || adventurer?.xp || 0}</Typography>
+            <Box sx={styles.scoreRow}>
+              <Typography sx={styles.statValue}>{tokenResult.ranking?.score || adventurer?.xp || 0}</Typography>
+              <IconButton
+                component="a"
+                href={`https://x.com/intent/tweet?text=${encodeURIComponent(
+                  shareMessage
+                )}`}
+                target="_blank"
+                sx={styles.shareIconButton}
+                size="small"
+              >
+                <ShareIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            </Box>
           </Box>
 
           <Box sx={styles.statCard}>
@@ -138,14 +152,10 @@ export default function DeathScreen() {
         <Box sx={styles.buttonContainer}>
           <Button
             variant="outlined"
-            component="a"
-            href={`https://x.com/intent/tweet?text=${encodeURIComponent(
-              shareMessage
-            )}`}
-            target="_blank"
+            onClick={() => navigate(`/survivor/watch?id=${gameId}`)}
             sx={styles.shareButton}
           >
-            Share on X
+            Watch Replay
           </Button>
           <Button
             variant="contained"
@@ -200,6 +210,23 @@ const styles = {
     borderRadius: "12px",
     border: "1px solid rgba(128, 255, 0, 0.2)",
     minWidth: "40%",
+  },
+  scoreRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    position: "relative",
+  },
+  shareIconButton: {
+    color: "rgba(128, 255, 0, 0.7)",
+    padding: "4px",
+    position: "absolute",
+    right: 0,
+    "&:hover": {
+      color: "#80FF00",
+      backgroundColor: "rgba(128, 255, 0, 0.1)",
+    },
   },
   statLabel: {
     color: "rgba(128, 255, 0, 0.7)",
