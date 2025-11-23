@@ -43,6 +43,7 @@ export default function BeastScreen() {
   const [health, setHealth] = useState(adventurer!.health);
   const [beastHealth, setBeastHealth] = useState(adventurer!.beast_health);
   const [simulationResult, setSimulationResult] = useState(defaultSimulationResult);
+  const [simulationActionCount, setSimulationActionCount] = useState<number | null>(null);
   const hasNewItemsEquipped = useMemo(() => {
     if (!adventurer?.equipment || !adventurerState?.equipment) return false;
     return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
@@ -54,12 +55,8 @@ export default function BeastScreen() {
   const collectableTraits = collectable ? getCollectableTraits(beast!.seed) : null;
   const isJackpot = currentNetworkConfig.beasts && JACKPOT_BEASTS.includes(beast?.name!);
   const combatStats = beast ? calculateCombatStats(adventurer!, bag, beast) : null;
-  const lastHitThreshold = useMemo(
-    () => Math.max(1, Math.floor(combatStats?.baseDamage ?? 0)),
-    [combatStats?.baseDamage],
-  );
   const combatControlsDisabled = attackInProgress || fleeInProgress || equipInProgress || suggestInProgress;
-  const isLastHitReady = adventurer!.beast_health <= lastHitThreshold;
+  const isFinalRound = simulationResult.hasOutcome && simulationResult.maxRounds <= 1;
   const bestItemIds = combatStats?.bestItems.map((item: Item) => item.id) || [];
   const formatNumber = (value: number) => value.toLocaleString();
   const formatPercent = (value: number) => `${value.toFixed(1)}%`;
@@ -140,30 +137,33 @@ export default function BeastScreen() {
   }, [adventurer!.action_count, untilDeath, autoLastHitActive]);
 
   useEffect(() => {
-    if (!autoLastHitActive || lastHitActionCount === null) {
+    if (!autoLastHitActive || !untilLastHit) {
       return;
     }
 
-    if (!adventurer || !beast || !combatStats) {
+    if (!adventurer || !beast) {
       setAutoLastHitActive(false);
       setLastHitActionCount(null);
       setAttackInProgress(false);
       return;
     }
 
-    if (adventurer.action_count <= lastHitActionCount) {
+    if (!simulationResult.hasOutcome) {
       return;
     }
 
-    if (
-      adventurer.health <= 0 ||
-      adventurer.beast_health <= 0 ||
-      lastHitThreshold <= 0 ||
-      adventurer.beast_health <= lastHitThreshold
-    ) {
+    if (isFinalRound) {
       setAutoLastHitActive(false);
       setLastHitActionCount(null);
       setAttackInProgress(false);
+      return;
+    }
+
+    if (lastHitActionCount !== null && adventurer.action_count <= lastHitActionCount) {
+      return;
+    }
+
+    if (simulationActionCount === null || simulationActionCount !== adventurer.action_count) {
       return;
     }
 
@@ -171,6 +171,7 @@ export default function BeastScreen() {
 
     const continueAttacking = async () => {
       try {
+        setAttackInProgress(true);
         setCombatLog(attackMessage);
         await executeGameAction({ type: 'attack', untilDeath: false });
       } catch (error) {
@@ -184,14 +185,13 @@ export default function BeastScreen() {
     void continueAttacking();
   }, [
     autoLastHitActive,
-    lastHitActionCount,
-    lastHitThreshold,
+    untilLastHit,
+    simulationResult.hasOutcome,
+    simulationResult.maxRounds,
+    isFinalRound,
     executeGameAction,
     adventurer?.action_count,
-    adventurer?.health,
-    adventurer?.beast_health,
     beast?.id,
-    combatStats,
   ]);
 
   useEffect(() => {
@@ -203,18 +203,19 @@ export default function BeastScreen() {
   }, [untilLastHit, autoLastHitActive]);
 
   useEffect(() => {
-    if (isLastHitReady && untilLastHit) {
+    if (isFinalRound && untilLastHit) {
       setUntilLastHit(false);
       setAutoLastHitActive(false);
       setLastHitActionCount(null);
     }
-  }, [isLastHitReady, untilLastHit]);
+  }, [isFinalRound, untilLastHit]);
 
   useEffect(() => {
     let cancelled = false;
 
     if (!adventurer || !beast) {
       setSimulationResult(defaultSimulationResult);
+      setSimulationActionCount(null);
       return () => {
         cancelled = true;
       };
@@ -227,6 +228,7 @@ export default function BeastScreen() {
 
       if (!cancelled) {
         setSimulationResult(result);
+        setSimulationActionCount(adventurer.action_count);
       }
     };
 
@@ -285,7 +287,7 @@ export default function BeastScreen() {
     setShowBeastRewards(true);
     setAttackInProgress(true);
     setCombatLog(attackMessage);
-    if (untilLastHit) {
+    if (untilLastHit && !isFinalRound) {
       setAutoLastHitActive(true);
       setLastHitActionCount(adventurer.action_count);
     } else {
@@ -616,14 +618,14 @@ export default function BeastScreen() {
                 <Box
                   sx={styles.deathCheckboxContainer}
                   onClick={() => {
-                    if (!combatControlsDisabled && !isLastHitReady) {
+                    if (!combatControlsDisabled && !isFinalRound) {
                       toggleUntilLastHit(!untilLastHit);
                     }
                   }}
                 >
                   <Checkbox
                     checked={untilLastHit}
-                    disabled={combatControlsDisabled || isLastHitReady}
+                    disabled={combatControlsDisabled || isFinalRound}
                     onChange={(e) => toggleUntilLastHit(e.target.checked)}
                     size="small"
                     sx={styles.deathCheckbox}

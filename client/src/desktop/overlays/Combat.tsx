@@ -70,17 +70,14 @@ export default function CombatOverlay() {
   const [suggestInProgress, setSuggestInProgress] = useState(false);
   const [combatLog, setCombatLog] = useState("");
   const [simulationResult, setSimulationResult] = useState(defaultSimulationResult);
+  const [simulationActionCount, setSimulationActionCount] = useState<number | null>(null);
   const fleePercentage = ability_based_percentage(adventurer!.xp, adventurer!.stats.dexterity);
   const combatStats = calculateCombatStats(adventurer!, bag, beast);
   const attackPreviewDamage = combatStats.critChance >= 100
     ? combatStats.criticalDamage
     : combatStats.baseDamage;
-  const lastHitThreshold = useMemo(
-    () => Math.max(1, Math.floor(combatStats.baseDamage || 0)),
-    [combatStats.baseDamage],
-  );
   const combatControlsDisabled = attackInProgress || fleeInProgress || equipInProgress || suggestInProgress;
-  const isLastHitReady = adventurer!.beast_health <= lastHitThreshold;
+  const isFinalRound = simulationResult.hasOutcome && simulationResult.maxRounds <= 1;
   const formatNumber = (value: number) => value.toLocaleString();
   const formatRange = (minValue: number, maxValue: number) => {
     if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
@@ -147,7 +144,7 @@ export default function CombatOverlay() {
   }, [adventurer!.action_count, untilDeath, autoLastHitActive]);
 
   useEffect(() => {
-    if (!autoLastHitActive || lastHitActionCount === null) {
+    if (!autoLastHitActive || !untilLastHit) {
       return;
     }
 
@@ -158,20 +155,22 @@ export default function CombatOverlay() {
       return;
     }
 
-    if (adventurer.action_count <= lastHitActionCount) {
+    if (!simulationResult.hasOutcome) {
       return;
     }
 
-    if (
-      adventurer.health <= 0
-      || adventurer.beast_health <= 0
-      || lastHitThreshold <= 0
-      || adventurer.beast_health <= lastHitThreshold
-    ) {
+    if (isFinalRound) {
       setAutoLastHitActive(false);
       setLastHitActionCount(null);
       setAttackInProgress(false);
-      setFleeInProgress(false);
+      return;
+    }
+
+    if (lastHitActionCount !== null && adventurer.action_count <= lastHitActionCount) {
+      return;
+    }
+
+    if (simulationActionCount === null || simulationActionCount !== adventurer.action_count) {
       return;
     }
 
@@ -179,6 +178,7 @@ export default function CombatOverlay() {
 
     const continueAttacking = async () => {
       try {
+        setAttackInProgress(true);
         setCombatLog(attackMessage);
         await executeGameAction({ type: 'attack', untilDeath: false });
       } catch (error) {
@@ -192,12 +192,13 @@ export default function CombatOverlay() {
     void continueAttacking();
   }, [
     autoLastHitActive,
-    lastHitActionCount,
-    lastHitThreshold,
+    untilLastHit,
+    simulationResult.hasOutcome,
+    simulationResult.maxRounds,
+    isFinalRound,
+    simulationActionCount,
     executeGameAction,
     adventurer?.action_count,
-    adventurer?.health,
-    adventurer?.beast_health,
     beast?.id,
   ]);
 
@@ -210,12 +211,12 @@ export default function CombatOverlay() {
   }, [untilLastHit, autoLastHitActive]);
 
   useEffect(() => {
-    if (isLastHitReady && untilLastHit) {
+    if (isFinalRound && untilLastHit) {
       setUntilLastHit(false);
       setAutoLastHitActive(false);
       setLastHitActionCount(null);
     }
-  }, [isLastHitReady, untilLastHit]);
+  }, [isFinalRound, untilLastHit]);
 
   const handleAttack = () => {
     if (!adventurer) {
@@ -235,7 +236,7 @@ export default function CombatOverlay() {
 
     setAttackInProgress(true);
     setCombatLog(attackMessage);
-    if (untilLastHit) {
+    if (untilLastHit && !isFinalRound) {
       setAutoLastHitActive(true);
       setLastHitActionCount(adventurer.action_count);
     } else {
@@ -369,6 +370,7 @@ export default function CombatOverlay() {
         hasOverview: Boolean(combatOverview),
       });
       setSimulationResult(defaultSimulationResult);
+      setSimulationActionCount(null);
       return () => {
         cancelled = true;
       };
@@ -413,6 +415,7 @@ export default function CombatOverlay() {
           hasOutcome: result.hasOutcome,
         });
         setSimulationResult(result);
+        setSimulationActionCount(adventurer.action_count);
       } catch (error) {
         if (cancelled) {
           console.log('[CombatSimulation] received error after cancellation', error);
@@ -780,7 +783,7 @@ export default function CombatOverlay() {
               <Box
                 sx={styles.deathCheckboxContainer}
                 onClick={() => {
-                  if (!combatControlsDisabled && !isLastHitReady) {
+                  if (!combatControlsDisabled && !isFinalRound) {
                     toggleUntilLastHit(!untilLastHit);
                   }
                 }}
@@ -790,7 +793,7 @@ export default function CombatOverlay() {
                 </Typography>
                 <Checkbox
                   checked={untilLastHit}
-                  disabled={combatControlsDisabled || isLastHitReady}
+                  disabled={combatControlsDisabled || isFinalRound}
                   onChange={(e) => toggleUntilLastHit(e.target.checked)}
                   size="medium"
                   sx={styles.deathCheckbox}
