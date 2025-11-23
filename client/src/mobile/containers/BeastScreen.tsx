@@ -28,6 +28,9 @@ export default function BeastScreen() {
   const { gameId, adventurer, adventurerState, beast, battleEvent, bag,
     equipItem, undoEquipment, setShowBeastRewards, applyGearSuggestion } = useGameStore();
   const [untilDeath, setUntilDeath] = useState(false);
+  const [untilLastHit, setUntilLastHit] = useState(false);
+  const [autoLastHitActive, setAutoLastHitActive] = useState(false);
+  const [lastHitActionCount, setLastHitActionCount] = useState<number | null>(null);
   const [attackInProgress, setAttackInProgress] = useState(false);
   const [fleeInProgress, setFleeInProgress] = useState(false);
   const [equipInProgress, setEquipInProgress] = useState(false);
@@ -44,6 +47,22 @@ export default function BeastScreen() {
     if (!adventurer?.equipment || !adventurerState?.equipment) return false;
     return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
   }, [adventurer?.equipment, adventurerState?.equipment]);
+  const fleePercentage = ability_based_percentage(adventurer!.xp, adventurer!.stats.dexterity);
+  const beastPower = Number(beast!.level) * (6 - Number(beast!.tier));
+  const maxHealth = STARTING_HEALTH + (adventurer!.stats.vitality * 15);
+  const collectable = beast ? beast!.isCollectable : false;
+  const collectableTraits = collectable ? getCollectableTraits(beast!.seed) : null;
+  const isJackpot = currentNetworkConfig.beasts && JACKPOT_BEASTS.includes(beast?.name!);
+  const combatStats = beast ? calculateCombatStats(adventurer!, bag, beast) : null;
+  const lastHitThreshold = useMemo(
+    () => Math.max(1, Math.floor(combatStats?.baseDamage ?? 0)),
+    [combatStats?.baseDamage],
+  );
+  const combatControlsDisabled = attackInProgress || fleeInProgress || equipInProgress || suggestInProgress;
+  const isLastHitReady = adventurer!.beast_health <= lastHitThreshold;
+  const bestItemIds = combatStats?.bestItems.map((item: Item) => item.id) || [];
+  const formatNumber = (value: number) => value.toLocaleString();
+  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
   const strike = useLottie({
     animationData: strikeAnim,
@@ -103,6 +122,8 @@ export default function BeastScreen() {
     setAttackInProgress(false);
     setFleeInProgress(false);
     setEquipInProgress(false);
+    setAutoLastHitActive(false);
+    setLastHitActionCount(null);
 
     if ([fleeMessage, attackMessage, equipMessage].includes(combatLog)) {
       setCombatLog("");
@@ -112,11 +133,82 @@ export default function BeastScreen() {
   useEffect(() => {
     setEquipInProgress(false);
 
-    if (!untilDeath) {
+    if (!untilDeath && !autoLastHitActive) {
       setAttackInProgress(false);
       setFleeInProgress(false);
     }
-  }, [adventurer!.action_count]);
+  }, [adventurer!.action_count, untilDeath, autoLastHitActive]);
+
+  useEffect(() => {
+    if (!autoLastHitActive || lastHitActionCount === null) {
+      return;
+    }
+
+    if (!adventurer || !beast || !combatStats) {
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+      setAttackInProgress(false);
+      return;
+    }
+
+    if (adventurer.action_count <= lastHitActionCount) {
+      return;
+    }
+
+    if (
+      adventurer.health <= 0 ||
+      adventurer.beast_health <= 0 ||
+      lastHitThreshold <= 0 ||
+      adventurer.beast_health <= lastHitThreshold
+    ) {
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+      setAttackInProgress(false);
+      return;
+    }
+
+    setLastHitActionCount(adventurer.action_count);
+
+    const continueAttacking = async () => {
+      try {
+        setCombatLog(attackMessage);
+        await executeGameAction({ type: 'attack', untilDeath: false });
+      } catch (error) {
+        console.error('Failed to continue last-hit attack', error);
+        setAutoLastHitActive(false);
+        setLastHitActionCount(null);
+        setAttackInProgress(false);
+      }
+    };
+
+    void continueAttacking();
+  }, [
+    autoLastHitActive,
+    lastHitActionCount,
+    lastHitThreshold,
+    executeGameAction,
+    adventurer?.action_count,
+    adventurer?.health,
+    adventurer?.beast_health,
+    beast?.id,
+    combatStats,
+  ]);
+
+  useEffect(() => {
+    if (!untilLastHit && autoLastHitActive) {
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+      setAttackInProgress(false);
+    }
+  }, [untilLastHit, autoLastHitActive]);
+
+  useEffect(() => {
+    if (isLastHitReady && untilLastHit) {
+      setUntilLastHit(false);
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+    }
+  }, [isLastHitReady, untilLastHit]);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,6 +267,10 @@ export default function BeastScreen() {
   ]);
 
   const handleAttack = () => {
+    if (!adventurer) {
+      return;
+    }
+
     if (beast?.isCollectable) {
       localStorage.setItem('collectable_beast', JSON.stringify({
         gameId,
@@ -189,11 +285,22 @@ export default function BeastScreen() {
     setShowBeastRewards(true);
     setAttackInProgress(true);
     setCombatLog(attackMessage);
-    executeGameAction({ type: 'attack', untilDeath });
+    if (untilLastHit) {
+      setAutoLastHitActive(true);
+      setLastHitActionCount(adventurer.action_count);
+    } else {
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+    }
+
+    const fightToDeath = untilDeath && !untilLastHit;
+    executeGameAction({ type: 'attack', untilDeath: fightToDeath });
   };
 
   const handleFlee = () => {
     localStorage.removeItem('collectable_beast');
+    setAutoLastHitActive(false);
+    setLastHitActionCount(null);
     setShowBeastRewards(false);
     setFleeInProgress(true);
     setCombatLog(fleeMessage);
@@ -209,6 +316,20 @@ export default function BeastScreen() {
 
   const handleSkipCombat = () => {
     setSkipCombat(true);
+  };
+
+  const toggleUntilDeath = (checked: boolean) => {
+    if (checked) {
+      setUntilLastHit(false);
+    }
+    setUntilDeath(checked);
+  };
+
+  const toggleUntilLastHit = (checked: boolean) => {
+    if (checked) {
+      setUntilDeath(false);
+    }
+    setUntilLastHit(checked);
   };
 
 
@@ -254,18 +375,6 @@ export default function BeastScreen() {
 
     return offset;
   }
-
-  const fleePercentage = ability_based_percentage(adventurer!.xp, adventurer!.stats.dexterity);
-  const beastPower = Number(beast!.level) * (6 - Number(beast!.tier));
-  const maxHealth = STARTING_HEALTH + (adventurer!.stats.vitality * 15);
-  const collectable = beast ? beast!.isCollectable : false;
-  const collectableTraits = collectable ? getCollectableTraits(beast!.seed) : null;
-  const isJackpot = currentNetworkConfig.beasts && JACKPOT_BEASTS.includes(beast?.name!);
-
-  const combatStats = beast ? calculateCombatStats(adventurer!, bag, beast) : null;
-  const bestItemIds = combatStats?.bestItems.map((item: Item) => item.id) || [];
-  const formatNumber = (value: number) => value.toLocaleString();
-  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
   return (
     <motion.div
@@ -489,7 +598,7 @@ export default function BeastScreen() {
                 </Typography>
               </Box>
 
-              {showSkipCombat && (
+              {showSkipCombat && (untilDeath || autoLastHitActive) && (
                 <Box sx={styles.actionButtonContainer}>
                   <Button
                     variant="contained"
@@ -503,24 +612,46 @@ export default function BeastScreen() {
                 </Box>
               )}
 
-              <Box
-                sx={styles.deathCheckboxContainer}
-                onClick={() => {
-                  if (!attackInProgress && !fleeInProgress && !equipInProgress && !suggestInProgress) {
-                    setUntilDeath(!untilDeath);
-                  }
-                }}
-              >
-                <Checkbox
-                  checked={untilDeath}
-                  disabled={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
-                  onChange={(e) => setUntilDeath(e.target.checked)}
-                  size="small"
-                  sx={styles.deathCheckbox}
-                />
-                <Typography sx={styles.deathCheckboxLabel}>
-                  until<br />death
-                </Typography>
+              <Box sx={styles.deathCheckboxRow}>
+                <Box
+                  sx={styles.deathCheckboxContainer}
+                  onClick={() => {
+                    if (!combatControlsDisabled && !isLastHitReady) {
+                      toggleUntilLastHit(!untilLastHit);
+                    }
+                  }}
+                >
+                  <Checkbox
+                    checked={untilLastHit}
+                    disabled={combatControlsDisabled || isLastHitReady}
+                    onChange={(e) => toggleUntilLastHit(e.target.checked)}
+                    size="small"
+                    sx={styles.deathCheckbox}
+                  />
+                  <Typography sx={styles.deathCheckboxLabel}>
+                    until<br />last hit
+                  </Typography>
+                </Box>
+
+                <Box
+                  sx={styles.deathCheckboxContainer}
+                  onClick={() => {
+                    if (!combatControlsDisabled) {
+                      toggleUntilDeath(!untilDeath);
+                    }
+                  }}
+                >
+                  <Checkbox
+                    checked={untilDeath}
+                    disabled={combatControlsDisabled}
+                    onChange={(e) => toggleUntilDeath(e.target.checked)}
+                    size="small"
+                    sx={styles.deathCheckbox}
+                  />
+                  <Typography sx={styles.deathCheckboxLabel}>
+                    until<br />death
+                  </Typography>
+                </Box>
               </Box>
             </Box>
           )}
@@ -1294,6 +1425,12 @@ const styles = {
     background: 'linear-gradient(45deg, #EDCF33 30%, #f5e066 90%)',
     borderRadius: '12px',
     color: '#111111',
+  },
+  deathCheckboxRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: '16px',
   },
   deathCheckboxContainer: {
     display: 'flex',

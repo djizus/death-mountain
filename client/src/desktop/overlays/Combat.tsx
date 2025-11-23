@@ -61,12 +61,26 @@ export default function CombatOverlay() {
   const { gameId, adventurer, adventurerState, beast, battleEvent, bag, undoEquipment, applyGearSuggestion } = useGameStore();
 
   const [untilDeath, setUntilDeath] = useState(false);
+  const [untilLastHit, setUntilLastHit] = useState(false);
+  const [autoLastHitActive, setAutoLastHitActive] = useState(false);
+  const [lastHitActionCount, setLastHitActionCount] = useState<number | null>(null);
   const [attackInProgress, setAttackInProgress] = useState(false);
   const [fleeInProgress, setFleeInProgress] = useState(false);
   const [equipInProgress, setEquipInProgress] = useState(false);
   const [suggestInProgress, setSuggestInProgress] = useState(false);
   const [combatLog, setCombatLog] = useState("");
   const [simulationResult, setSimulationResult] = useState(defaultSimulationResult);
+  const fleePercentage = ability_based_percentage(adventurer!.xp, adventurer!.stats.dexterity);
+  const combatStats = calculateCombatStats(adventurer!, bag, beast);
+  const attackPreviewDamage = combatStats.critChance >= 100
+    ? combatStats.criticalDamage
+    : combatStats.baseDamage;
+  const lastHitThreshold = useMemo(
+    () => Math.max(1, Math.floor(combatStats.baseDamage || 0)),
+    [combatStats.baseDamage],
+  );
+  const combatControlsDisabled = attackInProgress || fleeInProgress || equipInProgress || suggestInProgress;
+  const isLastHitReady = adventurer!.beast_health <= lastHitThreshold;
   const formatNumber = (value: number) => value.toLocaleString();
   const formatRange = (minValue: number, maxValue: number) => {
     if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
@@ -115,6 +129,8 @@ export default function CombatOverlay() {
     setAttackInProgress(false);
     setFleeInProgress(false);
     setEquipInProgress(false);
+    setAutoLastHitActive(false);
+    setLastHitActionCount(null);
 
     if ([fleeMessage, attackMessage, equipMessage].includes(combatLog)) {
       setCombatLog("");
@@ -124,13 +140,88 @@ export default function CombatOverlay() {
   useEffect(() => {
     setEquipInProgress(false);
 
-    if (!untilDeath) {
+    if (!untilDeath && !autoLastHitActive) {
       setAttackInProgress(false);
       setFleeInProgress(false);
     }
-  }, [adventurer!.action_count]);
+  }, [adventurer!.action_count, untilDeath, autoLastHitActive]);
+
+  useEffect(() => {
+    if (!autoLastHitActive || lastHitActionCount === null) {
+      return;
+    }
+
+    if (!adventurer || !beast) {
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+      setAttackInProgress(false);
+      return;
+    }
+
+    if (adventurer.action_count <= lastHitActionCount) {
+      return;
+    }
+
+    if (
+      adventurer.health <= 0
+      || adventurer.beast_health <= 0
+      || lastHitThreshold <= 0
+      || adventurer.beast_health <= lastHitThreshold
+    ) {
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+      setAttackInProgress(false);
+      setFleeInProgress(false);
+      return;
+    }
+
+    setLastHitActionCount(adventurer.action_count);
+
+    const continueAttacking = async () => {
+      try {
+        setCombatLog(attackMessage);
+        await executeGameAction({ type: 'attack', untilDeath: false });
+      } catch (error) {
+        console.error('Failed to continue last-hit attack', error);
+        setAutoLastHitActive(false);
+        setLastHitActionCount(null);
+        setAttackInProgress(false);
+      }
+    };
+
+    void continueAttacking();
+  }, [
+    autoLastHitActive,
+    lastHitActionCount,
+    lastHitThreshold,
+    executeGameAction,
+    adventurer?.action_count,
+    adventurer?.health,
+    adventurer?.beast_health,
+    beast?.id,
+  ]);
+
+  useEffect(() => {
+    if (!untilLastHit && autoLastHitActive) {
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+      setAttackInProgress(false);
+    }
+  }, [untilLastHit, autoLastHitActive]);
+
+  useEffect(() => {
+    if (isLastHitReady && untilLastHit) {
+      setUntilLastHit(false);
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+    }
+  }, [isLastHitReady, untilLastHit]);
 
   const handleAttack = () => {
+    if (!adventurer) {
+      return;
+    }
+
     if (beast?.isCollectable) {
       localStorage.setItem('collectable_beast', JSON.stringify({
         gameId,
@@ -144,11 +235,22 @@ export default function CombatOverlay() {
 
     setAttackInProgress(true);
     setCombatLog(attackMessage);
-    executeGameAction({ type: 'attack', untilDeath });
+    if (untilLastHit) {
+      setAutoLastHitActive(true);
+      setLastHitActionCount(adventurer.action_count);
+    } else {
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+    }
+
+    const fightToDeath = untilDeath && !untilLastHit;
+    executeGameAction({ type: 'attack', untilDeath: fightToDeath });
   };
 
   const handleFlee = () => {
     localStorage.removeItem('collectable_beast');
+    setAutoLastHitActive(false);
+    setLastHitActionCount(null);
     setFleeInProgress(true);
     setCombatLog(fleeMessage);
     executeGameAction({ type: 'flee', untilDeath });
@@ -189,11 +291,19 @@ export default function CombatOverlay() {
     setSkipCombat(true);
   };
 
-  const fleePercentage = ability_based_percentage(adventurer!.xp, adventurer!.stats.dexterity);
-  const combatStats = calculateCombatStats(adventurer!, bag, beast);
-  const attackPreviewDamage = combatStats.critChance >= 100
-    ? combatStats.criticalDamage
-    : combatStats.baseDamage;
+  const toggleUntilDeath = (checked: boolean) => {
+    if (checked) {
+      setUntilLastHit(false);
+    }
+    setUntilDeath(checked);
+  };
+
+  const toggleUntilLastHit = (checked: boolean) => {
+    if (checked) {
+      setUntilDeath(false);
+    }
+    setUntilLastHit(checked);
+  };
 
   const hasNewItemsEquipped = useMemo(() => {
     if (!adventurer?.equipment || !adventurerState?.equipment) return false;
@@ -554,7 +664,7 @@ export default function CombatOverlay() {
       </Box>
 
       {/* Skip Animations Toggle */}
-      {showSkipCombat && untilDeath && <Box sx={styles.skipContainer}>
+      {showSkipCombat && (untilDeath || autoLastHitActive) && <Box sx={styles.skipContainer}>
         <Button
           variant="outlined"
           onClick={handleSkipCombat}
@@ -666,21 +776,46 @@ export default function CombatOverlay() {
               </Button>
             </Box>
 
-            <Box sx={styles.deathCheckboxContainer} onClick={() => {
-              if (!attackInProgress && !fleeInProgress && !equipInProgress && !suggestInProgress) {
-                setUntilDeath(!untilDeath);
-              }
-            }}>
-              <Typography sx={styles.deathCheckboxLabel}>
-                until<br />death
-              </Typography>
-              <Checkbox
-                checked={untilDeath}
-                disabled={attackInProgress || fleeInProgress || equipInProgress}
-                onChange={(e) => setUntilDeath(e.target.checked)}
-                size="medium"
-                sx={styles.deathCheckbox}
-              />
+            <Box sx={styles.deathCheckboxRow}>
+              <Box
+                sx={styles.deathCheckboxContainer}
+                onClick={() => {
+                  if (!combatControlsDisabled && !isLastHitReady) {
+                    toggleUntilLastHit(!untilLastHit);
+                  }
+                }}
+              >
+                <Typography sx={styles.deathCheckboxLabel}>
+                  until<br />last hit
+                </Typography>
+                <Checkbox
+                  checked={untilLastHit}
+                  disabled={combatControlsDisabled || isLastHitReady}
+                  onChange={(e) => toggleUntilLastHit(e.target.checked)}
+                  size="medium"
+                  sx={styles.deathCheckbox}
+                />
+              </Box>
+
+              <Box
+                sx={styles.deathCheckboxContainer}
+                onClick={() => {
+                  if (!combatControlsDisabled) {
+                    toggleUntilDeath(!untilDeath);
+                  }
+                }}
+              >
+                <Typography sx={styles.deathCheckboxLabel}>
+                  until<br />death
+                </Typography>
+                <Checkbox
+                  checked={untilDeath}
+                  disabled={combatControlsDisabled}
+                  onChange={(e) => toggleUntilDeath(e.target.checked)}
+                  size="medium"
+                  sx={styles.deathCheckbox}
+                />
+              </Box>
             </Box>
           </>
         )}
@@ -735,7 +870,7 @@ const styles = {
     position: 'absolute',
     bottom: 32,
     left: '50%',
-    transform: 'translateX(calc(-36%))',
+    transform: 'translateX(calc(-32%))',
     display: 'flex',
     gap: '16px',
     alignItems: 'flex-end',
@@ -812,6 +947,13 @@ const styles = {
     opacity: 0.8,
     lineHeight: '12px',
     textTransform: 'none',
+  },
+  deathCheckboxRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: '16px',
   },
   deathCheckboxContainer: {
     display: 'flex',
