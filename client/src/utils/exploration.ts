@@ -75,6 +75,37 @@ const initialiseLookups = () => {
   }
 };
 
+const getErrorMessage = (error: unknown): string => {
+  if (!error) {
+    return '';
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  const withMessage = error as { message?: unknown };
+  if (typeof withMessage?.message === 'string') {
+    return String(withMessage.message);
+  }
+
+  const nested = (error as { error?: { message?: unknown } })?.error;
+  if (nested && typeof nested.message === 'string') {
+    return String(nested.message);
+  }
+
+  return '';
+};
+
+const isStackOverflowError = (error: unknown): boolean => {
+  const message = getErrorMessage(error).toLowerCase();
+  return message.includes('maximum call stack') || message.includes('call stack size exceeded');
+};
+
 const getEncounterLevelRange = (adventurerLevel: number) => {
   const baseMin = 1;
   const baseMax = Math.max(1, adventurerLevel * 3);
@@ -325,6 +356,24 @@ const makeEmptySlotSummary = (slot: keyof Equipment): SlotDamageSummary => ({
   distribution: [],
   lethalChance: 0,
 });
+
+const makeFallbackSlotSummary = (
+  slot: keyof Equipment,
+  adventurer: Adventurer,
+): SlotDamageSummary => {
+  const baseSummary = makeEmptySlotSummary(slot);
+  const armor = ensureItem(adventurer.equipment[slot]);
+
+  if (!armor.id) {
+    return baseSummary;
+  }
+
+  return {
+    ...baseSummary,
+    armorName: ItemUtils.getItemName(armor.id),
+    hasArmor: true,
+  };
+};
 
 const clampPercentage = (value: number) => Math.min(100, Math.max(0, value));
 
@@ -712,6 +761,45 @@ const computeBeastRisk = (
   };
 };
 
+const buildBeastRiskFallback = (
+  adventurer: Adventurer,
+  _levelRange: { min: number; max: number },
+  gameSettings: Settings,
+  isAmbush: boolean,
+): BeastRiskSummary => {
+  const tierCounts = { T1: 0, T2: 0, T3: 0, T4: 0, T5: 0 } as Record<'T1' | 'T2' | 'T3' | 'T4' | 'T5', number>;
+  const typeCounts = { Magic: 0, Blade: 0, Bludgeon: 0 } as Record<'Magic' | 'Blade' | 'Bludgeon', number>;
+
+  for (const beastId of BEAST_IDS) {
+    const tier = BEAST_TIER_MAP[beastId];
+    const type = BEAST_TYPE_MAP[beastId];
+    tierCounts[`T${tier}` as keyof typeof tierCounts] += 1;
+    typeCounts[type] += 1;
+  }
+
+  const adventurerLevel = Math.max(1, calculateLevel(adventurer.xp));
+  const critChance = Number((getBeastCriticalChance(adventurerLevel, isAmbush) * 100).toFixed(2));
+  const statsMode = gameSettings?.stats_mode ?? 'Dodge';
+  const wisdomStat = adventurer.stats.wisdom ?? 0;
+  const avoidPercent = isAmbush && statsMode === 'Dodge'
+    ? clampPercentage(ability_based_percentage(adventurer.xp, wisdomStat))
+    : 0;
+  const ambushChance = isAmbush
+    ? Number((100 - avoidPercent).toFixed(2))
+    : 0;
+
+  return {
+    ambushChance,
+    critChance,
+    tierDistribution: Object.fromEntries(Object.entries(tierCounts).map(([key, value]) => [key, Number(((value / BEAST_IDS.length) * 100).toFixed(2))])) as BeastRiskSummary['tierDistribution'],
+    typeDistribution: Object.fromEntries(Object.entries(typeCounts).map(([key, value]) => [key, Number(((value / BEAST_IDS.length) * 100).toFixed(2))])) as BeastRiskSummary['typeDistribution'],
+    slotDamages: SLOT_ORDER.map(slot => makeFallbackSlotSummary(slot, adventurer)),
+    damageDistribution: [],
+    medianDamage: MIN_DAMAGE_FROM_BEASTS,
+    overallLethalChance: Number.NaN,
+  };
+};
+
 const computeObstacleRisk = (
   adventurer: Adventurer,
   levelRange: { min: number; max: number },
@@ -861,7 +949,18 @@ export const getExplorationInsights = (
   const levelRange = getEncounterLevelRange(adventurerLevel);
 
   const encounterDistribution = computeEncounterDistribution();
-  const beasts = computeBeastRisk(adventurer, levelRange, gameSettings, true);
+  let beasts: BeastRiskSummary;
+
+  try {
+    beasts = computeBeastRisk(adventurer, levelRange, gameSettings, true);
+  } catch (error) {
+    if (isStackOverflowError(error)) {
+      console.warn('Beast risk computation exceeded call stack; using deterministic fallback summary.', error);
+      beasts = buildBeastRiskFallback(adventurer, levelRange, gameSettings, true);
+    } else {
+      throw error;
+    }
+  }
   const obstacles = computeObstacleRisk(adventurer, levelRange, gameSettings);
   const discoveries = computeDiscoveries(adventurer);
 
