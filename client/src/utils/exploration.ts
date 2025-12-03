@@ -22,6 +22,7 @@ const BEAST_SPECIAL_PREFIX_POOL = Number(MAX_SPECIAL2);
 const BEAST_SPECIAL_SUFFIX_POOL = Number(MAX_SPECIAL3);
 const CRITICAL_HIT_LEVEL_MULTIPLIER = 1; // mirrors BeastSettings::CRITICAL_HIT_LEVEL_MULTIPLIER
 const CRITICAL_HIT_AMBUSH_MULTIPLIER = 1; // mirrors BeastSettings::CRITICAL_HIT_AMBUSH_MULTIPLIER
+const MONTE_CARLO_BEAST_SLOT_SAMPLES = 2000;
 
 const getBeastCriticalChance = (adventurerLevel: number, isAmbush: boolean): number => {
   const multiplier = isAmbush ? CRITICAL_HIT_AMBUSH_MULTIPLIER : CRITICAL_HIT_LEVEL_MULTIPLIER;
@@ -73,6 +74,19 @@ const initialiseLookups = () => {
     BEAST_TYPE_MAP[id] = getAttackType(id) as 'Magic' | 'Blade' | 'Bludgeon';
     BEAST_TIER_MAP[id] = getBeastTier(id);
   }
+};
+
+const createDeterministicRng = (seedValue: number) => {
+  let state = (Math.floor(seedValue) >>> 0) || 0x6d2b79f5;
+
+  return () => {
+    state = Math.imul(state ^ 0x6d2b79f5, 0x85ebca6b) + 0x6d2b79f5;
+    state ^= state >>> 15;
+    state = Math.imul(state | 1, state);
+    state ^= state + Math.imul(state ^ (state >>> 7), (state | 61));
+    const result = (state ^ (state >>> 14)) >>> 0;
+    return result / 0x100000000;
+  };
 };
 
 const getErrorMessage = (error: unknown): string => {
@@ -567,6 +581,187 @@ const computeBeastSlotSummary = (
   };
 };
 
+const computeBeastSlotSummaryMonteCarlo = (
+  slot: keyof Equipment,
+  adventurer: Adventurer,
+  levelRange: { min: number; max: number },
+  isAmbush: boolean,
+  gameSettings: Settings,
+  sampleCount: number,
+  rng: () => number,
+): { summary: SlotDamageSummary; samples: WeightedSample[] } => {
+  const armor = ensureItem(adventurer.equipment[slot]);
+  const armorName = armor.id ? ItemUtils.getItemName(armor.id) : 'None';
+  const armorLevel = calculateLevel(armor.xp);
+  const armorSpecials = armor.id && adventurer.item_specials_seed
+    ? ItemUtils.getSpecials(armor.id, armorLevel, adventurer.item_specials_seed)
+    : { prefix: null, suffix: null };
+
+  const levelCount = Math.max(1, levelRange.max - levelRange.min + 1);
+  const adventurerLevel = Math.max(1, calculateLevel(adventurer.xp));
+  const critChance = getBeastCriticalChance(adventurerLevel, isAmbush);
+  const statsMode = gameSettings?.stats_mode ?? 'Dodge';
+  const baseDamageReduction = isAmbush ? clampPercentage(gameSettings?.base_damage_reduction ?? 0) : 0;
+  const wisdomStat = adventurer.stats.wisdom ?? 0;
+  const statDamageReduction = isAmbush && statsMode === 'Reduction'
+    ? clampPercentage(ability_based_damage_reduction(adventurer.xp, wisdomStat))
+    : 0;
+  const avoidChance = isAmbush && statsMode === 'Dodge'
+    ? clampPercentage(ability_based_percentage(adventurer.xp, wisdomStat)) / 100
+    : 0;
+
+  const applyAmbushMitigation = (damage: number) => {
+    let mitigated = damage;
+    if (isAmbush && baseDamageReduction > 0) {
+      mitigated = applyDamageReduction(mitigated, baseDamageReduction);
+    }
+    if (statDamageReduction > 0) {
+      mitigated = applyDamageReduction(mitigated, statDamageReduction);
+    }
+    return mitigated;
+  };
+
+  const prefixMatchChance = armorSpecials.prefix ? 1 / BEAST_SPECIAL_PREFIX_POOL : 0;
+  const suffixMatchChance = armorSpecials.suffix ? 1 / BEAST_SPECIAL_SUFFIX_POOL : 0;
+  const bothMatchChance = prefixMatchChance * suffixMatchChance;
+  const prefixOnlyChance = Math.max(0, prefixMatchChance - bothMatchChance);
+  const suffixOnlyChance = Math.max(0, suffixMatchChance - bothMatchChance);
+  const noneMatchChance = Math.max(0, 1 - prefixMatchChance - suffixMatchChance + bothMatchChance);
+
+  let minBase = Number.POSITIVE_INFINITY;
+  let maxBase = 0;
+  let minCrit = Number.POSITIVE_INFINITY;
+  let maxCrit = 0;
+  const samples: WeightedSample[] = [];
+  let totalWeight = 0;
+  const sampleWeight = sampleCount > 0 ? 1 / sampleCount : 0;
+
+  const pushSample = (value: number, weight: number) => {
+    if (weight <= 0) return;
+    const damage = Math.round(value);
+    samples.push({ value: damage, weight });
+    totalWeight += weight;
+  };
+
+  if (sampleWeight <= 0) {
+    return {
+      summary: makeFallbackSlotSummary(slot, adventurer),
+      samples,
+    };
+  }
+
+  for (let index = 0; index < sampleCount; index += 1) {
+    const beastIndex = Math.floor(rng() * BEAST_IDS.length) % BEAST_IDS.length;
+    const beastId = BEAST_IDS[beastIndex];
+    const tier = BEAST_TIER_MAP[beastId];
+    const levelOffset = Math.floor(rng() * levelCount);
+    const level = levelRange.min + levelOffset;
+    const hasSpecials = level >= BEAST_SPECIAL_NAME_LEVEL_UNLOCK;
+    const scenarios = hasSpecials
+      ? [
+          { prefix: false, suffix: false, probability: noneMatchChance },
+          { prefix: true, suffix: false, probability: prefixOnlyChance },
+          { prefix: false, suffix: true, probability: suffixOnlyChance },
+          { prefix: true, suffix: true, probability: bothMatchChance },
+        ]
+      : [{ prefix: false, suffix: false, probability: 1 }];
+
+    const validScenarios = scenarios.filter((scenario) => {
+      if (scenario.probability <= 0) return false;
+      if (scenario.prefix && !armorSpecials.prefix) return false;
+      if (scenario.suffix && !armorSpecials.suffix) return false;
+      return true;
+    });
+
+    let selectedScenario = validScenarios[validScenarios.length - 1] ?? { prefix: false, suffix: false, probability: 1 };
+
+    if (validScenarios.length > 0) {
+      const totalProbability = validScenarios.reduce((sum, scenario) => sum + scenario.probability, 0);
+      if (totalProbability > 0) {
+        let roll = rng() * totalProbability;
+        for (const scenario of validScenarios) {
+          if (roll <= scenario.probability) {
+            selectedScenario = scenario;
+            break;
+          }
+          roll -= scenario.probability;
+        }
+      }
+    }
+
+    const beast: Beast = {
+      id: beastId,
+      seed: 0n,
+      baseName: BEAST_NAMES[beastId] || 'Beast',
+      name: BEAST_NAMES[beastId] || 'Beast',
+      health: 0,
+      level,
+      type: '',
+      tier,
+      specialPrefix: selectedScenario.prefix ? armorSpecials.prefix ?? null : null,
+      specialSuffix: selectedScenario.suffix ? armorSpecials.suffix ?? null : null,
+      isCollectable: false,
+    };
+
+    const damageDetails = calculateBeastDamageDetails(beast, adventurer, armor);
+    const baseDamage = applyAmbushMitigation(finaliseBeastDamage(damageDetails.baseDamage));
+    const critDamage = applyAmbushMitigation(finaliseBeastDamage(damageDetails.criticalDamage));
+
+    if (avoidChance > 0 && rng() < avoidChance) {
+      pushSample(0, sampleWeight);
+      continue;
+    }
+
+    if (rng() < critChance) {
+      pushSample(critDamage, sampleWeight);
+      minCrit = Math.min(minCrit, critDamage);
+      maxCrit = Math.max(maxCrit, critDamage);
+    } else {
+      pushSample(baseDamage, sampleWeight);
+      minBase = Math.min(minBase, baseDamage);
+      maxBase = Math.max(maxBase, baseDamage);
+    }
+  }
+
+  if (!Number.isFinite(minBase)) {
+    minBase = MIN_DAMAGE_FROM_BEASTS;
+    maxBase = MIN_DAMAGE_FROM_BEASTS;
+  }
+
+  if (!Number.isFinite(minCrit)) {
+    minCrit = MIN_DAMAGE_FROM_BEASTS;
+    maxCrit = MIN_DAMAGE_FROM_BEASTS;
+  }
+
+  const distribution = buildDamageDistribution(samples);
+  const healthThreshold = Math.max(0, adventurer.health ?? 0);
+  let lethalChance = 0;
+
+  if (healthThreshold > 0 && totalWeight > 0) {
+    const lethalWeight = samples.reduce((sum, sample) => (
+      sample.value >= healthThreshold ? sum + sample.weight : sum
+    ), 0);
+
+    lethalChance = Number(((lethalWeight / totalWeight) * 100).toFixed(2));
+  }
+
+  return {
+    summary: {
+      slot,
+      slotLabel: slot.charAt(0).toUpperCase() + slot.slice(1),
+      armorName,
+      hasArmor: Boolean(armor.id),
+      minBase,
+      maxBase,
+      minCrit,
+      maxCrit,
+      distribution,
+      lethalChance,
+    },
+    samples,
+  };
+};
+
 const computeObstacleSlotSummary = (
   slot: keyof Equipment,
   adventurer: Adventurer,
@@ -761,7 +956,89 @@ const computeBeastRisk = (
   };
 };
 
-const buildBeastRiskFallback = (
+const computeBeastRiskMonteCarlo = (
+  adventurer: Adventurer,
+  levelRange: { min: number; max: number },
+  gameSettings: Settings,
+  isAmbush: boolean,
+  sampleCount = MONTE_CARLO_BEAST_SLOT_SAMPLES,
+): BeastRiskSummary => {
+  const tierCounts = { T1: 0, T2: 0, T3: 0, T4: 0, T5: 0 } as Record<'T1' | 'T2' | 'T3' | 'T4' | 'T5', number>;
+  const typeCounts = { Magic: 0, Blade: 0, Bludgeon: 0 } as Record<'Magic' | 'Blade' | 'Bludgeon', number>;
+
+  for (const beastId of BEAST_IDS) {
+    const tier = BEAST_TIER_MAP[beastId];
+    const type = BEAST_TYPE_MAP[beastId];
+    tierCounts[`T${tier}` as keyof typeof tierCounts] += 1;
+    typeCounts[type] += 1;
+  }
+
+  const statsMode = gameSettings?.stats_mode ?? 'Dodge';
+  const wisdomStat = adventurer.stats.wisdom ?? 0;
+  const avoidPercent = isAmbush && statsMode === 'Dodge'
+    ? clampPercentage(ability_based_percentage(adventurer.xp, wisdomStat))
+    : 0;
+  const ambushChance = isAmbush
+    ? Number((100 - avoidPercent).toFixed(2))
+    : 0;
+
+  const rngSeedBase =
+    (adventurer.xp ?? 0) +
+    (adventurer.health ?? 0) +
+    (adventurer.item_specials_seed ?? 0) +
+    levelRange.min +
+    levelRange.max +
+    (gameSettings?.base_damage_reduction ?? 0);
+  const rng = createDeterministicRng(rngSeedBase);
+
+  const slotSummaries: SlotDamageSummary[] = [];
+  const aggregatedSamples: WeightedSample[] = [];
+
+  for (const slot of SLOT_ORDER) {
+    const { summary, samples } = computeBeastSlotSummaryMonteCarlo(
+      slot,
+      adventurer,
+      levelRange,
+      isAmbush,
+      gameSettings,
+      sampleCount,
+      rng,
+    );
+    slotSummaries.push(summary);
+    aggregatedSamples.push(...samples);
+  }
+
+  const adventurerLevel = Math.max(1, calculateLevel(adventurer.xp));
+  const critChance = Number((getBeastCriticalChance(adventurerLevel, isAmbush) * 100).toFixed(2));
+  const damageDistribution = buildDamageDistribution(aggregatedSamples);
+  const medianDamage = computeMedianDamage(aggregatedSamples);
+  const playerHealth = Math.max(0, adventurer.health ?? 0);
+  let overallLethalChance = 0;
+
+  if (playerHealth > 0) {
+    const totalWeight = aggregatedSamples.reduce((sum, sample) => sum + sample.weight, 0);
+    if (totalWeight > 0) {
+      const lethalWeight = aggregatedSamples.reduce((sum, sample) => (
+        sample.value >= playerHealth ? sum + sample.weight : sum
+      ), 0);
+
+      overallLethalChance = Number(((lethalWeight / totalWeight) * 100).toFixed(2));
+    }
+  }
+
+  return {
+    ambushChance,
+    critChance,
+    tierDistribution: Object.fromEntries(Object.entries(tierCounts).map(([key, value]) => [key, Number(((value / BEAST_IDS.length) * 100).toFixed(2))])) as BeastRiskSummary['tierDistribution'],
+    typeDistribution: Object.fromEntries(Object.entries(typeCounts).map(([key, value]) => [key, Number(((value / BEAST_IDS.length) * 100).toFixed(2))])) as BeastRiskSummary['typeDistribution'],
+    slotDamages: slotSummaries,
+    damageDistribution,
+    medianDamage,
+    overallLethalChance,
+  };
+};
+
+const buildMinimalBeastRiskSummary = (
   adventurer: Adventurer,
   _levelRange: { min: number; max: number },
   gameSettings: Settings,
@@ -955,8 +1232,13 @@ export const getExplorationInsights = (
     beasts = computeBeastRisk(adventurer, levelRange, gameSettings, true);
   } catch (error) {
     if (isStackOverflowError(error)) {
-      console.warn('Beast risk computation exceeded call stack; using deterministic fallback summary.', error);
-      beasts = buildBeastRiskFallback(adventurer, levelRange, gameSettings, true);
+      console.warn('Beast risk computation exceeded call stack; using Monte Carlo fallback summary.', error);
+      try {
+        beasts = computeBeastRiskMonteCarlo(adventurer, levelRange, gameSettings, true);
+      } catch (monteCarloError) {
+        console.error('Beast risk Monte Carlo fallback failed; using minimal deterministic summary.', monteCarloError);
+        beasts = buildMinimalBeastRiskSummary(adventurer, levelRange, gameSettings, true);
+      }
     } else {
       throw error;
     }
