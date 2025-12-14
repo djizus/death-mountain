@@ -16,6 +16,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import GamePage from './GamePage';
 
+const LIVE_POLL_INTERVAL_MS = 2500;
+
 export default function WatchPage() {
   const navigate = useNavigate();
   const { getGameEvents } = useGameEvents();
@@ -28,9 +30,13 @@ export default function WatchPage() {
   const [replayIndex, setReplayIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [sliderValue, setSliderValue] = useState(0);
+  const [isLiveGame, setIsLiveGame] = useState(false);
+  const [liveSyncReady, setLiveSyncReady] = useState(false);
   const [searchParams] = useSearchParams();
   const game_id = Number(searchParams.get('id'));
   const hasPrimedReplay = useRef(false);
+  const liveEventsCountRef = useRef(0);
+  const livePollInFlightRef = useRef(false);
 
   const subscribeEvents = async (gameId: number) => {
     const events = await getGameEvents(gameId!);
@@ -41,7 +47,25 @@ export default function WatchPage() {
       return navigate("/survivor");
     }
 
+    const isLive = gameState.adventurer.health !== 0;
+    setIsLiveGame(isLive);
+    if (isLive) {
+      hasPrimedReplay.current = true;
+    }
     setReplayEvents(events);
+    liveEventsCountRef.current = events.length;
+
+    if (isLive) {
+      setEventQueue([]);
+      setEventsProcessed(0);
+
+      for (const event of events) {
+        await Promise.resolve(processEvent(event, true));
+      }
+
+      setReplayIndex(Math.max(0, events.length - 1));
+      setLiveSyncReady(true);
+    }
   };
 
   const handleEndWatching = () => {
@@ -157,6 +181,16 @@ export default function WatchPage() {
   useEffect(() => {
     if (game_id) {
       setSpectating(true);
+      hasPrimedReplay.current = false;
+      setLiveSyncReady(false);
+      setIsLiveGame(false);
+      liveEventsCountRef.current = 0;
+      setReplayEvents([]);
+      setReplayIndex(0);
+      setSliderValue(0);
+      setIsPlaying(false);
+      setEventQueue([]);
+      setEventsProcessed(0);
       subscribeEvents(game_id);
     } else {
       setSpectating(false);
@@ -165,6 +199,7 @@ export default function WatchPage() {
   }, [game_id]);
 
   useEffect(() => {
+    if (isLiveGame) return;
     if (hasPrimedReplay.current) return;
     if (replayEvents.length === 0 || replayIndex !== 0) return;
 
@@ -181,7 +216,59 @@ export default function WatchPage() {
     return () => {
       cancelled = true;
     };
-  }, [replayEvents, replayIndex, replayForward, processEvent]);
+  }, [isLiveGame, replayEvents, replayIndex, replayForward, processEvent]);
+
+  useEffect(() => {
+    if (!spectating) return;
+    if (!isLiveGame || !liveSyncReady) return;
+    if (!game_id) return;
+
+    let cancelled = false;
+
+    const pollLiveEvents = async () => {
+      if (livePollInFlightRef.current) return;
+      livePollInFlightRef.current = true;
+
+      try {
+      const events = await getGameEvents(game_id);
+      if (cancelled) return;
+
+      if (!events || events.length <= liveEventsCountRef.current) return;
+
+      const newEvents = events.slice(liveEventsCountRef.current);
+      liveEventsCountRef.current = events.length;
+
+      setReplayEvents((prev) => prev.concat(newEvents));
+      setReplayIndex(Math.max(0, events.length - 1));
+      setEventQueue((prevQueue: any[]) =>
+        (Array.isArray(prevQueue) ? prevQueue : []).concat(newEvents)
+      );
+
+      const died = newEvents.some(
+        (event: any) => event.type === 'adventurer' && event.adventurer?.health === 0
+      );
+      if (died) {
+        setIsLiveGame(false);
+        setLiveSyncReady(false);
+      }
+      } finally {
+        livePollInFlightRef.current = false;
+      }
+    };
+
+    // Initial poll in case new events arrived during initial sync.
+    pollLiveEvents();
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      pollLiveEvents();
+    }, LIVE_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [spectating, isLiveGame, liveSyncReady, game_id, getGameEvents, setEventQueue]);
 
   // Sync slider value with replayIndex
   useEffect(() => {
@@ -214,6 +301,7 @@ export default function WatchPage() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isPlaying) return; // Don't handle keyboard events while playing
+      if (isLiveGame) return;
 
       if (event.key === 'ArrowRight') {
         replayForward();
@@ -224,11 +312,12 @@ export default function WatchPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [replayForward, replayBackward, isPlaying]);
+  }, [replayForward, replayBackward, isPlaying, isLiveGame]);
 
   if (!spectating) return null;
 
   const isLoading = !gameId || !adventurer;
+  const modeLabel = isLiveGame ? 'LIVE' : 'REPLAY';
 
   return (
     <>
@@ -248,43 +337,59 @@ export default function WatchPage() {
           </>
         ) : (
           <>
-            <VideocamIcon sx={styles.theatersIcon} />
-
-            <Box sx={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-evenly', gap: '8px' }}>
-              <Button
-                disabled={isPlaying}
-                onClick={replayBackward}
-                sx={styles.controlButton}
-              >
-                <SkipPreviousIcon />
-              </Button>
-
-              <Box sx={{ flex: 1, px: 1 }}>
-                <Slider
-                  value={sliderValue}
-                  min={1}
-                  max={Math.max(0, replayEvents.length - 1)}
-                  onChange={handleSliderChange}
-                  onChangeCommitted={handleSliderChangeCommitted}
-                  disabled={isPlaying || replayEvents.length === 0}
-                  valueLabelDisplay="auto"
-                  valueLabelFormat={(value) => {
-                    const level = eventLevelMap.get(value) || 1;
-                    return `Lvl ${level}`;
-                  }}
-                  sx={styles.slider}
-                  size="small"
-                />
+            <Box sx={styles.modeRow}>
+              <VideocamIcon sx={styles.theatersIcon} />
+              <Box sx={[styles.badge, isLiveGame ? styles.badgeLive : styles.badgeReplay]}>
+                <Typography sx={[styles.badgeText, isLiveGame ? styles.badgeTextLive : styles.badgeTextReplay]}>
+                  {modeLabel}
+                </Typography>
               </Box>
-
-              <Button
-                onClick={replayForward}
-                disabled={isPlaying}
-                sx={styles.controlButton}
-              >
-                <SkipNextIcon />
-              </Button>
             </Box>
+
+            {isLiveGame ? (
+              <Box sx={styles.liveStatus}>
+                <VisibilityIcon sx={styles.visibilityIcon} />
+                <Typography sx={styles.liveText}>
+                  watching live
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ display: 'flex', flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'space-evenly', gap: '8px' }}>
+                <Button
+                  disabled={isPlaying}
+                  onClick={replayBackward}
+                  sx={styles.controlButton}
+                >
+                  <SkipPreviousIcon />
+                </Button>
+
+                <Box sx={{ flex: 1, px: 1 }}>
+                  <Slider
+                    value={sliderValue}
+                    min={1}
+                    max={Math.max(0, replayEvents.length - 1)}
+                    onChange={handleSliderChange}
+                    onChangeCommitted={handleSliderChangeCommitted}
+                    disabled={isPlaying || replayEvents.length === 0}
+                    valueLabelDisplay="auto"
+                    valueLabelFormat={(value) => {
+                      const level = eventLevelMap.get(value) || 1;
+                      return `Lvl ${level}`;
+                    }}
+                    sx={styles.slider}
+                    size="small"
+                  />
+                </Box>
+
+                <Button
+                  onClick={replayForward}
+                  disabled={isPlaying}
+                  sx={styles.controlButton}
+                >
+                  <SkipNextIcon />
+                </Button>
+              </Box>
+            )}
 
             <ExitToAppIcon sx={styles.closeIcon} onClick={handleEndWatching} />
           </>
@@ -315,6 +420,52 @@ const styles = {
     boxSizing: 'border-box',
     border: '2px solid rgba(128, 255, 0, 0.4)',
     borderBottom: 'none',
+  },
+  modeRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    minWidth: '110px',
+  },
+  badge: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '22px',
+    px: '10px',
+    borderRadius: '999px',
+  },
+  badgeLive: {
+    border: '1px solid rgba(128, 255, 0, 0.45)',
+    backgroundColor: 'rgba(128, 255, 0, 0.12)',
+  },
+  badgeReplay: {
+    border: '1px solid rgba(237, 207, 51, 0.4)',
+    backgroundColor: 'rgba(237, 207, 51, 0.12)',
+  },
+  badgeText: {
+    fontSize: '0.72rem',
+    fontWeight: 700,
+    letterSpacing: 1,
+    lineHeight: 1,
+  },
+  badgeTextLive: {
+    color: 'rgba(128, 255, 0, 1)',
+  },
+  badgeTextReplay: {
+    color: '#EDCF33',
+  },
+  liveStatus: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    flex: 1,
+    minWidth: 0,
+  },
+  liveText: {
+    color: 'rgba(128, 255, 0, 1)',
+    fontSize: '1.05rem',
   },
   visibilityIcon: {
     color: 'rgba(128, 255, 0, 1)',
