@@ -2,7 +2,8 @@ import { useStarknetApi } from '@/api/starknet';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useGameEvents } from '@/dojo/useGameEvents';
 import { useGameStore } from '@/stores/gameStore';
-import { ExplorerReplayEvents } from '@/utils/events';
+import type { Item } from '@/types/game';
+import { ExplorerReplayEvents, processGameEvent } from '@/utils/events';
 import { calculateLevel } from '@/utils/game';
 import CloseIcon from '@mui/icons-material/Close';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
@@ -20,10 +21,21 @@ const LIVE_POLL_INTERVAL_MS = 2500;
 
 export default function WatchPage() {
   const navigate = useNavigate();
-  const { getGameEvents } = useGameEvents();
+  const { getGameEvents, getGameEventsAfterActionCount } = useGameEvents();
   const { enqueueSnackbar } = useSnackbar();
   const { spectating, setSpectating, processEvent, setEventQueue, eventsProcessed, setEventsProcessed } = useGameDirector();
-  const { gameId, adventurer, popExploreLog } = useGameStore();
+  const {
+    adventurer,
+    popExploreLog,
+    setAdventurer,
+    setBag,
+    setBeast,
+    setMarketItemIds,
+    setCollectable,
+    setShowInventory,
+    setBattleEvent,
+    exitGame,
+  } = useGameStore();
   const { getGameState } = useStarknetApi();
 
   const [replayEvents, setReplayEvents] = useState<any[]>([]);
@@ -35,14 +47,13 @@ export default function WatchPage() {
   const [searchParams] = useSearchParams();
   const game_id = Number(searchParams.get('id'));
   const hasPrimedReplay = useRef(false);
-  const liveEventsCountRef = useRef(0);
+  const liveActionCountRef = useRef(0);
   const livePollInFlightRef = useRef(false);
 
   const subscribeEvents = async (gameId: number) => {
-    const events = await getGameEvents(gameId!);
     const gameState = await getGameState(gameId!);
 
-    if (!gameState || events.length === 0) {
+    if (!gameState) {
       enqueueSnackbar('Failed to load game', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } });
       return navigate("/survivor");
     }
@@ -52,20 +63,46 @@ export default function WatchPage() {
     if (isLive) {
       hasPrimedReplay.current = true;
     }
-    setReplayEvents(events);
-    liveEventsCountRef.current = events.length;
+    setLiveSyncReady(false);
 
     if (isLive) {
-      setEventQueue([]);
-      setEventsProcessed(0);
+      useGameStore.setState({ exploreLog: [] });
+      setBattleEvent(null);
 
-      for (const event of events) {
-        await Promise.resolve(processEvent(event, true));
+      setAdventurer(gameState.adventurer);
+      setBag(
+        Object.values(gameState.bag).filter(
+          (item: any) => typeof item === 'object' && item.id !== 0
+        ) as Item[]
+      );
+      setMarketItemIds(gameState.market);
+      setShowInventory(gameState.adventurer.stat_upgrades_available > 0);
+
+      if (gameState.adventurer.beast_health > 0) {
+        const beast = processGameEvent({
+          action_count: 0,
+          details: { beast: gameState.beast },
+        }).beast!;
+        setBeast(beast);
+        setCollectable(beast.isCollectable ? beast : null);
+      } else {
+        setBeast(null);
+        setCollectable(null);
       }
 
-      setReplayIndex(Math.max(0, events.length - 1));
+      liveActionCountRef.current = gameState.adventurer.action_count ?? 0;
       setLiveSyncReady(true);
+      return;
     }
+
+    const events = await getGameEvents(gameId!);
+    if (events.length === 0) {
+      enqueueSnackbar('Failed to load game', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } });
+      return navigate("/survivor");
+    }
+
+    setReplayEvents(events);
+    setReplayIndex(0);
   };
 
   const handleEndWatching = () => {
@@ -180,11 +217,12 @@ export default function WatchPage() {
 
   useEffect(() => {
     if (game_id) {
+      exitGame();
       setSpectating(true);
       hasPrimedReplay.current = false;
       setLiveSyncReady(false);
       setIsLiveGame(false);
-      liveEventsCountRef.current = 0;
+      liveActionCountRef.current = 0;
       setReplayEvents([]);
       setReplayIndex(0);
       setSliderValue(0);
@@ -230,27 +268,42 @@ export default function WatchPage() {
       livePollInFlightRef.current = true;
 
       try {
-      const events = await getGameEvents(game_id);
-      if (cancelled) return;
+        const newEvents = await getGameEventsAfterActionCount(
+          game_id,
+          liveActionCountRef.current
+        );
+        if (cancelled) return;
 
-      if (!events || events.length <= liveEventsCountRef.current) return;
+        if (!newEvents || newEvents.length === 0) return;
 
-      const newEvents = events.slice(liveEventsCountRef.current);
-      liveEventsCountRef.current = events.length;
+        const nextCursor = newEvents.reduce(
+          (max: number, event: any) => Math.max(max, event?.action_count ?? 0),
+          liveActionCountRef.current
+        );
+        liveActionCountRef.current = nextCursor;
 
-      setReplayEvents((prev) => prev.concat(newEvents));
-      setReplayIndex(Math.max(0, events.length - 1));
-      setEventQueue((prevQueue: any[]) =>
-        (Array.isArray(prevQueue) ? prevQueue : []).concat(newEvents)
-      );
+        setEventQueue((prevQueue: any[]) =>
+          (Array.isArray(prevQueue) ? prevQueue : []).concat(newEvents)
+        );
 
-      const died = newEvents.some(
-        (event: any) => event.type === 'adventurer' && event.adventurer?.health === 0
-      );
-      if (died) {
-        setIsLiveGame(false);
-        setLiveSyncReady(false);
-      }
+        const died = newEvents.some(
+          (event: any) => event.type === 'adventurer' && event.adventurer?.health === 0
+        );
+        if (died) {
+          setIsLiveGame(false);
+          setLiveSyncReady(false);
+
+          const allEvents = await getGameEvents(game_id);
+          if (cancelled) return;
+
+          setReplayEvents(allEvents);
+          setReplayIndex(Math.max(0, allEvents.length - 1));
+          useGameStore.setState({
+            exploreLog: allEvents
+              .filter((event: any) => ExplorerReplayEvents.includes(event.type))
+              .reverse(),
+          });
+        }
       } finally {
         livePollInFlightRef.current = false;
       }
@@ -268,7 +321,7 @@ export default function WatchPage() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [spectating, isLiveGame, liveSyncReady, game_id, getGameEvents, setEventQueue]);
+  }, [spectating, isLiveGame, liveSyncReady, game_id, getGameEvents, getGameEventsAfterActionCount, setEventQueue]);
 
   // Sync slider value with replayIndex
   useEffect(() => {
@@ -316,13 +369,13 @@ export default function WatchPage() {
 
   if (!spectating) return null;
 
-  const isLoading = !gameId || !adventurer;
+  const isLoading = !adventurer;
   const modeLabel = isLiveGame ? 'LIVE' : 'REPLAY';
 
   return (
     <>
       {!isLoading && <Box sx={styles.overlay}>
-        {replayEvents.length === 0 ? (
+        {replayEvents.length === 0 && !isLiveGame ? (
           <>
             <Box />
 
