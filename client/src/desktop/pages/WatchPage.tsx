@@ -370,7 +370,6 @@ export default function WatchPage() {
   if (!spectating) return null;
 
   const isLoading = !adventurer;
-  const modeLabel = isLiveGame ? 'LIVE' : 'REPLAY';
 
   return (
     <>
@@ -392,11 +391,6 @@ export default function WatchPage() {
           <>
             <Box sx={styles.modeRow}>
               <VideocamIcon sx={styles.theatersIcon} />
-              <Box sx={[styles.badge, isLiveGame ? styles.badgeLive : styles.badgeReplay]}>
-                <Typography sx={[styles.badgeText, isLiveGame ? styles.badgeTextLive : styles.badgeTextReplay]}>
-                  {modeLabel}
-                </Typography>
-              </Box>
             </Box>
 
             {isLiveGame ? (
@@ -477,36 +471,7 @@ const styles = {
   modeRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
-    minWidth: '110px',
-  },
-  badge: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '22px',
-    px: '10px',
-    borderRadius: '999px',
-  },
-  badgeLive: {
-    border: '1px solid rgba(128, 255, 0, 0.45)',
-    backgroundColor: 'rgba(128, 255, 0, 0.12)',
-  },
-  badgeReplay: {
-    border: '1px solid rgba(237, 207, 51, 0.4)',
-    backgroundColor: 'rgba(237, 207, 51, 0.12)',
-  },
-  badgeText: {
-    fontSize: '0.72rem',
-    fontWeight: 700,
-    letterSpacing: 1,
-    lineHeight: 1,
-  },
-  badgeTextLive: {
-    color: 'rgba(128, 255, 0, 1)',
-  },
-  badgeTextReplay: {
-    color: '#EDCF33',
+    minWidth: '32px',
   },
   liveStatus: {
     display: 'flex',

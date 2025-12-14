@@ -103,9 +103,6 @@ export default function LiveGamesPanel() {
       <Box sx={styles.container}>
       <Box sx={styles.header}>
         <Typography sx={styles.title}>WATCH GAMES</Typography>
-        <Box sx={styles.liveBadge}>
-          <Typography sx={styles.liveBadgeText}>LIVE</Typography>
-        </Box>
       </Box>
 
       <Box sx={styles.gamesRow}>
@@ -178,20 +175,6 @@ const styles = {
     fontWeight: 700,
     letterSpacing: 1,
     fontSize: "0.95rem",
-    lineHeight: 1,
-  },
-  liveBadge: {
-    px: 0.8,
-    py: 0.2,
-    borderRadius: "999px",
-    backgroundColor: "rgba(128, 255, 0, 0.14)",
-    border: "1px solid rgba(128, 255, 0, 0.5)",
-  },
-  liveBadgeText: {
-    color: "rgba(128, 255, 0, 1)",
-    fontSize: "0.7rem",
-    fontWeight: 700,
-    letterSpacing: 1,
     lineHeight: 1,
   },
   gamesRow: {
