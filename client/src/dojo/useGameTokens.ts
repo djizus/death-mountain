@@ -6,13 +6,14 @@ import { getShortNamespace } from "@/utils/utils";
 import { gql, request } from "graphql-request";
 import { GameTokenData } from "metagame-sdk";
 import { Beast } from "@/types/game";
+import { lookupAddressName } from "@/utils/addressNameCache";
 
 export const useGameTokens = () => {
   const { currentNetworkConfig } = useDynamicConnector();
 
   const namespace = currentNetworkConfig.namespace;
   const NS_SHORT = getShortNamespace(namespace);
-  const SQL_ENDPOINT = NETWORKS[import.meta.env.VITE_PUBLIC_CHAIN as keyof typeof NETWORKS].torii;
+  const SQL_ENDPOINT = NETWORKS.SN_MAIN.torii;
 
   const fetchAdventurerData = async (gamesData: GameTokenData[]) => {
     const formattedTokenIds = gamesData.map(
@@ -121,7 +122,7 @@ export const useGameTokens = () => {
   }
 
   const countBeasts = async () => {
-    let beast_address = NETWORKS[import.meta.env.VITE_PUBLIC_CHAIN as keyof typeof NETWORKS].beasts;
+    let beast_address = NETWORKS.SN_MAIN.beasts;
     let url = `${SQL_ENDPOINT}/sql?query=
       SELECT COUNT(*) as count FROM tokens
       WHERE contract_address = "${addAddressPadding(beast_address)}"`
@@ -174,10 +175,51 @@ export const useGameTokens = () => {
     }
   }
 
+  const getBeastOwner = async (beast: Beast) => {
+    try {
+      let url = `${SQL_ENDPOINT}/sql?query=
+      SELECT
+        tb.token_id,
+        tb.account_address AS owner_address
+      FROM token_attributes a_beast
+      JOIN token_attributes a_prefix
+        ON a_prefix.token_id = a_beast.token_id
+      JOIN token_attributes a_suffix
+        ON a_suffix.token_id = a_beast.token_id
+      JOIN token_balances tb
+        ON tb.token_id = a_beast.token_id
+      WHERE a_beast.trait_name = 'Beast ID'
+        AND a_beast.trait_value = '${beast.id}'
+        AND a_prefix.trait_name = 'Prefix'
+        AND a_prefix.trait_value = '${beast.specialPrefix}'
+        AND a_suffix.trait_name = 'Suffix'
+        AND a_suffix.trait_value = '${beast.specialSuffix}'
+        AND tb.contract_address = '${currentNetworkConfig.beasts}'
+        AND tb.balance = '0x0000000000000000000000000000000000000000000000000000000000000001'
+      LIMIT 1;
+    `
+
+      let sql = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      })
+
+      let data = await sql.json()
+      let owner_address = data[0].owner_address
+      return lookupAddressName(owner_address)
+    } catch (error) {
+      console.error("Error getting beast owner:", error);
+      return null;
+    }
+  }
+
   return {
     fetchAdventurerData,
     getGameTokens,
     countBeasts,
-    getBeastTokenId
+    getBeastTokenId,
+    getBeastOwner
   };
 };

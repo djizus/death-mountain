@@ -1,4 +1,5 @@
 import { useDynamicConnector } from "@/contexts/starknet";
+import { useDungeon } from "@/dojo/useDungeon";
 import { calculateLevel } from "@/utils/game";
 import { ChainId } from "@/utils/networkConfig";
 import { getContractByName } from "@dojoengine/core";
@@ -29,6 +30,7 @@ const areLiveGamesEqual = (a: GameTokenData[], b: GameTokenData[]) => {
 
 export default function LiveGamesPanel() {
   const navigate = useNavigate();
+  const dungeon = useDungeon();
   const { currentNetworkConfig } = useDynamicConnector();
   const [displayGames, setDisplayGames] = useState<GameTokenData[]>([]);
 
@@ -41,8 +43,8 @@ export default function LiveGamesPanel() {
   const mintedByAddress =
     currentNetworkConfig.chainId === ChainId.WP_PG_SLOT
       ? gameTokenAddress
-      : currentNetworkConfig.dungeon
-        ? addAddressPadding(currentNetworkConfig.dungeon)
+      : dungeon.address
+        ? addAddressPadding(dungeon.address)
         : undefined;
 
   const settingsId =
@@ -129,7 +131,7 @@ export default function LiveGamesPanel() {
               <IconButton
                 size="small"
                 sx={styles.watchButton}
-                onClick={() => navigate(`/survivor/watch?id=${game.token_id}`)}
+                onClick={() => navigate(`/${dungeon.id}/watch?id=${game.token_id}`)}
                 aria-label={`Watch game ${game.token_id}`}
               >
                 <VisibilityIcon fontSize="small" />

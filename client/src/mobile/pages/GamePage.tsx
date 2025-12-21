@@ -1,5 +1,6 @@
 import { useController } from "@/contexts/controller";
 import { useDynamicConnector } from "@/contexts/starknet";
+import { useDungeon } from "@/dojo/useDungeon";
 import { useSystemCalls } from "@/dojo/useSystemCalls";
 import { useGameStore } from "@/stores/gameStore";
 import { ChainId, getNetworkConfig, NetworkConfig } from "@/utils/networkConfig";
@@ -19,13 +20,12 @@ import MarketScreen from "../containers/MarketScreen";
 import QuestCompletedScreen from "../containers/QuestCompletedScreen";
 import SettingsScreen from "../containers/SettingsScreen";
 import StatSelectionScreen from "../containers/StatSelectionScreen";
-import { useGameDirector } from "../contexts/GameDirector";
 
 export default function GamePage() {
   const navigate = useNavigate();
+  const dungeon = useDungeon();
   const { setCurrentNetworkConfig, currentNetworkConfig } = useDynamicConnector();
   const { mintGame } = useSystemCalls();
-  const { spectating } = useGameDirector();
   const {
     account,
     playerName,
@@ -41,6 +41,7 @@ export default function GamePage() {
     beast,
     showBeastRewards,
     quest,
+    spectating,
   } = useGameStore();
 
 
@@ -59,7 +60,7 @@ export default function GamePage() {
     setLoadingProgress(45);
     let tokenId = await mintGame(playerName, settings_id);
     navigate(
-      `/survivor/play?id=${tokenId}${mode === "practice" ? "&mode=practice" : ""
+      `/${dungeon.id}/play?id=${tokenId}${mode === "practice" ? "&mode=practice" : ""
       }`,
       { replace: true }
     );
@@ -67,24 +68,28 @@ export default function GamePage() {
 
   useEffect(() => {
     if (!account && gameId && adventurer) {
-      navigate("/survivor");
+      navigate(`/${dungeon.id}`);
     }
   }, [account]);
 
   useEffect(() => {
     if (mode === "practice" && currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT) {
-      setCurrentNetworkConfig(getNetworkConfig(ChainId.WP_PG_SLOT) as NetworkConfig);
       return;
     }
 
-    if (spectating) {
+    if (spectating && game_id) {
       setLoadingProgress(99);
       setGameId(game_id);
       return;
     }
 
-    if (mode !== "entering" && currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT && game_id === 0) {
-      setCurrentNetworkConfig(getNetworkConfig(ChainId.WP_PG_SLOT) as NetworkConfig);
+    if (mode !== "entering" && game_id === 0 && currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT) {
+      if (dungeon.includePractice) {
+        navigate(`/${dungeon.id}/play?mode=practice`, { replace: true })
+      } else {
+        navigate(`/${dungeon.id}`, { replace: true })
+      }
+
       return;
     }
 

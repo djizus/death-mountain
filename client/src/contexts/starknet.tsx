@@ -12,8 +12,7 @@ import {
   PropsWithChildren,
   useCallback,
   useContext,
-  useEffect,
-  useState,
+  useState
 } from "react";
 
 interface DynamicConnectorContext {
@@ -25,7 +24,7 @@ const DynamicConnectorContext = createContext<DynamicConnectorContext | null>(
   null
 );
 
-const controllerConfig = getNetworkConfig(import.meta.env.VITE_PUBLIC_CHAIN);
+const controllerConfig = getNetworkConfig(ChainId.SN_MAIN);
 const cartridgeController =
   typeof window !== "undefined"
     ? new ControllerConnector({
@@ -40,20 +39,8 @@ const cartridgeController =
     : null;
 
 export function DynamicConnectorProvider({ children }: PropsWithChildren) {
-  const getInitialNetwork = (): NetworkConfig => {
-    return getNetworkConfig(
-      import.meta.env.VITE_PUBLIC_DEFAULT_CHAIN as ChainId
-    );
-  };
-
   const [currentNetworkConfig, setCurrentNetworkConfig] =
-    useState<NetworkConfig>(getInitialNetwork);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("lastSelectedNetwork", currentNetworkConfig.chainId);
-    }
-  }, [currentNetworkConfig.chainId]);
+    useState<NetworkConfig>(getNetworkConfig(ChainId.SN_MAIN));
 
   const rpc = useCallback(() => {
     return { nodeUrl: controllerConfig.chains[0].rpcUrl };

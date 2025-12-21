@@ -16,9 +16,20 @@ import { useSnackbar } from 'notistack';
 import { getExplorationInsights } from '@/utils/exploration';
 
 export default function ExploreOverlay() {
-  const { executeGameAction, actionFailed, setVideoQueue, spectating } = useGameDirector();
-  const { exploreLog, adventurer, gameSettings, setShowOverlay, collectable, collectableTokenURI,
-    setCollectable, selectedStats, setSelectedStats, claimInProgress } = useGameStore();
+  const { executeGameAction, actionFailed, setVideoQueue } = useGameDirector();
+  const {
+    exploreLog,
+    adventurer,
+    gameSettings,
+    setShowOverlay,
+    collectable,
+    collectableTokenURI,
+    setCollectable,
+    selectedStats,
+    setSelectedStats,
+    claimInProgress,
+    spectating,
+  } = useGameStore();
   const { cart, inProgress, setInProgress } = useMarketStore();
   const { skipAllAnimations, showUntilBeastToggle } = useUIStore();
   const { enqueueSnackbar } = useSnackbar()

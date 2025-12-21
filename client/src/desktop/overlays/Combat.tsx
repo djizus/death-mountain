@@ -56,9 +56,19 @@ const tipPulseGamble = keyframes`
 `;
 
 export default function CombatOverlay() {
-  const { executeGameAction, actionFailed, spectating, setSkipCombat, skipCombat, showSkipCombat } = useGameDirector();
+  const { executeGameAction, actionFailed, setSkipCombat, skipCombat, showSkipCombat } = useGameDirector();
   const { currentNetworkConfig } = useDynamicConnector();
-  const { gameId, adventurer, adventurerState, beast, battleEvent, bag, undoEquipment, applyGearSuggestion } = useGameStore();
+  const {
+    gameId,
+    adventurer,
+    adventurerState,
+    beast,
+    battleEvent,
+    bag,
+    undoEquipment,
+    applyGearSuggestion,
+    spectating,
+  } = useGameStore();
 
   const [untilDeath, setUntilDeath] = useState(false);
   const [untilLastHit, setUntilLastHit] = useState(false);
@@ -536,7 +546,7 @@ export default function CombatOverlay() {
 
   return (
     <Box sx={[styles.container, spectating && styles.spectating]}>
-      <Box sx={[styles.imageContainer, { backgroundImage: `url('/images/battle_scenes/${isJackpot ? `jackpot_${beast!.baseName.toLowerCase()}` : beast!.baseName.toLowerCase()}.png')` }]} />
+      {beast?.baseName && <Box sx={[styles.imageContainer, { backgroundImage: `url('/images/battle_scenes/${isJackpot ? `jackpot_${beast!.baseName.toLowerCase()}` : beast!.baseName.toLowerCase()}.png')` }]} />}
 
       {/* Adventurer */}
       <Adventurer combatStats={combatStats} />

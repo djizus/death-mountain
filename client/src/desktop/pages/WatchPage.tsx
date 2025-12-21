@@ -1,5 +1,6 @@
 import { useStarknetApi } from '@/api/starknet';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
+import { useDungeon } from '@/dojo/useDungeon';
 import { useGameEvents } from '@/dojo/useGameEvents';
 import { useGameStore } from '@/stores/gameStore';
 import type { Item } from '@/types/game';
@@ -20,10 +21,11 @@ import GamePage from './GamePage';
 const LIVE_POLL_INTERVAL_MS = 2500;
 
 export default function WatchPage() {
+  const dungeon = useDungeon();
   const navigate = useNavigate();
   const { getGameEvents, getGameEventsAfterActionCount } = useGameEvents();
   const { enqueueSnackbar } = useSnackbar();
-  const { spectating, setSpectating, processEvent, setEventQueue, eventsProcessed, setEventsProcessed } = useGameDirector();
+  const { processEvent, setEventQueue, eventsProcessed, setEventsProcessed } = useGameDirector();
   const {
     adventurer,
     popExploreLog,
@@ -35,6 +37,8 @@ export default function WatchPage() {
     setShowInventory,
     setBattleEvent,
     exitGame,
+    spectating,
+    setSpectating,
   } = useGameStore();
   const { getGameState } = useStarknetApi();
 
@@ -46,6 +50,7 @@ export default function WatchPage() {
   const [liveSyncReady, setLiveSyncReady] = useState(false);
   const [searchParams] = useSearchParams();
   const game_id = Number(searchParams.get('id'));
+  const beast = searchParams.get('beast');
   const hasPrimedReplay = useRef(false);
   const liveActionCountRef = useRef(0);
   const livePollInFlightRef = useRef(false);
@@ -55,7 +60,7 @@ export default function WatchPage() {
 
     if (!gameState) {
       enqueueSnackbar('Failed to load game', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } });
-      return navigate("/survivor");
+      return navigate(`/${dungeon.id}`);
     }
 
     const isLive = gameState.adventurer.health !== 0;
@@ -79,10 +84,13 @@ export default function WatchPage() {
       setShowInventory(gameState.adventurer.stat_upgrades_available > 0);
 
       if (gameState.adventurer.beast_health > 0) {
-        const beast = processGameEvent({
-          action_count: 0,
-          details: { beast: gameState.beast },
-        }).beast!;
+        const beast = processGameEvent(
+          {
+            action_count: 0,
+            details: { beast: gameState.beast },
+          },
+          dungeon
+        ).beast!;
         setBeast(beast);
         setCollectable(beast.isCollectable ? beast : null);
       } else {
@@ -98,7 +106,7 @@ export default function WatchPage() {
     const events = await getGameEvents(gameId!);
     if (events.length === 0) {
       enqueueSnackbar('Failed to load game', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } });
-      return navigate("/survivor");
+      return navigate(`/${dungeon.id}`);
     }
 
     setReplayEvents(events);
@@ -107,7 +115,7 @@ export default function WatchPage() {
 
   const handleEndWatching = () => {
     setSpectating(false);
-    navigate('/survivor');
+    navigate(`/${dungeon.id}`);
   };
 
   const handlePlayPause = (play: boolean) => {
@@ -214,7 +222,6 @@ export default function WatchPage() {
     const targetIndex = Array.isArray(newValue) ? newValue[0] : newValue;
     jumpToIndex(Math.max(1, Math.round(targetIndex)));
   };
-
   useEffect(() => {
     if (game_id) {
       exitGame();
@@ -232,7 +239,7 @@ export default function WatchPage() {
       subscribeEvents(game_id);
     } else {
       setSpectating(false);
-      navigate('/survivor');
+      navigate(`/${dungeon.id}`);
     }
   }, [game_id]);
 
@@ -247,6 +254,26 @@ export default function WatchPage() {
 
     Promise.resolve().then(() => {
       if (cancelled) return;
+
+      if (beast) {
+        const [prefix, suffix, name] = beast.toLowerCase().split(/[-_]/);
+        const beastIndex = replayEvents.findIndex(
+          (event) =>
+            event.type === 'beast' &&
+            event.beast?.baseName.toLowerCase() === name &&
+            event.beast?.specialPrefix?.toLowerCase() === prefix &&
+            event.beast?.specialSuffix?.toLowerCase() === suffix
+        );
+
+        if (beastIndex !== -1) {
+          const adventurerIndex = replayEvents
+            .slice(beastIndex)
+            .findIndex((event) => event.type === 'adventurer');
+          jumpToIndex(beastIndex + (adventurerIndex >= 0 ? adventurerIndex : 0));
+          return;
+        }
+      }
+
       processEvent(replayEvents[0], true);
       replayForward();
     });
@@ -254,7 +281,15 @@ export default function WatchPage() {
     return () => {
       cancelled = true;
     };
-  }, [isLiveGame, replayEvents, replayIndex, replayForward, processEvent]);
+  }, [
+    isLiveGame,
+    replayEvents,
+    replayIndex,
+    replayForward,
+    processEvent,
+    beast,
+    jumpToIndex,
+  ]);
 
   useEffect(() => {
     if (!spectating) return;

@@ -1,9 +1,11 @@
 import { useDynamicConnector } from "@/contexts/starknet";
+import { useDungeon } from "@/dojo/useDungeon";
 import type { GameEvent } from "@/utils/events";
 import { processGameEvent } from "@/utils/events";
 import { addAddressPadding, num } from "starknet";
 
 export const useGameEvents = () => {
+  const dungeon = useDungeon();
   const { currentNetworkConfig } = useDynamicConnector();
 
   const fetchGameEventsSql = async (query: string) => {
@@ -27,7 +29,7 @@ export const useGameEvents = () => {
     rows
       .map((row: any): GameEvent | null => {
         try {
-          return processGameEvent(JSON.parse(row.data));
+          return processGameEvent(JSON.parse(row.data), dungeon);
         } catch {
           return null;
         }

@@ -6,6 +6,7 @@ import CombatOverlay from "@/desktop/overlays/Combat";
 import DeathOverlay from "@/desktop/overlays/Death";
 import ExploreOverlay from "@/desktop/overlays/Explore";
 import LoadingOverlay from "@/desktop/overlays/Loading";
+import { useDungeon } from "@/dojo/useDungeon";
 import { useSystemCalls } from "@/dojo/useSystemCalls";
 import { useGameStore } from "@/stores/gameStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -50,6 +51,7 @@ export default function GamePage() {
   const {
     gameId,
     adventurer,
+    spectating,
     exitGame,
     setGameId,
     beast,
@@ -57,9 +59,9 @@ export default function GamePage() {
     setShowOverlay,
   } = useGameStore();
   const { skipIntroOutro } = useUIStore();
-  const { setVideoQueue, actionFailed, spectating } = useGameDirector();
+  const { setVideoQueue, actionFailed } = useGameDirector();
   const [padding, setPadding] = useState(getMenuLeftOffset());
-
+  const dungeon = useDungeon();
   const [searchParams] = useSearchParams();
   const game_id = Number(searchParams.get("id"));
   const settings_id = Number(searchParams.get("settingsId"));
@@ -80,17 +82,21 @@ export default function GamePage() {
 
   useEffect(() => {
     if (mode === "practice" && currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT) {
-      setCurrentNetworkConfig(getNetworkConfig(ChainId.WP_PG_SLOT) as NetworkConfig);
       return;
     }
 
-    if (spectating) {
+    if (spectating && game_id) {
       setGameId(game_id);
       return;
     }
 
-    if (mode !== "entering" && currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT && game_id === 0) {
-      setCurrentNetworkConfig(getNetworkConfig(ChainId.WP_PG_SLOT) as NetworkConfig);
+    if (mode !== "entering" && game_id === 0 && currentNetworkConfig.chainId !== ChainId.WP_PG_SLOT) {
+      if (dungeon.includePractice) {
+        navigate(`/${dungeon.id}/play?mode=practice`, { replace: true })
+      } else {
+        navigate(`/${dungeon.id}`, { replace: true })
+      }
+
       return;
     }
 
@@ -132,8 +138,7 @@ export default function GamePage() {
 
     let tokenId = await mintGame(playerName, settings_id);
     navigate(
-      `/survivor/play?id=${tokenId}${mode === "practice" ? "&mode=practice" : ""
-      }`,
+      `/${dungeon.id}/play?id=${tokenId}${mode === "practice" ? "&mode=practice" : ""}`,
       { replace: true }
     );
 

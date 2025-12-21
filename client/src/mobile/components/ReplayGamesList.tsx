@@ -1,5 +1,6 @@
 import { useController } from "@/contexts/controller";
 import { useDynamicConnector } from "@/contexts/starknet";
+import { useDungeon } from "@/dojo/useDungeon";
 import { useGameTokens } from "@/dojo/useGameTokens";
 import { calculateLevel } from "@/utils/game";
 import { ChainId } from "@/utils/networkConfig";
@@ -20,6 +21,7 @@ interface ReplayGamesListProps {
 export default function ReplayGamesList({ onBack }: ReplayGamesListProps) {
   const navigate = useNavigate();
   const { account } = useController();
+  const dungeon = useDungeon();
   const { fetchAdventurerData } = useGameTokens();
   const { currentNetworkConfig } = useDynamicConnector();
   const namespace = currentNetworkConfig.namespace;
@@ -32,7 +34,7 @@ export default function ReplayGamesList({ onBack }: ReplayGamesListProps) {
     mintedByAddress:
       currentNetworkConfig.chainId === ChainId.WP_PG_SLOT
         ? gameTokenAddress
-        : addAddressPadding(currentNetworkConfig.dungeon),
+        : addAddressPadding(dungeon.address),
     owner: account?.address,
     limit: 10000,
   });
@@ -58,7 +60,7 @@ export default function ReplayGamesList({ onBack }: ReplayGamesListProps) {
   }, [gamesData]);
 
   const handleWatchGame = (gameId: number) => {
-    navigate(`/survivor/watch?id=${gameId}`);
+    navigate(`/${dungeon.id}/watch?id=${gameId}`);
   };
 
   return (

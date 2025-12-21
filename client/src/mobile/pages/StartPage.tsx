@@ -2,69 +2,55 @@ import PaymentOptionsModal from "@/components/PaymentOptionsModal";
 import PriceIndicator from "@/components/PriceIndicator";
 import { useController } from "@/contexts/controller";
 import { useDynamicConnector } from "@/contexts/starknet";
-import { OPENING_TIME } from "@/contexts/Statistics";
-import DungeonRewards from "@/dungeons/beasts/DungeonRewards";
-import { ChainId, NetworkConfig, getNetworkConfig } from "@/utils/networkConfig";
+import { useDungeon } from "@/dojo/useDungeon";
+import { ChainId } from "@/utils/networkConfig";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { Box, Button, Divider, Typography } from "@mui/material";
 import { useAccount } from "@starknet-react/core";
-import { useGameTokens } from "metagame-sdk/sql";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { addAddressPadding } from "starknet";
-import CountdownMobile from "../components/CountdownMobile";
 import GameTokensList from "../components/GameTokensList";
 import Leaderboard from "../components/Leaderboard";
 import ReplayGamesList from "../components/ReplayGamesList";
 
 export default function LandingPage() {
+  const dungeon = useDungeon();
   const { account } = useAccount();
   const { login } = useController();
-  const { currentNetworkConfig, setCurrentNetworkConfig } =
-    useDynamicConnector();
+  const { currentNetworkConfig } = useDynamicConnector();
   const navigate = useNavigate();
   const [showAdventurers, setShowAdventurers] = useState(false);
   const [showReplays, setShowReplays] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showDungeonRewards, setShowDungeonRewards] = useState(false);
-  const [isDungeonOpen, setIsDungeonOpen] = useState(false);
-  const isMainNetwork =
-    currentNetworkConfig.chainId === import.meta.env.VITE_PUBLIC_CHAIN;
 
-  useEffect(() => {
-    const checkDungeonOpen = () => {
-      const now = Math.floor(Date.now() / 1000);
-      setIsDungeonOpen(now >= OPENING_TIME);
-    };
-
-    checkDungeonOpen();
-    const interval = setInterval(checkDungeonOpen, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleStartGame = () => {
-    if (currentNetworkConfig.chainId === import.meta.env.VITE_PUBLIC_CHAIN) {
-      if (!account) {
-        login();
-        return;
-      }
-
-      setShowPaymentOptions(true);
-    } else {
-      navigate(`/survivor/play`);
+  const handleMainButtonClick = () => {
+    if (dungeon.externalLink) {
+      window.open(dungeon.externalLink, "_blank");
+      return;
     }
+
+    if (dungeon.network === ChainId.WP_PG_SLOT) {
+      navigate(`/${dungeon.id}/play`);
+      return;
+    }
+
+    if (!account) {
+      login();
+      return;
+    }
+
+    setShowPaymentOptions(true);
   };
 
   const handleShowAdventurers = () => {
     if (
-      currentNetworkConfig.chainId === import.meta.env.VITE_PUBLIC_CHAIN &&
+      currentNetworkConfig.chainId === ChainId.SN_MAIN &&
       !account
     ) {
       login();
@@ -76,10 +62,7 @@ export default function LandingPage() {
   };
 
   const handleShowReplays = () => {
-    if (
-      currentNetworkConfig.chainId === import.meta.env.VITE_PUBLIC_CHAIN &&
-      !account
-    ) {
+    if (currentNetworkConfig.chainId === ChainId.SN_MAIN && !account) {
       login();
       return;
     }
@@ -88,54 +71,8 @@ export default function LandingPage() {
     setShowReplays(true);
   };
 
-  const handleClaimRewards = () => {
-    if (isMainNetwork && !account) {
-      login();
-      return;
-    }
-
-    navigate("/survivor/claim");
-  };
-
-  const switchMode = () => {
-    if (currentNetworkConfig.name === "Beast Mode") {
-      setCurrentNetworkConfig(
-        getNetworkConfig(ChainId.WP_PG_SLOT) as NetworkConfig
-      );
-    } else {
-      setCurrentNetworkConfig(
-        getNetworkConfig(ChainId.SN_MAIN) as NetworkConfig
-      );
-    }
-  };
-
-  let disableGameButtons =
-    !isDungeonOpen && currentNetworkConfig.name === "Beast Mode";
-
-  const { games: unfilteredGames } = useGameTokens({
-    owner: account?.address || "0x0",
-    sortBy: "minted_at",
-    sortOrder: "desc",
-    gameOver: false,
-    mintedByAddress: currentNetworkConfig.dungeon
-      ? addAddressPadding(currentNetworkConfig.dungeon)
-      : "0",
-    includeMetadata: false,
-    limit: 1000,
-  });
-
-  const gamesCount = useMemo(() => {
-    if (!unfilteredGames) return 0;
-
-    const now = Date.now();
-
-    return unfilteredGames.filter((game) => {
-      const expiresAt = (game?.lifecycle?.end ?? 0) * 1000;
-      const isExpired = expiresAt !== 0 && expiresAt < now;
-
-      return !isExpired;
-    }).length;
-  }, [unfilteredGames]);
+  const disableGameButtons = dungeon.status !== "online";
+  const DungeonRewards = dungeon.rewards;
 
   return (
     <>
@@ -161,17 +98,15 @@ export default function LandingPage() {
               <Box sx={styles.headerBox}>
                 <Typography sx={styles.gameTitle}>LOOT SURVIVOR 2</Typography>
                 <Typography color="secondary" sx={styles.modeTitle}>
-                  {currentNetworkConfig.name}
+                  {dungeon.name}
                 </Typography>
               </Box>
-
-              {!isDungeonOpen && <CountdownMobile />}
 
               <Button
                 fullWidth
                 variant="contained"
                 size="large"
-                onClick={handleStartGame}
+                onClick={handleMainButtonClick}
                 disabled={disableGameButtons}
                 startIcon={
                   <img
@@ -194,9 +129,7 @@ export default function LandingPage() {
                     disableGameButtons ? "rgba(208, 201, 141, 0.4)" : "#111111"
                   }
                 >
-                  {currentNetworkConfig.name === "Beast Mode"
-                    ? "Buy Game"
-                    : "Start Game"}
+                  {dungeon.mainButtonText}
                 </Typography>
               </Button>
 
@@ -220,19 +153,10 @@ export default function LandingPage() {
                   sx={{
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: gamesCount > 0 ? "space-between" : "center",
+                    justifyContent: "center",
                     width: "100%",
                   }}
                 >
-                  {gamesCount > 0 && (
-                    <Typography
-                      color="black"
-                      fontWeight={500}
-                      visibility={"hidden"}
-                    >
-                      {gamesCount} NEW
-                    </Typography>
-                  )}
                   <Box sx={{ display: "flex", alignItems: "center" }}>
                     <SportsEsportsIcon
                       sx={{ opacity: disableGameButtons ? 0.4 : 1, mr: 1 }}
@@ -248,88 +172,52 @@ export default function LandingPage() {
                       My Games
                     </Typography>
                   </Box>
-                  {gamesCount > 0 && (
-                    <Typography variant="h5" color="black" fontWeight={500}>
-                      {gamesCount} NEW
-                    </Typography>
-                  )}
                 </Box>
               </Button>
 
-              <Button
-                fullWidth
-                variant="contained"
-                size="large"
-                color="secondary"
-                onClick={handleShowReplays}
-                sx={{
-                  height: "36px",
-                  mt: 1,
-                }}
-              >
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "100%",
-                  }}
-                >
-                  <VisibilityIcon
-                    sx={{ mr: 1 }}
-                  />
-                  <Typography
-                    variant="h5"
-                    color="#111111"
-                  >
-                    Replay Games
-                  </Typography>
-                </Box>
-              </Button>
-              <Button
-                fullWidth
-                variant="contained"
-                size="large"
-                color="secondary"
-                onClick={switchMode}
-                sx={{ height: "36px", mt: 1 }}
-              >
-                <Typography variant="h5" color="#111111">
-                  {currentNetworkConfig.name === "Beast Mode"
-                    ? "Practice for Free"
-                    : "Play for Real"}
-                </Typography>
-              </Button>
-
-              <Divider sx={{ width: "100%", my: 0.5 }} />
-
-              {isMainNetwork && (
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  color="secondary"
-                  onClick={handleClaimRewards}
-                  sx={{
-                    height: "36px",
-                    mt: 1,
-                  }}
-                >
-                  <Box
+              {dungeon.includePractice && (
+                <>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    color="secondary"
+                    onClick={handleShowReplays}
                     sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "100%",
+                      height: "36px",
+                      mt: 1,
                     }}
                   >
-                    <AttachMoneyIcon sx={{ mr: 1 }} />
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "100%",
+                      }}
+                    >
+                      <VisibilityIcon sx={{ mr: 1 }} />
+                      <Typography variant="h5" color="#111111">
+                        Replay Games
+                      </Typography>
+                    </Box>
+                  </Button>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    color="secondary"
+                    onClick={() => navigate(`/${dungeon.id}/play?mode=practice`)}
+                    sx={{ height: "36px", mt: 1, mb: 1 }}
+                  >
                     <Typography variant="h5" color="#111111">
-                      Claim Tokens
+                      Practice for Free
                     </Typography>
-                  </Box>
-                </Button>
+                  </Button>
+                </>
               )}
+
+              <Divider sx={{ width: "100%", my: 0.5 }} />
 
               <Button
                 fullWidth
@@ -345,7 +233,7 @@ export default function LandingPage() {
                 </Typography>
               </Button>
 
-              {currentNetworkConfig.name === "Beast Mode" && (
+              {dungeon.ticketAddress && (
                 <Button
                   fullWidth
                   variant="contained"
@@ -361,7 +249,7 @@ export default function LandingPage() {
                 </Button>
               )}
 
-              {currentNetworkConfig.name === "Beast Mode" && <PriceIndicator />}
+              {dungeon.ticketAddress && <PriceIndicator />}
             </>
           )}
 
@@ -458,11 +346,11 @@ export default function LandingPage() {
                 </Box>
               </Box>
 
-              <Box
+              {DungeonRewards ? <Box
                 sx={{ width: "100%", maxHeight: "365px", overflowY: "auto" }}
               >
                 <DungeonRewards />
-              </Box>
+              </Box> : null}
             </>
           )}
         </Box>

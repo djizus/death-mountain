@@ -1,6 +1,6 @@
-import MainMenu from '@/desktop/overlays/MainMenu';
 import Countdown from '@/desktop/overlays/Countdown';
 import LiveGamesPanel from '@/desktop/overlays/LiveGamesPanel';
+import MainMenu from '@/desktop/overlays/MainMenu';
 import { gameAssets, prefetchStream, preloadAssets } from '@/utils/assetLoader';
 import { streamIds } from '@/utils/cloudflare';
 import { motion } from 'framer-motion';
