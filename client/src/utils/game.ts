@@ -1,5 +1,6 @@
 import { BEAST_MIN_DAMAGE } from "@/constants/beast";
 import { MIN_DAMAGE } from "@/constants/game";
+import { ItemId } from "@/constants/loot";
 import { Adventurer, Beast, CombatStats, Equipment, Item } from "@/types/game";
 import { getArmorType, getAttackType } from "./beast";
 import { ItemType, ItemUtils } from "./loot";
@@ -57,18 +58,15 @@ export const incrementBeastsCollected = (gameId: number) => {
   localStorage.setItem(`beast_collected_${gameId}`, (currentCount + 1).toString());
 };
 
-// Calculate critical hit bonus based on luck and ring
-const critical_hit_bonus = (base_damage: number, ring: Item | null): number => {
-  let total = 0;
+const critical_hit_bonus = (base_damage: number): number => base_damage;
 
-  total = base_damage;
-
-  // Titanium Ring gives 3% bonus per level on critical hits
-  if (ring && ItemUtils.getItemName(ring.id) === "Titanium Ring" && total > 0) {
-    const ringLevel = calculateLevel(ring.xp);
-    total += Math.floor((total * 3 * ringLevel) / 100);
+const critical_hit_ring_bonus = (base_damage: number, ring: Item | null): number => {
+  if (!ring || ring.id !== ItemId.TitaniumRing || base_damage <= 0) {
+    return 0;
   }
-  return total;
+
+  const ringLevel = calculateLevel(ring.xp);
+  return Math.floor((base_damage * 3 * ringLevel) / 100);
 };
 
 // Calculate weapon special bonus based on matching specials
@@ -88,7 +86,7 @@ const calculateWeaponSpecialBonus = (weaponId: number, weaponLevel: number, item
   }
 
   // Platinum Ring gives 3% bonus per level on special matches
-  if (ItemUtils.getItemName(ring.id) === "Platinum Ring" && bonus > 0) {
+  if (ring.id === ItemId.PlatinumRing && bonus > 0) {
     const ringLevel = calculateLevel(ring.xp);
     bonus += Math.floor((bonus * 3 * ringLevel) / 100);
   }
@@ -104,10 +102,13 @@ export const calculateAttackDamage = (weapon: Item, adventurer: Adventurer, beas
   const baseAttack = weaponLevel * (6 - Number(weaponTier));
 
   if (!beast) {
+    const ring = adventurer.equipment.ring;
     let strBonus = Math.floor(baseAttack * (adventurer.stats.strength / 10));
+    const critBonus = critical_hit_bonus(baseAttack);
+    const ringBonus = critical_hit_ring_bonus(critBonus, ring);
     return {
       baseDamage: baseAttack + strBonus,
-      criticalDamage: (baseAttack * 2) + strBonus,
+      criticalDamage: (baseAttack * 2) + strBonus + ringBonus,
     };
   }
 
@@ -135,8 +136,13 @@ export const calculateAttackDamage = (weapon: Item, adventurer: Adventurer, beas
   const baseDamage = Math.max(MIN_DAMAGE, (elementalDamage + strengthBonus + specialBonus) - baseArmor);
 
   // Calculate critical hit bonus with ring bonus using adventurer's luck stat
-  const critBonus = critical_hit_bonus(elementalDamage, ring);
-  let criticalDamage = Math.max(MIN_DAMAGE, (elementalDamage + strengthBonus + specialBonus + critBonus) - baseArmor);
+  const critBonus = critical_hit_bonus(elementalDamage);
+  const ringBonus = critical_hit_ring_bonus(critBonus, ring);
+  const criticalDamageBase = Math.max(
+    MIN_DAMAGE,
+    (elementalDamage + strengthBonus + specialBonus + critBonus) - baseArmor
+  );
+  const criticalDamage = criticalDamageBase + ringBonus;
 
   return {
     baseDamage,
@@ -372,7 +378,7 @@ export const calculateGoldReward = (beast: Beast, ring: Item | null) => {
   let goldReward = Math.floor(beast.level * (6 - Number(beast.tier)) / 2);
 
   // Gold Ring gives 3% bonus per level on gold reward
-  if (ring && ItemUtils.getItemName(ring.id) === "Gold Ring" && goldReward > 0) {
+  if (ring && ring.id === ItemId.GoldRing && goldReward > 0) {
     const ringLevel = calculateLevel(ring.xp);
     goldReward += Math.floor((goldReward * 3 * ringLevel) / 100);
   }
