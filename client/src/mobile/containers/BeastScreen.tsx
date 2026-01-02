@@ -600,7 +600,7 @@ export default function BeastScreen() {
                     SUGGEST
                   </Button>
                   <Typography sx={styles.probabilityText}>
-                    optimal gear
+                    best gear
                   </Typography>
                 </Box>
               )}
