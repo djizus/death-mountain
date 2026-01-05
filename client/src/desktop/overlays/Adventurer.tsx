@@ -176,8 +176,8 @@ const styles = {
   },
   portraitContainer: {
     position: 'relative',
-    width: '56px',
-    height: '56px',
+    width: '68px',
+    height: '68px',
     flexShrink: 0,
   },
   portraitImage: {

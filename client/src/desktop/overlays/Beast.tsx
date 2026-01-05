@@ -60,8 +60,8 @@ export default function Beast() {
             <Box sx={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%', borderRadius: '50%' }}>
               <img src={collectableImage(beast!.baseName, collectableTraits!)}
                 alt="Beast" style={{
-                  width: '48px',
-                  height: '48px',
+                  width: '58px',
+                  height: '58px',
                   position: 'absolute',
                   top: '50%',
                   left: '50%',
@@ -233,14 +233,14 @@ const styles = {
   },
   portraitContainer: {
     position: 'relative',
-    width: '56px',
-    height: '56px',
+    width: '68px',
+    height: '68px',
     flexShrink: 0,
   },
   portraitContainerCollectable: {
     position: 'relative',
-    width: '56px',
-    height: '56px',
+    width: '68px',
+    height: '68px',
     flexShrink: 0,
   },
   portraitImage: {
