@@ -147,11 +147,11 @@ export default function Beast() {
         </Box>
       )}
 
-      {/* Owner Name */}
+      {/* Owner Name - positioned above beast panel */}
       {ownerName && (
         <Box sx={{
-          ...styles.collectableIndicator,
-          top: scalePx(122),
+          ...styles.ownerIndicator,
+          top: scalePx(10),
           right: edgeOffset,
           width: panelWidth,
         }}>
@@ -359,6 +359,10 @@ const styles = {
     fontSize: '0.8rem',
   },
   collectableIndicator: {
+    position: 'absolute',
+    textAlign: 'center',
+  },
+  ownerIndicator: {
     position: 'absolute',
     textAlign: 'center',
   },
