@@ -113,6 +113,7 @@ export default function MarketOverlay() {
     setNewMarket,
     exploreLog,
     gameSettings,
+    spectating,
   } = useGameStore();
   const { executeGameAction, actionFailed } = useGameDirector();
   const { volume, setVolume, muted, setMuted, musicVolume, setMusicVolume, musicMuted, setMusicMuted } = useSound();
@@ -744,7 +745,7 @@ export default function MarketOverlay() {
             <Button
               variant="outlined"
               onClick={handleCheckout}
-              disabled={inProgress || cart.potions === 0 && cart.items.length === 0 || remainingGold < 0}
+              disabled={spectating || inProgress || cart.potions === 0 && cart.items.length === 0 || remainingGold < 0}
               sx={{ height: '34px', width: '170px', justifyContent: 'center' }}>
               {inProgress
                 ? <Box display={'flex'} alignItems={'baseline'}>
@@ -831,7 +832,7 @@ export default function MarketOverlay() {
                 <Button
                   variant="contained"
                   onClick={handleCheckout}
-                  disabled={inProgress || cart.potions === 0 && cart.items.length === 0 || remainingGold < 0}
+                  disabled={spectating || inProgress || cart.potions === 0 && cart.items.length === 0 || remainingGold < 0}
                   sx={styles.checkoutButton}>
                   {inProgress
                     ? <Box display={'flex'} alignItems={'baseline'}>
@@ -923,7 +924,7 @@ export default function MarketOverlay() {
           )}
 
           <Box sx={styles.mainContent}>
-            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'flex-end', mb: '6px' }}>
+            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'stretch', mb: '6px' }}>
               <Box sx={styles.potionsSection}>
                 <Box sx={styles.potionSliderContainer}>
                   <Box sx={styles.potionLeftSection}>
@@ -943,6 +944,7 @@ export default function MarketOverlay() {
                       onChange={(_, value) => handleBuyPotion(value as number)}
                       min={0}
                       max={maxPotions}
+                      disabled={spectating}
                       sx={styles.potionSlider}
                     />
                   </Box>
@@ -1102,7 +1104,7 @@ export default function MarketOverlay() {
                           <Button
                             variant="outlined"
                             onClick={() => (inCart ? handleRemoveItem(item) : handleBuyItem(item))}
-                            disabled={!inCart && (remainingGold < item.price || isItemOwned(item.id) || inventoryFull)}
+                            disabled={spectating || (!inCart && (remainingGold < item.price || isItemOwned(item.id) || inventoryFull))}
                             sx={{
                               height: '32px',
                               ...(inCart && {
@@ -2043,7 +2045,6 @@ const styles = {
   },
   filterToggleButton: {
     width: 36,
-    height: 36,
     minWidth: 36,
     padding: 0,
     background: 'rgba(24, 40, 24, 0.95)',
