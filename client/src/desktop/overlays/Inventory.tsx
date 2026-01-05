@@ -2,6 +2,7 @@ import { BEAST_MIN_DAMAGE } from '@/constants/beast';
 import AdventurerStats from '@/desktop/components/AdventurerStats';
 import ItemTooltip from '@/desktop/components/ItemTooltip';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
+import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
 import { calculateAttackDamage, calculateBeastDamage, calculateBeastDamageDetails, calculateCombatStats, calculateLevel } from '@/utils/game';
@@ -591,6 +592,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
 
 export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProps) {
   const { executeGameAction, actionFailed } = useGameDirector();
+  const { scalePx, scalePxMin, contentOffset } = useResponsiveScale();
   const { adventurer, bag, showInventory } = useGameStore();
   const { equipItem, newInventoryItems, setNewInventoryItems } = useGameStore();
   const [isDropMode, setIsDropMode] = useState(false);
@@ -655,10 +657,20 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
     return null;
   }
 
+  // Responsive sizes for popup
+  const popupTop = scalePx(120);
+  const popupLeft = scalePx(8);
+  const popupWidth = scalePx(500);
+
   return (
     <>
       {/* Inventory popup */}
-      <Box sx={styles.popup}>
+      <Box sx={{
+        ...styles.popup,
+        top: popupTop,
+        left: popupLeft,
+        width: popupWidth,
+      }}>
             <Box sx={styles.inventoryRoot}>
               {/* Left: Equipment */}
               <CharacterEquipment
@@ -754,9 +766,7 @@ const pulseGreen = keyframes`
 const styles = {
   popup: {
     position: 'absolute',
-    top: '120px',
-    left: '24px',
-    width: '500px',
+    // top, left, width set dynamically via useResponsiveScale
     maxHeight: '90vh',
     background: 'rgba(24, 40, 24, 0.55)',
     border: '2px solid #083e22',

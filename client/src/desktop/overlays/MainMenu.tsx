@@ -8,7 +8,7 @@ import Settings from "@/desktop/components/Settings";
 import { OPENING_TIME } from "@/contexts/Statistics";
 import { useDungeon } from "@/dojo/useDungeon";
 import { ChainId } from "@/utils/networkConfig";
-import { getMenuLeftOffset } from "@/utils/utils";
+import { useResponsiveScale } from "@/desktop/hooks/useResponsiveScale";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
@@ -39,23 +39,15 @@ export default function MainMenu() {
   const { login } = useController();
   const dungeon = useDungeon();
   const { currentNetworkConfig } = useDynamicConnector();
+  const { scalePx, contentOffset } = useResponsiveScale();
   const [showAdventurers, setShowAdventurers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showReplays, setShowReplays] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
-  const [left, setLeft] = useState(getMenuLeftOffset());
   const [isDungeonOpen, setIsDungeonOpen] = useState(false);
   const [showBoost, setShowBoost] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
-
-  useEffect(() => {
-    function handleResize() {
-      setLeft(getMenuLeftOffset());
-    }
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
 
   useEffect(() => {
     if (dungeon.id !== "survivor") {
@@ -166,9 +158,22 @@ export default function MainMenu() {
       return 'Less than 1h';
     }
   };
+  // Responsive sizes
+  const containerWidth = scalePx(310);
+  const containerTop = scalePx(8);
+  const containerMinHeight = scalePx(600);
+  const edgeOffset = scalePx(8);
+  const rewardsWidth = scalePx(300);
+
   return (
     <>
-      <Box sx={{ ...styles.container, left: `${left + 32}px` }}>
+      <Box sx={{
+        ...styles.container,
+        left: edgeOffset,
+        top: containerTop,
+        width: containerWidth,
+        minHeight: containerMinHeight,
+      }}>
         <AnimatePresence mode="wait">
           {showAdventurers && (
             <AdventurersList onBack={() => setShowAdventurers(false)} />
@@ -448,7 +453,11 @@ export default function MainMenu() {
         />
       )}
 
-      {DungeonRewards ? <Box sx={[styles.rewardsContainer, { right: `${left + 32}px` }]}>
+      {DungeonRewards ? <Box sx={[styles.rewardsContainer, {
+        right: edgeOffset,
+        top: containerTop,
+        width: rewardsWidth,
+      }]}>
         <DungeonRewards />
       </Box> : null}
     </>
@@ -458,9 +467,7 @@ export default function MainMenu() {
 const styles = {
   container: {
     position: "absolute",
-    top: 32,
-    width: 310,
-    minHeight: 600,
+    // top, width, minHeight set dynamically via useResponsiveScale
     bgcolor: "rgba(24, 40, 24, 0.55)",
     border: "2px solid #083e22",
     borderRadius: "12px",
@@ -475,8 +482,7 @@ const styles = {
   },
   rewardsContainer: {
     position: "absolute",
-    top: 32,
-    width: 300,
+    // top, width set dynamically via useResponsiveScale
     bgcolor: "rgba(24, 40, 24, 0.6)",
     border: "1px solid rgba(208, 201, 141, 0.3)",
     borderRadius: "10px",

@@ -1,5 +1,6 @@
 import AnimatedText from '@/desktop/components/AnimatedText';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
+import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useGameStore } from '@/stores/gameStore';
 import { defaultSimulationResult, simulateCombatOutcomes } from '@/utils/combatSimulation';
 import { ability_based_percentage, calculateCombatStats, calculateLevel, getNewItemsEquipped } from '@/utils/game';
@@ -10,7 +11,6 @@ import { useEffect, useMemo, useState } from 'react';
 import Adventurer from './Adventurer';
 import Beast from './Beast';
 import InventoryOverlay from './Inventory';
-import SettingsOverlay from './Settings';
 import { JACKPOT_BEASTS, GOLD_MULTIPLIER, GOLD_REWARD_DIVISOR, MINIMUM_XP_REWARD } from '@/constants/beast';
 import { useDynamicConnector } from '@/contexts/starknet';
 import { suggestBestCombatGear } from '@/utils/gearSuggestion';
@@ -58,6 +58,7 @@ const tipPulseGamble = keyframes`
 export default function CombatOverlay() {
   const { executeGameAction, actionFailed, setSkipCombat, skipCombat, showSkipCombat } = useGameDirector();
   const { currentNetworkConfig } = useDynamicConnector();
+  const { scalePx, contentOffset } = useResponsiveScale();
   const {
     gameId,
     adventurer,
@@ -555,7 +556,13 @@ export default function CombatOverlay() {
       <Beast />
 
       {beast && combatOverview && (
-        <Box sx={styles.insightsPanel}>
+        <Box sx={{
+          ...styles.insightsPanel,
+          top: scalePx(150),
+          right: contentOffset + scalePx(40),
+          width: scalePx(300),
+          padding: `${scalePx(12)}px ${scalePx(14)}px`,
+        }}>
           <Typography sx={styles.insightsTitle}>Combat Insights</Typography>
 
           <Box sx={styles.insightsSection}>
@@ -668,7 +675,12 @@ export default function CombatOverlay() {
       )}
 
       {/* Combat Log */}
-      <Box sx={styles.middleSection}>
+      <Box sx={{
+        ...styles.middleSection,
+        top: scalePx(30),
+        width: scalePx(340),
+        padding: `${scalePx(4)}px ${scalePx(8)}px`,
+      }}>
         <Box sx={styles.combatLogContainer}>
           <AnimatedText text={combatLog} />
           {(combatLog === fleeMessage || combatLog === attackMessage || combatLog === equipMessage)
@@ -677,13 +689,18 @@ export default function CombatOverlay() {
       </Box>
 
       {/* Skip Animations Toggle */}
-      {showSkipCombat && (untilDeath || autoLastHitActive) && <Box sx={styles.skipContainer}>
+      {showSkipCombat && (untilDeath || autoLastHitActive) && <Box sx={{
+        ...styles.skipContainer,
+        top: scalePx(90),
+      }}>
         <Button
           variant="outlined"
           onClick={handleSkipCombat}
-          sx={[
-            styles.skipButton,
-          ]}
+          sx={{
+            ...styles.skipButton,
+            width: scalePx(90),
+            height: scalePx(32),
+          }}
           disabled={skipCombat}
         >
           <Typography fontWeight={600}>
@@ -696,17 +713,20 @@ export default function CombatOverlay() {
       </Box>}
 
       <InventoryOverlay disabledEquip={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress} />
-      <SettingsOverlay />
 
       {/* Combat Buttons */}
-      {!spectating && <Box sx={styles.buttonContainer}>
+      {!spectating && <Box sx={{
+        ...styles.buttonContainer,
+        bottom: scalePx(32),
+        gap: `${scalePx(16)}px`,
+      }}>
         {hasNewItemsEquipped ? (
           <>
             <Box sx={styles.actionButtonContainer}>
               <Button
                 variant="contained"
                 onClick={handleEquipItems}
-                sx={styles.attackButton}
+                sx={{ ...styles.attackButton, width: scalePx(190), height: scalePx(48) }}
                 disabled={equipInProgress}
               >
                 <Box sx={{ opacity: equipInProgress ? 0.5 : 1 }}>
@@ -721,7 +741,7 @@ export default function CombatOverlay() {
               <Button
                 variant="contained"
                 onClick={undoEquipment}
-                sx={styles.fleeButton}
+                sx={{ ...styles.fleeButton, width: scalePx(190), height: scalePx(48) }}
                 disabled={equipInProgress}
               >
                 <Box sx={{ opacity: equipInProgress ? 0.5 : 1 }}>
@@ -738,7 +758,7 @@ export default function CombatOverlay() {
               <Button
                 variant="contained"
                 onClick={handleAttack}
-                sx={styles.attackButton}
+                sx={{ ...styles.attackButton, width: scalePx(190), height: scalePx(48) }}
                 disabled={!adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
               >
                 <Box sx={{ opacity: !adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
@@ -757,7 +777,7 @@ export default function CombatOverlay() {
               <Button
                 variant="contained"
                 onClick={handleSuggestGear}
-                sx={styles.suggestButton}
+                sx={{ ...styles.suggestButton, width: scalePx(190), height: scalePx(48) }}
                 disabled={!adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
               >
                 <Box sx={{ opacity: attackInProgress || fleeInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
@@ -775,7 +795,7 @@ export default function CombatOverlay() {
               <Button
                 variant="contained"
                 onClick={handleFlee}
-                sx={styles.fleeButton}
+                sx={{ ...styles.fleeButton, width: scalePx(190), height: scalePx(48) }}
                 disabled={adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress || equipInProgress || suggestInProgress}
               >
                 <Box sx={{ opacity: adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
@@ -862,10 +882,8 @@ const styles = {
   },
   middleSection: {
     position: 'absolute',
-    top: 30,
+    // top, width, padding set dynamically via useResponsiveScale
     left: '50%',
-    width: '340px',
-    padding: '4px 8px',
     border: '2px solid #083e22',
     borderRadius: '12px',
     background: 'rgba(24, 40, 24, 0.55)',
@@ -881,11 +899,10 @@ const styles = {
   },
   buttonContainer: {
     position: 'absolute',
-    bottom: 32,
+    // bottom, gap set dynamically via useResponsiveScale
     left: '50%',
     transform: 'translateX(calc(-32%))',
     display: 'flex',
-    gap: '16px',
     alignItems: 'flex-end',
   },
   actionButtonContainer: {
@@ -898,8 +915,7 @@ const styles = {
   attackButton: {
     border: '3px solid rgb(8, 62, 34)',
     background: 'rgba(24, 40, 24, 1)',
-    width: '190px',
-    height: '48px',
+    // width, height set dynamically via useResponsiveScale
     justifyContent: 'center',
     borderRadius: '8px',
     '&:hover': {
@@ -911,8 +927,7 @@ const styles = {
     },
   },
   fleeButton: {
-    width: '190px',
-    height: '48px',
+    // width, height set dynamically via useResponsiveScale
     justifyContent: 'center',
     background: 'rgba(60, 16, 16, 1)',
     borderRadius: '8px',
@@ -926,8 +941,7 @@ const styles = {
     },
   },
   suggestButton: {
-    width: '190px',
-    height: '48px',
+    // width, height set dynamically via useResponsiveScale
     justifyContent: 'center',
     background: 'rgba(16, 32, 48, 1)',
     borderRadius: '8px',
@@ -992,10 +1006,7 @@ const styles = {
   },
   insightsPanel: {
     position: 'absolute',
-    top: 150,
-    right: 40,
-    width: 300,
-    padding: '12px 14px',
+    // top, right, width, padding set dynamically via useResponsiveScale
     border: '2px solid #083e22',
     borderRadius: '12px',
     background: 'rgba(24, 40, 24, 0.65)',
@@ -1168,7 +1179,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     position: 'absolute',
-    top: 90,
+    // top set dynamically via useResponsiveScale
     left: '50%',
     transform: 'translateX(-50%)',
     zIndex: 10,
@@ -1178,7 +1189,6 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '8px',
-    width: '90px',
-    height: '32px',
+    // width, height set dynamically via useResponsiveScale
   },
 };

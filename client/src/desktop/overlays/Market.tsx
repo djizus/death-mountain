@@ -1,18 +1,31 @@
 import { MAX_BAG_SIZE, STARTING_HEALTH } from '@/constants/game';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
+import { useSound } from '@/desktop/contexts/Sound';
+import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
+import { useDungeon } from '@/dojo/useDungeon';
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
+import { useUIStore } from '@/stores/uiStore';
 import { calculateLevel } from '@/utils/game';
 import { ItemUtils, ItemType, slotIcons, typeIcons, Tier } from '@/utils/loot';
 import { MarketItem, generateMarketItems, getTierOneArmorSetStats, potionPrice, STAT_FILTER_OPTIONS, type ArmorSetStatSummary, type StatDisplayName } from '@/utils/market';
 import { getEventIcon, getEventTitle } from '@/utils/events';
 import { getExplorationInsights, type DamageBucket, type SlotDamageSummary } from '@/utils/exploration';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
+import GitHubIcon from '@mui/icons-material/GitHub';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import PersonIcon from '@mui/icons-material/Person';
-import { Box, Button, IconButton, Modal, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import XIcon from '@mui/icons-material/X';
+import { Box, Button, Checkbox, Divider, FormControlLabel, IconButton, Modal, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { keyframes } from '@emotion/react';
 import { SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import JewelryTooltip from '@/components/JewelryTooltip';
+import discordIcon from '@/desktop/assets/images/discord.png';
+import WalletConnect from '@/desktop/components/WalletConnect';
 
 const renderSlotToggleButton = (slot: keyof typeof slotIcons) => (
   <ToggleButton key={slot} value={slot} aria-label={slot}>
@@ -87,6 +100,9 @@ const highlightPulse = keyframes`
 `;
 
 export default function MarketOverlay() {
+  const { scalePx, contentOffset } = useResponsiveScale();
+  const dungeon = useDungeon();
+  const navigate = useNavigate();
   const {
     adventurer,
     bag,
@@ -99,6 +115,16 @@ export default function MarketOverlay() {
     gameSettings,
   } = useGameStore();
   const { executeGameAction, actionFailed } = useGameDirector();
+  const { volume, setVolume, muted, setMuted, musicVolume, setMusicVolume, musicMuted, setMusicMuted } = useSound();
+  const {
+    setUseMobileClient,
+    skipAllAnimations,
+    setSkipAllAnimations,
+    skipCombatDelays,
+    setSkipCombatDelays,
+    showUntilBeastToggle,
+    setShowUntilBeastToggle,
+  } = useUIStore();
   const {
     isOpen,
     cart,
@@ -122,7 +148,7 @@ export default function MarketOverlay() {
 
 
   const [showCart, setShowCart] = useState(false);
-  const [activeTab, setActiveTab] = useState<'market' | 'exploring' | 'events'>('market');
+  const [activeTab, setActiveTab] = useState<'market' | 'exploring' | 'events' | 'settings'>('market');
   const [explorationTab, setExplorationTab] = useState<'overall' | 'slot' | 'discovery'>('overall');
   const [ambushSlot, setAmbushSlot] = useState<SlotDamageSummary['slot']>('hand');
   const [trapSlot, setTrapSlot] = useState<SlotDamageSummary['slot']>('hand');
@@ -130,8 +156,24 @@ export default function MarketOverlay() {
 
   const specialsUnlocked = Boolean(adventurer?.item_specials_seed);
 
-  const handleTabChange = (_: SyntheticEvent, newValue: 'market' | 'exploring' | 'events') => {
+  const handleTabChange = (_: SyntheticEvent, newValue: 'market' | 'exploring' | 'events' | 'settings') => {
     setActiveTab(newValue);
+  };
+
+  const handleVolumeChange = (_: Event, newValue: number | number[]) => {
+    setVolume((newValue as number) / 100);
+  };
+
+  const handleMusicVolumeChange = (_: Event, newValue: number | number[]) => {
+    setMusicVolume((newValue as number) / 100);
+  };
+
+  const handleSwitchToMobile = () => {
+    setUseMobileClient(true);
+  };
+
+  const handleExitGame = () => {
+    navigate('/');
   };
 
   const handleExplorationTabChange = useCallback((_: SyntheticEvent, newValue: 'overall' | 'slot' | 'discovery') => {
@@ -672,7 +714,12 @@ export default function MarketOverlay() {
   }
 
   return (
-    <Box sx={styles.popup}>
+    <Box sx={{
+      ...styles.popup,
+      top: scalePx(8),
+      right: scalePx(8),
+      width: scalePx(390),
+    }}>
       <Box sx={styles.tabBar}>
         <Tabs
           value={activeTab}
@@ -680,8 +727,9 @@ export default function MarketOverlay() {
           aria-label="market sections"
           sx={styles.tabs}>
           <Tab value="market" label="Market" sx={styles.tab} />
-          <Tab value="exploring" label="Exploration" sx={styles.tab} />
-          <Tab value="events" label="Event Log" sx={styles.tab} />
+          <Tab value="exploring" label="Explore" sx={styles.tab} />
+          <Tab value="events" label="Events" sx={styles.tab} />
+          <Tab value="settings" label="Settings" sx={styles.tab} />
         </Tabs>
       </Box>
 
@@ -1080,6 +1128,184 @@ export default function MarketOverlay() {
       {activeTab === 'exploring' && explorationSection}
 
       {activeTab === 'events' && eventLogSection}
+
+      {activeTab === 'settings' && (
+        <Box sx={styles.settingsContent}>
+          {/* Profile Section */}
+          {!dungeon.hideController && (
+            <>
+              <Box sx={styles.settingsSection}>
+                <Typography sx={styles.settingsSectionTitle}>Profile</Typography>
+                <WalletConnect />
+              </Box>
+              <Divider sx={{ my: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+            </>
+          )}
+
+          {/* Sound Control */}
+          <Box sx={styles.settingsSection}>
+            <Typography sx={styles.settingsSectionTitle}>Sound</Typography>
+            <Box sx={styles.soundControl}>
+              <Typography width="45px">Sfx</Typography>
+              <IconButton
+                size="small"
+                onClick={() => setMuted(!muted)}
+                sx={{ color: !muted ? '#d0c98d' : '#666', padding: '4px' }}
+              >
+                {muted ? <VolumeOffIcon sx={{ fontSize: 22 }} /> : <VolumeUpIcon sx={{ fontSize: 22 }} />}
+              </IconButton>
+              <Slider
+                value={Math.round(volume * 100)}
+                onChange={handleVolumeChange}
+                disabled={muted}
+                valueLabelDisplay="auto"
+                step={1}
+                min={0}
+                max={100}
+                sx={styles.volumeSlider}
+              />
+              <Typography sx={{ color: '#d0c98d', fontSize: '12px', minWidth: '35px', textAlign: 'right' }}>
+                {Math.round(volume * 100)}%
+              </Typography>
+            </Box>
+            <Box sx={styles.soundControl}>
+              <Typography width="45px">Music</Typography>
+              <IconButton
+                size="small"
+                onClick={() => setMusicMuted(!musicMuted)}
+                sx={{ color: !musicMuted ? '#d0c98d' : '#666', padding: '4px' }}
+              >
+                {musicMuted ? <VolumeOffIcon sx={{ fontSize: 22 }} /> : <VolumeUpIcon sx={{ fontSize: 22 }} />}
+              </IconButton>
+              <Slider
+                value={Math.round(musicVolume * 100)}
+                onChange={handleMusicVolumeChange}
+                disabled={musicMuted}
+                valueLabelDisplay="auto"
+                step={1}
+                min={0}
+                max={100}
+                sx={styles.volumeSlider}
+              />
+              <Typography sx={{ color: '#d0c98d', fontSize: '12px', minWidth: '35px', textAlign: 'right' }}>
+                {Math.round(musicVolume * 100)}%
+              </Typography>
+            </Box>
+          </Box>
+
+          <Divider sx={{ my: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+          {/* Animations Section */}
+          <Box sx={styles.settingsSection}>
+            <Typography sx={styles.settingsSectionTitle}>Animations</Typography>
+            <Box sx={styles.animationsControl}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={skipAllAnimations}
+                    onChange={(e) => setSkipAllAnimations(e.target.checked)}
+                    sx={styles.checkbox}
+                  />
+                }
+                label="Skip all animations"
+                sx={styles.checkboxLabel}
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={skipCombatDelays}
+                    onChange={(e) => setSkipCombatDelays(e.target.checked)}
+                    sx={styles.checkbox}
+                  />
+                }
+                label="Skip combat delays"
+                sx={styles.checkboxLabel}
+              />
+            </Box>
+          </Box>
+
+          <Divider sx={{ my: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+          {/* Exploration Section */}
+          <Box sx={styles.settingsSection}>
+            <Typography sx={styles.settingsSectionTitle}>Exploration</Typography>
+            <Box sx={styles.animationsControl}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={showUntilBeastToggle}
+                    onChange={(e) => setShowUntilBeastToggle(e.target.checked)}
+                    sx={styles.checkbox}
+                  />
+                }
+                label='Show "until beast" toggle'
+                sx={styles.checkboxLabel}
+              />
+            </Box>
+          </Box>
+
+          <Divider sx={{ my: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+          {/* Client Section */}
+          <Box sx={styles.settingsSection}>
+            <Button
+              variant="outlined"
+              fullWidth
+              onClick={handleSwitchToMobile}
+              startIcon={<PhoneAndroidIcon sx={{ fontSize: 20 }} />}
+              sx={styles.switchClientButton}
+            >
+              Switch to Mobile
+            </Button>
+          </Box>
+
+          {/* Game Section */}
+          <Box sx={styles.settingsSection}>
+            <Button
+              variant="contained"
+              fullWidth
+              onClick={handleExitGame}
+              sx={styles.exitGameButton}
+            >
+              Exit Game
+            </Button>
+          </Box>
+
+          {/* Social Links */}
+          <Box sx={styles.settingsSection}>
+            <Box sx={styles.socialButtons}>
+              <IconButton
+                size="small"
+                sx={styles.socialButton}
+                onClick={() => window.open('https://docs.provable.games/lootsurvivor', '_blank')}
+              >
+                <MenuBookIcon sx={{ fontSize: 22, color: '#d0c98d' }} />
+              </IconButton>
+              <IconButton
+                size="small"
+                sx={styles.socialButton}
+                onClick={() => window.open('https://x.com/LootSurvivor', '_blank')}
+              >
+                <XIcon sx={{ fontSize: 22 }} />
+              </IconButton>
+              <IconButton
+                size="small"
+                sx={styles.socialButton}
+                onClick={() => window.open('https://discord.gg/DQa4z9jXnY', '_blank')}
+              >
+                <img src={discordIcon} alt="Discord" style={{ width: 22, height: 22 }} />
+              </IconButton>
+              <IconButton
+                size="small"
+                sx={styles.socialButton}
+                onClick={() => window.open('https://github.com/provable-games/death-mountain', '_blank')}
+              >
+                <GitHubIcon sx={{ fontSize: 22 }} />
+              </IconButton>
+            </Box>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -1114,9 +1340,7 @@ const styles = {
   },
   popup: {
     position: 'absolute',
-    top: '24px',
-    right: '24px',
-    width: '390px',
+    // top, right, width set dynamically via useResponsiveScale
     maxHeight: 'calc(100dvh - 170px)',
     maxWidth: '98dvw',
     background: 'rgba(24, 40, 24, 0.75)',
@@ -1980,5 +2204,134 @@ const styles = {
   },
   itemUnaffordable: {
     opacity: 0.5,
+  },
+  // Settings styles
+  settingsContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 1.5,
+    padding: '4px 0',
+    overflowY: 'auto',
+    flex: 1,
+  },
+  settingsSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0.75,
+  },
+  settingsSectionTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#d0c98d',
+    fontFamily: 'Cinzel, Georgia, serif',
+  },
+  soundControl: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 1,
+    padding: '6px 10px',
+    background: 'rgba(24, 40, 24, 0.3)',
+    border: '1px solid rgba(8, 62, 34, 0.5)',
+    borderRadius: '6px',
+  },
+  volumeSlider: {
+    flex: 1,
+    color: '#d0c98d',
+    height: 4,
+    '& .MuiSlider-thumb': {
+      backgroundColor: '#d0c98d',
+      width: 14,
+      height: 14,
+      '&:hover': {
+        boxShadow: '0 0 0 6px rgba(208, 201, 141, 0.16)',
+      },
+    },
+    '& .MuiSlider-track': {
+      backgroundColor: '#d0c98d',
+      border: 'none',
+    },
+    '& .MuiSlider-rail': {
+      backgroundColor: 'rgba(208, 201, 141, 0.2)',
+    },
+    '& .MuiSlider-valueLabel': {
+      backgroundColor: '#d0c98d',
+      color: '#1a1a1a',
+      fontSize: '10px',
+      fontWeight: 600,
+    },
+    '&.Mui-disabled': {
+      '& .MuiSlider-track': {
+        backgroundColor: '#666',
+      },
+      '& .MuiSlider-thumb': {
+        backgroundColor: '#666',
+      },
+    },
+  },
+  animationsControl: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0.5,
+  },
+  checkbox: {
+    color: '#d0c98d',
+    padding: '4px',
+    '&.Mui-checked': {
+      color: '#d0c98d',
+    },
+    '&:hover': {
+      backgroundColor: 'rgba(208, 201, 141, 0.08)',
+    },
+  },
+  checkboxLabel: {
+    color: '#d0c98d',
+    fontSize: '0.75rem',
+    margin: 0,
+    '& .MuiFormControlLabel-label': {
+      fontWeight: 500,
+      fontSize: '0.8rem',
+    },
+  },
+  switchClientButton: {
+    borderColor: '#d0c98d',
+    color: '#d0c98d',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontWeight: 500,
+    fontSize: '0.8rem',
+    textTransform: 'none',
+    '&:hover': {
+      borderColor: '#d0c98d',
+      background: 'rgba(208, 201, 141, 0.1)',
+    },
+  },
+  exitGameButton: {
+    background: 'rgba(255, 0, 0, 0.15)',
+    border: '2px solid rgba(255, 0, 0, 0.3)',
+    color: '#FF6B6B',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontWeight: 500,
+    fontSize: '0.8rem',
+    letterSpacing: '0.5px',
+    transition: 'all 0.2s',
+    '&:hover': {
+      background: 'rgba(255, 0, 0, 0.25)',
+      border: '2px solid rgba(255, 0, 0, 0.4)',
+    },
+  },
+  socialButtons: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  socialButton: {
+    color: '#d0c98d',
+    opacity: 0.8,
+    background: 'rgba(24, 40, 24, 0.3)',
+    border: '1px solid rgba(8, 62, 34, 0.5)',
+    '&:hover': {
+      opacity: 1,
+      background: 'rgba(24, 40, 24, 0.5)',
+    },
+    padding: '8px',
   },
 };

@@ -1,5 +1,6 @@
 import { JACKPOT_BEASTS } from '@/constants/beast';
 import { useDynamicConnector } from '@/contexts/starknet';
+import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useGameStore } from '@/stores/gameStore';
 import { beastPowerPercent, collectableImage, getCollectableTraits } from '@/utils/beast';
 import { calculateGoldReward, calculateLevel } from '@/utils/game';
@@ -15,6 +16,7 @@ export default function Beast() {
   const dungeon = useDungeon();
   const { getBeastOwner } = useGameTokens();
   const { currentNetworkConfig } = useDynamicConnector();
+  const { scalePx, contentOffset } = useResponsiveScale();
   const { adventurer, beast, battleEvent, setShowInventory } = useGameStore();
   const [beastHealth, setBeastHealth] = useState(adventurer!.beast_health);
   const [ownerName, setOwnerName] = useState<string | null>(null);
@@ -40,10 +42,21 @@ export default function Beast() {
     }
   }, [beast]);
 
+  // Responsive sizes
+  const portraitSize = scalePx(80);
+  const edgeOffset = scalePx(8);
+  const healthBarWidth = scalePx(300);
+
   return (
     <>
       {/* Beast Portrait */}
-      <Box sx={collectable ? styles.collectablePortraitWrapper : styles.portraitWrapper}>
+      <Box sx={{
+        ...(collectable ? styles.collectablePortraitWrapper : styles.portraitWrapper),
+        top: edgeOffset,
+        right: edgeOffset,
+        width: portraitSize,
+        height: portraitSize,
+      }}>
         {collectable ? <Box sx={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%', borderRadius: '50%' }}>
           <img src={collectableImage(beast!.baseName, collectableTraits!)}
             alt="Beast" style={{
@@ -73,7 +86,11 @@ export default function Beast() {
 
       {/* Collectable Indicator */}
       {collectable && (
-        <Box sx={styles.collectableIndicator}>
+        <Box sx={{
+          ...styles.collectableIndicator,
+          right: portraitSize,
+          width: healthBarWidth,
+        }}>
           <Typography sx={styles.collectableText}>
             {currentNetworkConfig.beasts ? "Defeat this beast to collect it" : "Collectable Beast (beast mode only)"}
           </Typography>
@@ -81,7 +98,11 @@ export default function Beast() {
       )}
 
       {ownerName && (
-        <Box sx={styles.collectableIndicator}>
+        <Box sx={{
+          ...styles.collectableIndicator,
+          right: portraitSize,
+          width: healthBarWidth,
+        }}>
           <Typography sx={styles.ownerNameText}>
             Owned by {ownerName}
           </Typography>
@@ -89,14 +110,22 @@ export default function Beast() {
       )}
 
       {collectable && isJackpot && (
-        <Box sx={styles.toastContainer}>
+        <Box sx={{
+          ...styles.toastContainer,
+          top: scalePx(95),
+        }}>
           <Typography sx={styles.wantedBeastText}>
             WANTED BEAST
           </Typography>
         </Box>
       )}
 
-      <Box sx={styles.beastStatsContainer}>
+      <Box sx={{
+        ...styles.beastStatsContainer,
+        top: scalePx(106),
+        right: scalePx(155),
+        width: scalePx(185),
+      }}>
         <Box sx={styles.statContainer}>
           <Typography variant="body2" sx={styles.statLabel}>
             Crit Chance
@@ -123,7 +152,13 @@ export default function Beast() {
       </Box>
 
       {/* Beast Health Bar */}
-      <Box sx={collectable ? styles.collectableHealthBarContainer : styles.healthBarContainer}>
+      <Box sx={{
+        ...(collectable ? styles.collectableHealthBarContainer : styles.healthBarContainer),
+        top: scalePx(30),
+        right: portraitSize,
+        width: healthBarWidth,
+        height: scalePx(72),
+      }}>
         <Typography
           variant="h6"
           sx={{ mr: 4, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', fontSize: beastNameSize(beast?.name || ''), height: '26px', lineHeight: '24px' }}
@@ -194,10 +229,7 @@ const elegantPulse = keyframes`
 const styles = {
   portraitWrapper: {
     position: 'absolute',
-    top: 24,
-    right: 24,
-    width: 80,
-    height: 80,
+    // top, right, width, height set dynamically via useResponsiveScale
     borderRadius: '50%',
     background: 'rgba(0, 0, 0, 1)',
     border: '3px solid #083e22',
@@ -206,10 +238,7 @@ const styles = {
   },
   collectablePortraitWrapper: {
     position: 'absolute',
-    top: 24,
-    right: 24,
-    width: 80,
-    height: 80,
+    // top, right, width, height set dynamically via useResponsiveScale
     borderRadius: '50%',
     background: 'rgba(0, 0, 0, 1)',
     border: '3px solid #EDCF33',
@@ -219,10 +248,7 @@ const styles = {
   },
   healthBarContainer: {
     position: 'absolute',
-    top: 30,
-    right: '80px',
-    width: '300px',
-    height: '72px',
+    // top, right, width, height set dynamically via useResponsiveScale
     padding: '4px 8px',
     background: 'rgba(24, 40, 24, 0.55)',
     border: '2px solid #083e22',
@@ -232,10 +258,7 @@ const styles = {
   },
   collectableHealthBarContainer: {
     position: 'absolute',
-    top: 30,
-    right: '80px',
-    width: '300px',
-    height: '72px',
+    // top, right, width, height set dynamically via useResponsiveScale
     padding: '4px 8px',
     background: 'rgba(24, 40, 24, 0.55)',
     border: '2px solid #EDCF33',
@@ -316,15 +339,12 @@ const styles = {
   collectableIndicator: {
     position: 'absolute',
     top: 10,
-    right: '80px',
-    width: '300px',
+    // right, width set dynamically via useResponsiveScale
     textAlign: 'center',
   },
   beastStatsContainer: {
     position: 'absolute',
-    top: 106,
-    right: '155px',
-    width: '185px',
+    // top, right, width set dynamically via useResponsiveScale
     display: 'flex',
     gap: '4px',
   },
@@ -386,7 +406,7 @@ const styles = {
     display: 'flex',
     alignItems: 'baseline',
     position: 'absolute',
-    top: 95,
+    // top set dynamically via useResponsiveScale
     left: '50%',
     transform: 'translateX(-50%)',
     padding: '8px 20px',

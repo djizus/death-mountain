@@ -1,4 +1,5 @@
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
+import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { streamIds } from '@/utils/cloudflare';
@@ -10,13 +11,13 @@ import BeastCollectedPopup from '../../components/BeastCollectedPopup';
 import Adventurer from './Adventurer';
 import InventoryOverlay from './Inventory';
 import MarketOverlay from './Market';
-import SettingsOverlay from './Settings';
 import { useUIStore } from '@/stores/uiStore';
 import { useSnackbar } from 'notistack';
 import { getExplorationInsights } from '@/utils/exploration';
 
 export default function ExploreOverlay() {
   const { executeGameAction, actionFailed, setVideoQueue } = useGameDirector();
+  const { scalePx } = useResponsiveScale();
   const {
     exploreLog,
     adventurer,
@@ -105,7 +106,12 @@ export default function ExploreOverlay() {
       <Adventurer />
 
       {/* Middle Section for Event Log */}
-      <Box sx={styles.middleSection}>
+      <Box sx={{
+        ...styles.middleSection,
+        top: scalePx(30),
+        width: scalePx(340),
+        padding: `${scalePx(6)}px ${scalePx(8)}px`,
+      }}>
         <Box sx={styles.eventLogContainer}>
           {event && <Box sx={styles.encounterDetails}>
             <Typography variant="h6">
@@ -196,13 +202,15 @@ export default function ExploreOverlay() {
       </Box>
 
       <InventoryOverlay disabledEquip={isExploring || isSelectingStats || inProgress} />
-      <SettingsOverlay />
-
 
       {adventurer?.beast_health === 0 && <MarketOverlay />}
 
       {/* Bottom Buttons */}
-      <Box sx={styles.buttonContainer}>
+      <Box sx={{
+        ...styles.buttonContainer,
+        bottom: scalePx(32),
+        gap: `${scalePx(16)}px`,
+      }}>
         {!spectating && (
           <Box sx={styles.primaryActionContainer}>
             <Box sx={styles.lethalChancesContainer}>
@@ -305,7 +313,10 @@ export default function ExploreOverlay() {
       </Box>
 
       {claimInProgress && (
-        <Box sx={styles.toastContainer}>
+        <Box sx={{
+          ...styles.toastContainer,
+          top: scalePx(98),
+        }}>
           <Typography sx={styles.toastText}>Collecting Beast</Typography>
           <div className='dotLoader yellow' />
         </Box>
@@ -350,11 +361,10 @@ const styles = {
   },
   buttonContainer: {
     position: 'absolute',
-    bottom: 32,
+    // bottom, gap set dynamically via useResponsiveScale
     left: '50%',
     transform: 'translateX(-50%)',
     display: 'flex',
-    gap: '16px',
   },
   primaryActionContainer: {
     display: 'flex',
@@ -403,10 +413,8 @@ const styles = {
   },
   middleSection: {
     position: 'absolute',
-    top: 30,
+    // top, width, padding set dynamically via useResponsiveScale
     left: '50%',
-    width: '340px',
-    padding: '6px 8px',
     border: '2px solid #083e22',
     borderRadius: '12px',
     background: 'rgba(24, 40, 24, 0.55)',
@@ -457,7 +465,7 @@ const styles = {
     display: 'flex',
     alignItems: 'baseline',
     position: 'absolute',
-    top: 98,
+    // top set dynamically via useResponsiveScale
     left: '50%',
     transform: 'translateX(-50%)',
     padding: '8px 20px',

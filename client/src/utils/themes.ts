@@ -1,6 +1,15 @@
 import { createTheme } from '@mui/material/styles';
 
 export const desktopTheme = createTheme({
+  breakpoints: {
+    values: {
+      xs: 0,
+      sm: 1024,   // Small laptops
+      md: 1440,   // Standard monitors
+      lg: 1920,   // Full HD (base design)
+      xl: 2560,   // 4K/Ultrawide
+    },
+  },
   typography: {
     fontFamily: [
       'Cinzel',

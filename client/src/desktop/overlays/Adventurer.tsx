@@ -1,5 +1,6 @@
 import { STARTING_HEALTH } from '@/constants/game';
 import { useController } from '@/contexts/controller';
+import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { CombatStats } from '@/types/game';
@@ -9,6 +10,7 @@ import { useEffect, useState } from 'react';
 
 export default function Adventurer({ combatStats }: { combatStats?: CombatStats }) {
   const { playerName } = useController();
+  const { scalePx, contentOffset } = useResponsiveScale();
   const { adventurer, metadata, battleEvent, beast } = useGameStore();
   const { cart } = useMarketStore();
 
@@ -42,10 +44,22 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
   const xpRequiredForNext = nextLevelXp - currentLevelFloor;
   const xpProgress = xpRequiredForNext > 0 ? (currentXpIntoLevel / xpRequiredForNext) * 100 : 100;
 
+  // Responsive sizes
+  const portraitSize = scalePx(80);
+  const edgeOffset = scalePx(8);
+  const healthBarWidth = scalePx(300);
+  const healthBarHeight = scalePx(86);
+
   return (
     <>
       {/* Portrait */}
-      <Box sx={styles.portraitWrapper}>
+      <Box sx={{
+        ...styles.portraitWrapper,
+        top: edgeOffset,
+        left: edgeOffset,
+        width: portraitSize,
+        height: portraitSize,
+      }}>
         <img src="/images/adventurer.png" alt="Adventurer" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
         <Box sx={styles.levelCircle}>
           <Typography variant="body2" sx={styles.levelText}>
@@ -55,7 +69,13 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
       </Box>
 
       {/* Health Bar */}
-      <Box sx={styles.healthBarContainer}>
+      <Box sx={{
+        ...styles.healthBarContainer,
+        top: scalePx(30),
+        left: portraitSize,
+        width: healthBarWidth,
+        height: healthBarHeight,
+      }}>
         {/* Adventurer Name */}
         {!beast && <Typography
           variant="h6"
@@ -158,10 +178,7 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
 const styles = {
   portraitWrapper: {
     position: 'absolute',
-    top: 24,
-    left: 24,
-    width: 80,
-    height: 80,
+    // top, left, width, height set dynamically via useResponsiveScale
     borderRadius: '50%',
     background: 'rgba(24, 40, 24, 1)',
     border: '3px solid #083e22',
@@ -170,10 +187,7 @@ const styles = {
   },
   healthBarContainer: {
     position: 'absolute',
-    top: 30,
-    left: '80px',
-    width: '300px',
-    height: '86px',
+    // top, left, width, height set dynamically via useResponsiveScale
     padding: '6px 10px',
     background: 'rgba(24, 40, 24, 0.55)',
     border: '2px solid #083e22',
