@@ -3,6 +3,7 @@ import AdventurerStats from '@/desktop/components/AdventurerStats';
 import ItemTooltip from '@/desktop/components/ItemTooltip';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
+import { useGearPresets } from '@/hooks/useGearPresets';
 import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
 import { calculateAttackDamage, calculateBeastDamageDetails, calculateCombatStats, calculateLevel } from '@/utils/game';
@@ -38,11 +39,12 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
   onItemHover: (itemId: number) => void,
   disabledEquip?: boolean
 }) {
-  const { adventurer, beast, equipGearPreset } = useGameStore();
+  const { adventurer, beast, bag, equipGearPreset } = useGameStore();
+  const { presets } = useGearPresets(adventurer ?? null, bag);
   const isPresetDisabled = isDropMode || !!disabledEquip;
 
   const handlePresetClick = (preset: GearPreset) => {
-    if (isPresetDisabled) {
+    if (isPresetDisabled || !presets[preset].hasChanges) {
       return;
     }
 
@@ -304,7 +306,7 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
             variant="outlined"
             sx={styles.presetButton}
             onClick={() => handlePresetClick(preset.key)}
-            disabled={isPresetDisabled}
+            disabled={isPresetDisabled || !presets[preset.key].hasChanges}
           >
             {preset.label}
           </Button>
