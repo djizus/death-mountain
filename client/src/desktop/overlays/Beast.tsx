@@ -112,7 +112,7 @@ export default function Beast() {
             <LinearProgress
               variant="determinate"
               value={beastPowerPercent(critChance, beastPower)}
-              sx={styles.powerBar}
+              sx={styles.powerBarRtl}
             />
             <Typography sx={styles.barOverlayText}>
               Power: {beastPower}
@@ -338,6 +338,16 @@ const styles = {
     height: '14px',
     borderRadius: '5px',
     backgroundColor: 'rgba(0,0,0,0.3)',
+    '& .MuiLinearProgress-bar': {
+      backgroundColor: '#d7c529',
+      boxShadow: '0 0 8px rgba(184, 134, 11, 0.5)',
+    },
+  },
+  powerBarRtl: {
+    height: '14px',
+    borderRadius: '5px',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    transform: 'scaleX(-1)',
     '& .MuiLinearProgress-bar': {
       backgroundColor: '#d7c529',
       boxShadow: '0 0 8px rgba(184, 134, 11, 0.5)',

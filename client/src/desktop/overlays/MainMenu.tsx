@@ -159,8 +159,8 @@ export default function MainMenu() {
     }
   };
   // Responsive sizes
-  const containerWidth = scalePx(310);
-  const containerTop = scalePx(8);
+  const containerWidth = scalePx(340);
+  const containerTop = scalePx(30);
   const containerMinHeight = scalePx(600);
   const edgeOffset = scalePx(8);
   const rewardsWidth = scalePx(300);
@@ -169,7 +169,7 @@ export default function MainMenu() {
     <>
       <Box sx={{
         ...styles.container,
-        left: edgeOffset,
+        left: contentOffset + edgeOffset,
         top: containerTop,
         width: containerWidth,
         minHeight: containerMinHeight,
@@ -454,7 +454,7 @@ export default function MainMenu() {
       )}
 
       {DungeonRewards ? <Box sx={[styles.rewardsContainer, {
-        right: edgeOffset,
+        right: contentOffset + edgeOffset,
         top: containerTop,
         width: rewardsWidth,
       }]}>

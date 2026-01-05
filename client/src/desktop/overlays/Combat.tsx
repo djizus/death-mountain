@@ -456,8 +456,8 @@ export default function CombatOverlay() {
       {beast && combatOverview && (
         <Box sx={{
           ...styles.insightsPanel,
-          top: scalePx(172),
-          right: scalePx(8),
+          top: scalePx(162),
+          right: scalePx(30),
           width: scalePx(360),
           padding: `${scalePx(12)}px ${scalePx(14)}px`,
         }}>
