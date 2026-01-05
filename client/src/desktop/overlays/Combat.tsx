@@ -558,7 +558,7 @@ export default function CombatOverlay() {
       {beast && combatOverview && (
         <Box sx={{
           ...styles.insightsPanel,
-          top: scalePx(150),
+          top: scalePx(172),
           right: scalePx(8),
           width: scalePx(360),
           padding: `${scalePx(12)}px ${scalePx(14)}px`,
@@ -691,7 +691,7 @@ export default function CombatOverlay() {
       {/* Skip Animations Toggle */}
       {showSkipCombat && (untilDeath || autoLastHitActive) && <Box sx={{
         ...styles.skipContainer,
-        top: scalePx(90),
+        top: scalePx(112),
       }}>
         <Button
           variant="outlined"

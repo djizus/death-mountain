@@ -716,9 +716,9 @@ export default function MarketOverlay() {
   return (
     <Box sx={{
       ...styles.popup,
-      top: scalePx(8),
+      top: scalePx(30),
       right: scalePx(8),
-      width: scalePx(390),
+      width: scalePx(480),
       minHeight: scalePx(600),
     }}>
       <Box sx={styles.tabBar}>
@@ -1342,7 +1342,7 @@ const styles = {
   popup: {
     position: 'absolute',
     // top, right, width set dynamically via useResponsiveScale
-    maxHeight: 'calc(100dvh - 170px)',
+    maxHeight: 'calc(100dvh - 100px)',
     maxWidth: '98dvw',
     background: 'rgba(24, 40, 24, 0.75)',
     border: '2px solid #083e22',
@@ -1995,7 +1995,7 @@ const styles = {
   filterGroup: {
     display: 'flex',
     flexDirection: 'row',
-    gap: '8px',
+    gap: '4px',
   },
   filterButtons: {
     display: 'flex',

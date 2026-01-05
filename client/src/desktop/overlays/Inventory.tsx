@@ -658,9 +658,9 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
   }
 
   // Responsive sizes - positioned below adventurer panel
-  const popupTop = scalePx(140);
+  const popupTop = scalePx(162);
   const popupLeft = scalePx(8);
-  const popupWidth = scalePx(540);
+  const popupWidth = scalePx(580);
 
   return (
     <>
@@ -789,7 +789,7 @@ const styles = {
     mb: 1
   },
   equipmentPanel: {
-    height: '400px',
+    height: '405px',
     width: '220px',
     display: 'flex',
     flexDirection: 'column',

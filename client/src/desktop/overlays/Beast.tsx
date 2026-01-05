@@ -43,7 +43,7 @@ export default function Beast() {
   }, [beast]);
 
   // Responsive sizes
-  const edgeOffset = scalePx(8);
+  const edgeOffset = scalePx(30);
   const panelWidth = scalePx(360);
 
   return (
@@ -137,7 +137,7 @@ export default function Beast() {
       {collectable && (
         <Box sx={{
           ...styles.collectableIndicator,
-          top: scalePx(100),
+          top: scalePx(122),
           right: edgeOffset,
           width: panelWidth,
         }}>
@@ -151,7 +151,7 @@ export default function Beast() {
       {ownerName && (
         <Box sx={{
           ...styles.collectableIndicator,
-          top: scalePx(100),
+          top: scalePx(122),
           right: edgeOffset,
           width: panelWidth,
         }}>
@@ -165,7 +165,7 @@ export default function Beast() {
       {collectable && isJackpot && (
         <Box sx={{
           ...styles.toastContainer,
-          top: scalePx(95),
+          top: scalePx(117),
         }}>
           <Typography sx={styles.wantedBeastText}>
             WANTED BEAST

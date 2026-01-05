@@ -45,14 +45,14 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
   const xpProgress = xpRequiredForNext > 0 ? (currentXpIntoLevel / xpRequiredForNext) * 100 : 100;
 
   // Responsive sizes
-  const edgeOffset = scalePx(8);
+  const edgeOffset = scalePx(30);
   const panelWidth = scalePx(360);
 
   return (
     <Box sx={{
       ...styles.panel,
       top: edgeOffset,
-      left: edgeOffset,
+      left: scalePx(8),
       width: panelWidth,
     }}>
       {/* Portrait with level badge */}

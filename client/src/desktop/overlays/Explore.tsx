@@ -315,7 +315,7 @@ export default function ExploreOverlay() {
       {claimInProgress && (
         <Box sx={{
           ...styles.toastContainer,
-          top: scalePx(98),
+          top: scalePx(120),
         }}>
           <Typography sx={styles.toastText}>Collecting Beast</Typography>
           <div className='dotLoader yellow' />
