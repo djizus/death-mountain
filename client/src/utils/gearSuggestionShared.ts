@@ -308,16 +308,20 @@ export interface GearSuggestionWorkerResponse {
   changeCount: number;
 }
 
+/** Check if a score is "perfect" - 100% win rate */
+export const isPerfectScore = (score: GearSuggestionScore): boolean => score.winRate >= 100;
+
 export const evaluateSelections = (
   adventurer: Adventurer,
   beast: Beast,
   selections: Array<Partial<Record<EquipmentSlot, Item>>>,
+  earlyTerminate = true,
 ) => {
   let bestScore: GearSuggestionScore | null = null;
   let bestSelection: Partial<Record<EquipmentSlot, Item>> | null = null;
   let bestChangeCount = Number.POSITIVE_INFINITY;
 
-  selections.forEach((selection) => {
+  for (const selection of selections) {
     const changeCount = Object.keys(selection).length;
     const candidateAdventurer = applyGearSet(adventurer, selection);
     const result = calculateCombatResult(candidateAdventurer, beast, { initialBeastStrike: true });
@@ -327,8 +331,13 @@ export const evaluateSelections = (
       bestScore = score;
       bestSelection = selection;
       bestChangeCount = changeCount;
+
+      // Early termination: if we found a perfect score with minimal changes, stop searching
+      if (earlyTerminate && isPerfectScore(score) && changeCount === 1) {
+        break;
+      }
     }
-  });
+  }
 
   if (!bestScore || !bestSelection) {
     return null;

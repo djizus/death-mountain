@@ -1,8 +1,9 @@
 import AnimatedText from '@/desktop/components/AnimatedText';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
+import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useGameStore } from '@/stores/gameStore';
-import { defaultSimulationResult, simulateCombatOutcomes } from '@/utils/combatSimulation';
-import { ability_based_percentage, calculateCombatStats, calculateLevel, getNewItemsEquipped } from '@/utils/game';
+import { useCombatSimulation } from '@/hooks/useCombatSimulation';
+import { ability_based_percentage, calculateLevel, getNewItemsEquipped } from '@/utils/game';
 import { potionPrice } from '@/utils/market';
 import { Box, Button, Checkbox, Typography } from '@mui/material';
 import { keyframes } from '@emotion/react';
@@ -10,7 +11,6 @@ import { useEffect, useMemo, useState } from 'react';
 import Adventurer from './Adventurer';
 import Beast from './Beast';
 import InventoryOverlay from './Inventory';
-import SettingsOverlay from './Settings';
 import { JACKPOT_BEASTS, GOLD_MULTIPLIER, GOLD_REWARD_DIVISOR, MINIMUM_XP_REWARD } from '@/constants/beast';
 import { useDynamicConnector } from '@/contexts/starknet';
 import { suggestBestCombatGear } from '@/utils/gearSuggestion';
@@ -58,6 +58,7 @@ const tipPulseGamble = keyframes`
 export default function CombatOverlay() {
   const { executeGameAction, actionFailed, setSkipCombat, skipCombat, showSkipCombat } = useGameDirector();
   const { currentNetworkConfig } = useDynamicConnector();
+  const { scalePx, contentOffset } = useResponsiveScale();
   const {
     gameId,
     adventurer,
@@ -79,10 +80,22 @@ export default function CombatOverlay() {
   const [equipInProgress, setEquipInProgress] = useState(false);
   const [suggestInProgress, setSuggestInProgress] = useState(false);
   const [combatLog, setCombatLog] = useState("");
-  const [simulationResult, setSimulationResult] = useState(defaultSimulationResult);
-  const [simulationActionCount, setSimulationActionCount] = useState<number | null>(null);
+
+  // Determine if new items are equipped (beast attacks first)
+  const hasNewItemsEquipped = useMemo(() => {
+    if (!adventurer?.equipment || !adventurerState?.equipment) return false;
+    return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
+  }, [adventurer?.equipment, adventurerState?.equipment]);
+
+  // Use optimized combat simulation hook with debouncing and state hashing
+  const { simulationResult, combatStats, simulationActionCount } = useCombatSimulation(
+    adventurer ?? null,
+    beast ?? null,
+    bag,
+    { debounceMs: 150, initialBeastStrike: hasNewItemsEquipped }
+  );
+
   const fleePercentage = ability_based_percentage(adventurer!.xp, adventurer!.stats.dexterity);
-  const combatStats = calculateCombatStats(adventurer!, bag, beast);
   const attackPreviewDamage = combatStats.critChance >= 100
     ? combatStats.criticalDamage
     : combatStats.baseDamage;
@@ -316,11 +329,6 @@ export default function CombatOverlay() {
     setUntilLastHit(checked);
   };
 
-  const hasNewItemsEquipped = useMemo(() => {
-    if (!adventurer?.equipment || !adventurerState?.equipment) return false;
-    return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
-  }, [adventurer?.equipment, adventurerState?.equipment]);
-
   const isJackpot = useMemo(() => {
     return currentNetworkConfig.beasts && JACKPOT_BEASTS.includes(beast?.name!);
   }, [beast]);
@@ -368,115 +376,6 @@ export default function CombatOverlay() {
 
     return calculateLevel(adventurer.xp);
   }, [adventurer?.xp]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let resolved = false;
-
-    if (!adventurer || !beast || !combatOverview) {
-      console.log('[CombatSimulation] skipping run due to incomplete data', {
-        hasAdventurer: Boolean(adventurer),
-        hasBeast: Boolean(beast),
-        hasOverview: Boolean(combatOverview),
-      });
-      setSimulationResult(defaultSimulationResult);
-      setSimulationActionCount(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const now = () => {
-      if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-        return performance.now();
-      }
-
-      return Date.now();
-    };
-
-    const startTime = now();
-    console.log('[CombatSimulation] starting run', {
-      heroHp: adventurer.health,
-      beastHp: beast.health,
-      beast: beast.baseName,
-      initialBeastStrike: hasNewItemsEquipped,
-    });
-
-    const runSimulation = async () => {
-      try {
-        const result = await simulateCombatOutcomes(adventurer, beast, {
-          initialBeastStrike: hasNewItemsEquipped,
-        });
-        if (cancelled) {
-          console.log('[CombatSimulation] discarding result received after cancellation', {
-            durationMs: Math.round(now() - startTime),
-            computedVia: result.computedVia ?? 'unknown',
-          });
-          return;
-        }
-
-        resolved = true;
-        const durationMs = Math.round(now() - startTime);
-        console.log('[CombatSimulation] completed run', {
-          durationMs,
-          computedVia: result.computedVia ?? 'unknown',
-          winRate: result.winRate,
-          otkRate: result.otkRate,
-          hasOutcome: result.hasOutcome,
-        });
-        setSimulationResult(result);
-        setSimulationActionCount(adventurer.action_count);
-      } catch (error) {
-        if (cancelled) {
-          console.log('[CombatSimulation] received error after cancellation', error);
-          return;
-        }
-
-        console.error('[CombatSimulation] failed to compute outcomes', error);
-      }
-    };
-
-    void runSimulation();
-
-    return () => {
-      cancelled = true;
-      if (!resolved) {
-        console.log('[CombatSimulation] cancelling run before completion', {
-          durationMs: Math.round(now() - startTime),
-        });
-      }
-    };
-  }, [
-    adventurer?.health,
-    adventurer?.xp,
-    adventurer?.item_specials_seed,
-    adventurer?.stats.strength,
-    adventurer?.stats.luck,
-    adventurer?.equipment.weapon.id,
-    adventurer?.equipment.weapon.xp,
-    adventurer?.equipment.chest.id,
-    adventurer?.equipment.chest.xp,
-    adventurer?.equipment.head.id,
-    adventurer?.equipment.head.xp,
-    adventurer?.equipment.waist.id,
-    adventurer?.equipment.waist.xp,
-    adventurer?.equipment.hand.id,
-    adventurer?.equipment.hand.xp,
-    adventurer?.equipment.foot.id,
-    adventurer?.equipment.foot.xp,
-    adventurer?.equipment.neck.id,
-    adventurer?.equipment.neck.xp,
-    adventurer?.equipment.ring.id,
-    adventurer?.equipment.ring.xp,
-    adventurer?.beast_health,
-    beast?.health,
-    beast?.level,
-    beast?.tier,
-    beast?.specialPrefix,
-    beast?.specialSuffix,
-    combatOverview?.goldReward,
-    hasNewItemsEquipped,
-  ]);
 
   const potionCost = useMemo(() => {
     if (!adventurer) {
@@ -555,7 +454,13 @@ export default function CombatOverlay() {
       <Beast />
 
       {beast && combatOverview && (
-        <Box sx={styles.insightsPanel}>
+        <Box sx={{
+          ...styles.insightsPanel,
+          top: scalePx(162),
+          right: scalePx(30),
+          width: scalePx(360),
+          padding: `${scalePx(12)}px ${scalePx(14)}px`,
+        }}>
           <Typography sx={styles.insightsTitle}>Combat Insights</Typography>
 
           <Box sx={styles.insightsSection}>
@@ -668,7 +573,12 @@ export default function CombatOverlay() {
       )}
 
       {/* Combat Log */}
-      <Box sx={styles.middleSection}>
+      <Box sx={{
+        ...styles.middleSection,
+        top: scalePx(30),
+        width: scalePx(340),
+        padding: `${scalePx(4)}px ${scalePx(8)}px`,
+      }}>
         <Box sx={styles.combatLogContainer}>
           <AnimatedText text={combatLog} />
           {(combatLog === fleeMessage || combatLog === attackMessage || combatLog === equipMessage)
@@ -677,13 +587,18 @@ export default function CombatOverlay() {
       </Box>
 
       {/* Skip Animations Toggle */}
-      {showSkipCombat && (untilDeath || autoLastHitActive) && <Box sx={styles.skipContainer}>
+      {showSkipCombat && (untilDeath || autoLastHitActive) && <Box sx={{
+        ...styles.skipContainer,
+        top: scalePx(112),
+      }}>
         <Button
           variant="outlined"
           onClick={handleSkipCombat}
-          sx={[
-            styles.skipButton,
-          ]}
+          sx={{
+            ...styles.skipButton,
+            width: scalePx(90),
+            height: scalePx(32),
+          }}
           disabled={skipCombat}
         >
           <Typography fontWeight={600}>
@@ -696,17 +611,20 @@ export default function CombatOverlay() {
       </Box>}
 
       <InventoryOverlay disabledEquip={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress} />
-      <SettingsOverlay />
 
       {/* Combat Buttons */}
-      {!spectating && <Box sx={styles.buttonContainer}>
+      {!spectating && <Box sx={{
+        ...styles.buttonContainer,
+        bottom: scalePx(32),
+        gap: `${scalePx(16)}px`,
+      }}>
         {hasNewItemsEquipped ? (
           <>
             <Box sx={styles.actionButtonContainer}>
               <Button
                 variant="contained"
                 onClick={handleEquipItems}
-                sx={styles.attackButton}
+                sx={{ ...styles.attackButton, width: scalePx(190), height: scalePx(48) }}
                 disabled={equipInProgress}
               >
                 <Box sx={{ opacity: equipInProgress ? 0.5 : 1 }}>
@@ -721,7 +639,7 @@ export default function CombatOverlay() {
               <Button
                 variant="contained"
                 onClick={undoEquipment}
-                sx={styles.fleeButton}
+                sx={{ ...styles.fleeButton, width: scalePx(190), height: scalePx(48) }}
                 disabled={equipInProgress}
               >
                 <Box sx={{ opacity: equipInProgress ? 0.5 : 1 }}>
@@ -738,7 +656,7 @@ export default function CombatOverlay() {
               <Button
                 variant="contained"
                 onClick={handleAttack}
-                sx={styles.attackButton}
+                sx={{ ...styles.attackButton, width: scalePx(190), height: scalePx(48) }}
                 disabled={!adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
               >
                 <Box sx={{ opacity: !adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
@@ -757,7 +675,7 @@ export default function CombatOverlay() {
               <Button
                 variant="contained"
                 onClick={handleSuggestGear}
-                sx={styles.suggestButton}
+                sx={{ ...styles.suggestButton, width: scalePx(190), height: scalePx(48) }}
                 disabled={!adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
               >
                 <Box sx={{ opacity: attackInProgress || fleeInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
@@ -775,7 +693,7 @@ export default function CombatOverlay() {
               <Button
                 variant="contained"
                 onClick={handleFlee}
-                sx={styles.fleeButton}
+                sx={{ ...styles.fleeButton, width: scalePx(190), height: scalePx(48) }}
                 disabled={adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress || equipInProgress || suggestInProgress}
               >
                 <Box sx={{ opacity: adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
@@ -862,10 +780,8 @@ const styles = {
   },
   middleSection: {
     position: 'absolute',
-    top: 30,
+    // top, width, padding set dynamically via useResponsiveScale
     left: '50%',
-    width: '340px',
-    padding: '4px 8px',
     border: '2px solid #083e22',
     borderRadius: '12px',
     background: 'rgba(24, 40, 24, 0.55)',
@@ -881,11 +797,10 @@ const styles = {
   },
   buttonContainer: {
     position: 'absolute',
-    bottom: 32,
+    // bottom, gap set dynamically via useResponsiveScale
     left: '50%',
     transform: 'translateX(calc(-32%))',
     display: 'flex',
-    gap: '16px',
     alignItems: 'flex-end',
   },
   actionButtonContainer: {
@@ -898,8 +813,7 @@ const styles = {
   attackButton: {
     border: '3px solid rgb(8, 62, 34)',
     background: 'rgba(24, 40, 24, 1)',
-    width: '190px',
-    height: '48px',
+    // width, height set dynamically via useResponsiveScale
     justifyContent: 'center',
     borderRadius: '8px',
     '&:hover': {
@@ -911,8 +825,7 @@ const styles = {
     },
   },
   fleeButton: {
-    width: '190px',
-    height: '48px',
+    // width, height set dynamically via useResponsiveScale
     justifyContent: 'center',
     background: 'rgba(60, 16, 16, 1)',
     borderRadius: '8px',
@@ -926,8 +839,7 @@ const styles = {
     },
   },
   suggestButton: {
-    width: '190px',
-    height: '48px',
+    // width, height set dynamically via useResponsiveScale
     justifyContent: 'center',
     background: 'rgba(16, 32, 48, 1)',
     borderRadius: '8px',
@@ -992,10 +904,7 @@ const styles = {
   },
   insightsPanel: {
     position: 'absolute',
-    top: 150,
-    right: 40,
-    width: 300,
-    padding: '12px 14px',
+    // top, right, width, padding set dynamically via useResponsiveScale
     border: '2px solid #083e22',
     borderRadius: '12px',
     background: 'rgba(24, 40, 24, 0.65)',
@@ -1168,7 +1077,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     position: 'absolute',
-    top: 90,
+    // top set dynamically via useResponsiveScale
     left: '50%',
     transform: 'translateX(-50%)',
     zIndex: 10,
@@ -1178,7 +1087,6 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '8px',
-    width: '90px',
-    height: '32px',
+    // width, height set dynamically via useResponsiveScale
   },
 };

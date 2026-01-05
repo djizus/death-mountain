@@ -12,6 +12,7 @@ import {
   evaluateSelections,
   getItemLabel,
   isBetterScore,
+  isPerfectScore,
   itemsEqual,
   toScore,
 } from '@/utils/gearSuggestionShared';
@@ -58,6 +59,27 @@ const chunkSelections = <T,>(array: T[], chunkSize: number) => {
     chunks.push(array.slice(i, i + chunkSize));
   }
   return chunks;
+};
+
+/**
+ * Generate single-slot change selections for greedy pre-screening.
+ * These are the simplest possible improvements.
+ */
+const gatherSingleSlotSelections = (
+  adventurer: Adventurer,
+  candidates: Record<EquipmentSlot, Item[]>,
+): Array<Partial<Record<EquipmentSlot, Item>>> => {
+  const selections: Array<Partial<Record<EquipmentSlot, Item>>> = [];
+
+  EQUIPMENT_SLOTS.forEach((slot) => {
+    candidates[slot].forEach((candidate) => {
+      if (!itemsEqual(candidate, adventurer.equipment[slot])) {
+        selections.push({ [slot]: cloneItem(candidate) });
+      }
+    });
+  });
+
+  return selections;
 };
 
 const gatherLoadouts = (
@@ -208,6 +230,47 @@ export const suggestBestCombatGear = async (
     score: bestScore,
   });
 
+  // Phase 1: Greedy pre-screening with single-slot changes
+  // This is fast and can find optimal solutions quickly for easy fights
+  const singleSlotSelections = gatherSingleSlotSelections(adventurer, candidates);
+
+  logSuggestion('Single-slot selections for greedy pre-screening', {
+    count: singleSlotSelections.length,
+  });
+
+  if (singleSlotSelections.length > 0) {
+    const greedyResult = evaluateSelections(adventurer, beast, singleSlotSelections, true);
+
+    if (greedyResult) {
+      const merged = mergeEvaluationResults(bestScore, bestChangeCount, greedyResult.score, greedyResult.selection, greedyResult.changeCount);
+      if (merged.selection) {
+        bestScore = merged.score;
+        bestSelection = merged.selection;
+        bestChangeCount = merged.changeCount;
+
+        // Early termination: if we found a perfect single-slot solution, return immediately
+        if (isPerfectScore(bestScore)) {
+          logSuggestion('Found perfect single-slot solution, skipping combinatorial search', {
+            score: bestScore,
+            changes: describeSelection(bestSelection),
+          });
+
+          const updatedAdventurer = applyGearSet(adventurer, bestSelection);
+          const updatedBag = buildUpdatedBag(adventurer, bag, bestSelection);
+          const changedSlots = Object.keys(bestSelection) as EquipmentSlot[];
+
+          return {
+            adventurer: updatedAdventurer,
+            bag: updatedBag,
+            score: bestScore,
+            changes: changedSlots,
+          } satisfies GearSuggestionResult;
+        }
+      }
+    }
+  }
+
+  // Phase 2: Full combinatorial search (only if greedy didn't find perfect solution)
   const loadoutSelections = gatherLoadouts(adventurer, candidates);
 
   logSuggestion('Generated loadout combinations', {
@@ -215,16 +278,29 @@ export const suggestBestCombatGear = async (
   });
 
   if (loadoutSelections.length === 0) {
+    if (bestSelection) {
+      // Return the greedy result if we found one
+      const updatedAdventurer = applyGearSet(adventurer, bestSelection);
+      const updatedBag = buildUpdatedBag(adventurer, bag, bestSelection);
+      const changedSlots = Object.keys(bestSelection) as EquipmentSlot[];
+
+      return {
+        adventurer: updatedAdventurer,
+        bag: updatedBag,
+        score: bestScore,
+        changes: changedSlots,
+      } satisfies GearSuggestionResult;
+    }
+
     logSuggestion('No alternative loadouts available');
     return null;
   }
 
-  let evaluation = await evaluateWithWorkers(adventurer, beast, loadoutSelections);
+  let evaluation: GearSuggestionWorkerResponse | null = await evaluateWithWorkers(adventurer, beast, loadoutSelections);
 
   if (!evaluation) {
     logSuggestion('Falling back to synchronous evaluation');
-    const fallback = evaluateSelections(adventurer, beast, loadoutSelections);
-    evaluation = fallback ?? null;
+    evaluation = evaluateSelections(adventurer, beast, loadoutSelections) ?? null;
   }
 
   if (evaluation) {

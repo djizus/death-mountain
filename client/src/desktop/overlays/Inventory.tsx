@@ -2,9 +2,11 @@ import { BEAST_MIN_DAMAGE } from '@/constants/beast';
 import AdventurerStats from '@/desktop/components/AdventurerStats';
 import ItemTooltip from '@/desktop/components/ItemTooltip';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
+import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
+import { useGearPresets } from '@/hooks/useGearPresets';
 import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
-import { calculateAttackDamage, calculateBeastDamage, calculateBeastDamageDetails, calculateCombatStats, calculateLevel } from '@/utils/game';
+import { calculateAttackDamage, calculateBeastDamageDetails, calculateCombatStats, calculateLevel } from '@/utils/game';
 import { ItemType, ItemUtils, Tier } from '@/utils/loot';
 import { keyframes } from '@emotion/react';
 import { DeleteOutline, Star } from '@mui/icons-material';
@@ -37,11 +39,12 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
   onItemHover: (itemId: number) => void,
   disabledEquip?: boolean
 }) {
-  const { adventurer, beast, equipGearPreset } = useGameStore();
+  const { adventurer, beast, bag, equipGearPreset } = useGameStore();
+  const { presets } = useGearPresets(adventurer ?? null, bag);
   const isPresetDisabled = isDropMode || !!disabledEquip;
 
   const handlePresetClick = (preset: GearPreset) => {
-    if (isPresetDisabled) {
+    if (isPresetDisabled || !presets[preset].hasChanges) {
       return;
     }
 
@@ -303,7 +306,7 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
             variant="outlined"
             sx={styles.presetButton}
             onClick={() => handlePresetClick(preset.key)}
-            disabled={isPresetDisabled}
+            disabled={isPresetDisabled || !presets[preset.key].hasChanges}
           >
             {preset.label}
           </Button>
@@ -591,6 +594,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
 
 export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProps) {
   const { executeGameAction, actionFailed } = useGameDirector();
+  const { scalePx } = useResponsiveScale();
   const { adventurer, bag, showInventory } = useGameStore();
   const { equipItem, newInventoryItems, setNewInventoryItems } = useGameStore();
   const [isDropMode, setIsDropMode] = useState(false);
@@ -655,67 +659,77 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
     return null;
   }
 
+  // Responsive sizes - positioned below adventurer panel
+  const popupTop = scalePx(162);
+  const popupLeft = scalePx(8);
+  const popupWidth = scalePx(580);
+
   return (
     <>
-      {/* Inventory popup */}
-      <Box sx={styles.popup}>
-            <Box sx={styles.inventoryRoot}>
-              {/* Left: Equipment */}
-              <CharacterEquipment
-                isDropMode={isDropMode}
-                itemsToDrop={itemsToDrop}
-                onItemClick={handleItemClick}
-                newItems={newItems}
-                onItemHover={handleItemHover}
-                disabledEquip={disabledEquip}
-              />
-              {/* Right: Stats */}
-              <AdventurerStats variant="stats" />
-            </Box>
+      {/* Inventory Panel */}
+      <Box sx={{
+        ...styles.popup,
+        top: popupTop,
+        left: popupLeft,
+        width: popupWidth,
+      }}>
+        <Box sx={styles.inventoryRoot}>
+          {/* Left: Equipment */}
+          <CharacterEquipment
+            isDropMode={isDropMode}
+            itemsToDrop={itemsToDrop}
+            onItemClick={handleItemClick}
+            newItems={newItems}
+            onItemHover={handleItemHover}
+            disabledEquip={disabledEquip}
+          />
+          {/* Right: Stats */}
+          <AdventurerStats variant="stats" />
+        </Box>
 
-            {/* Bottom: Bag */}
-            <InventoryBag
-              isDropMode={isDropMode}
-              itemsToDrop={itemsToDrop}
-              onItemClick={handleItemClick}
-              onDropModeToggle={() => setIsDropMode(true)}
-              newItems={newItems}
-              onItemHover={handleItemHover}
-            />
+        {/* Bottom: Bag */}
+        <InventoryBag
+          isDropMode={isDropMode}
+          itemsToDrop={itemsToDrop}
+          onItemClick={handleItemClick}
+          onDropModeToggle={() => setIsDropMode(true)}
+          newItems={newItems}
+          onItemHover={handleItemHover}
+        />
 
-            {/* Drop Mode Controls */}
-            {isDropMode && (
-              <Box sx={styles.dropControls}>
-                <Button
-                  variant="contained"
-                  color="error"
-                  onClick={handleCancelDrop}
-                  sx={styles.cancelDropButton}
-                  disabled={dropInProgress}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="contained"
-                  onClick={handleConfirmDrop}
-                  sx={styles.dropControlButton}
-                  disabled={dropInProgress || itemsToDrop.length === 0}
-                >
-                  {dropInProgress
-                    ? <Box display={'flex'} alignItems={'baseline'}>
-                      <Typography>
-                        Dropping items
-                      </Typography>
-                      <div className='dotLoader yellow' />
-                    </Box>
-                    : <Typography>
-                      Confirm
-                    </Typography>
-                  }
-                </Button>
-              </Box>
-            )}
+        {/* Drop Mode Controls */}
+        {isDropMode && (
+          <Box sx={styles.dropControls}>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={handleCancelDrop}
+              sx={styles.cancelDropButton}
+              disabled={dropInProgress}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleConfirmDrop}
+              sx={styles.dropControlButton}
+              disabled={dropInProgress || itemsToDrop.length === 0}
+            >
+              {dropInProgress
+                ? <Box display={'flex'} alignItems={'baseline'}>
+                  <Typography>
+                    Dropping items
+                  </Typography>
+                  <div className='dotLoader yellow' />
+                </Box>
+                : <Typography>
+                  Confirm
+                </Typography>
+              }
+            </Button>
           </Box>
+        )}
+      </Box>
     </>
   );
 }
@@ -754,9 +768,7 @@ const pulseGreen = keyframes`
 const styles = {
   popup: {
     position: 'absolute',
-    top: '120px',
-    left: '24px',
-    width: '500px',
+    // top, left, width set dynamically via useResponsiveScale
     maxHeight: '90vh',
     background: 'rgba(24, 40, 24, 0.55)',
     border: '2px solid #083e22',
@@ -779,8 +791,8 @@ const styles = {
     mb: 1
   },
   equipmentPanel: {
-    height: '412px',
-    width: '230px',
+    height: '405px',
+    width: '220px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -791,6 +803,7 @@ const styles = {
     borderRadius: '8px',
     boxShadow: '0 0 8px #000a',
     padding: 1.5,
+    flexShrink: 0,
   },
   presetHeader: {
     width: '100%',
@@ -812,16 +825,16 @@ const styles = {
   },
   characterPortraitWrapper: {
     position: 'relative',
-    width: 220,
-    height: 280,
+    width: 200,
+    height: 260,
     margin: '0 auto',
     background: 'rgba(20, 20, 20, 0.7)',
     borderRadius: '8px',
     display: 'grid',
     gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
     gridTemplateRows: 'repeat(4, 1fr)',
-    gap: 1,
-    padding: 1,
+    gap: 0.75,
+    padding: 0.75,
     justifyItems: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -836,8 +849,8 @@ const styles = {
     padding: '1%',
   },
   characterPortrait: {
-    width: 100,
-    height: 150,
+    width: 90,
+    height: 130,
   },
   equipmentSlot: {
     background: 'rgba(24, 40, 24, 0.95)',
@@ -850,10 +863,10 @@ const styles = {
     zIndex: 2,
     cursor: 'pointer',
     overflow: 'hidden',
-    width: '85%',
-    height: '85%',
-    minWidth: 54,
-    minHeight: 54,
+    width: '88%',
+    height: '88%',
+    minWidth: 52,
+    minHeight: 52,
   },
   itemImageContainer: {
     position: 'relative',
@@ -911,10 +924,10 @@ const styles = {
     justifyContent: 'flex-start',
   },
   bagSlot: {
-    width: 60,
-    height: 60,
-    minWidth: 54,
-    minHeight: 54,
+    width: 56,
+    height: 56,
+    minWidth: 52,
+    minHeight: 52,
     background: 'rgba(24, 40, 24, 0.95)',
     border: '2px solid #083e22',
     borderRadius: 0,
@@ -933,8 +946,8 @@ const styles = {
     opacity: 0.45,
   },
   dropButtonSlot: {
-    width: 60,
-    height: 60,
+    width: 56,
+    height: 56,
     background: 'rgba(255, 0, 0, 0.1)',
     border: '2px solid rgba(255, 0, 0, 0.2)',
     boxShadow: '0 0 4px #000a',

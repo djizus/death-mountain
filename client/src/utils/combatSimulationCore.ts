@@ -138,49 +138,45 @@ const buildBeastDamageOptions = (
   return Array.from(aggregated.entries()).map(([damage, probability]) => ({ damage, probability }));
 };
 
-const getModeFromDistribution = (distribution: Map<number, number>) => {
+// Single-pass distribution statistics - combines min/max/mode calculation
+interface DistributionStats {
+  min: number;
+  max: number;
+  mode: number;
+}
+
+const getDistributionStats = (distribution: Map<number, number>): DistributionStats => {
+  let minValue = Infinity;
+  let maxValue = 0;
   let modeValue = 0;
   let highestProbability = 0;
 
   distribution.forEach((probability, value) => {
-    if (
-      probability > highestProbability + PROBABILITY_EPSILON
-      || (Math.abs(probability - highestProbability) <= PROBABILITY_EPSILON && value < modeValue)
-    ) {
-      highestProbability = probability;
-      modeValue = value;
+    if (probability > PROBABILITY_EPSILON) {
+      // Min
+      if (value < minValue) {
+        minValue = value;
+      }
+      // Max
+      if (value > maxValue) {
+        maxValue = value;
+      }
+      // Mode
+      if (
+        probability > highestProbability + PROBABILITY_EPSILON
+        || (Math.abs(probability - highestProbability) <= PROBABILITY_EPSILON && value < modeValue)
+      ) {
+        highestProbability = probability;
+        modeValue = value;
+      }
     }
   });
 
-  if (highestProbability <= PROBABILITY_EPSILON) {
-    return 0;
-  }
-
-  return modeValue;
-};
-
-const getMinFromDistribution = (distribution: Map<number, number>) => {
-  let minValue = Infinity;
-
-  distribution.forEach((probability, value) => {
-    if (probability > PROBABILITY_EPSILON && value < minValue) {
-      minValue = value;
-    }
-  });
-
-  return Number.isFinite(minValue) ? minValue : 0;
-};
-
-const getMaxFromDistribution = (distribution: Map<number, number>) => {
-  let maxValue = 0;
-
-  distribution.forEach((probability, value) => {
-    if (probability > PROBABILITY_EPSILON && value > maxValue) {
-      maxValue = value;
-    }
-  });
-
-  return maxValue;
+  return {
+    min: Number.isFinite(minValue) ? minValue : 0,
+    max: maxValue,
+    mode: highestProbability > PROBABILITY_EPSILON ? modeValue : 0,
+  };
 };
 
 interface SimulationContext {
@@ -583,29 +579,24 @@ const calculateDeterministicCombatResultForContext = (
   const winRate = Number(((rootOutcome.winProbability / totalProbability) * 100).toFixed(1));
   const otkRate = Number(((otkProbability / totalProbability) * 100).toFixed(1));
 
-  const damageDealtMode = getModeFromDistribution(rootOutcome.damageDealtDistribution);
-  const damageTakenMode = getModeFromDistribution(rootOutcome.damageTakenDistribution);
-  const modeRounds = getModeFromDistribution(rootOutcome.roundsDistribution);
-  const minDamageDealt = getMinFromDistribution(rootOutcome.damageDealtDistribution);
-  const maxDamageDealt = getMaxFromDistribution(rootOutcome.damageDealtDistribution);
-  const minDamageTaken = getMinFromDistribution(rootOutcome.damageTakenDistribution);
-  const maxDamageTaken = getMaxFromDistribution(rootOutcome.damageTakenDistribution);
-  const minRounds = getMinFromDistribution(rootOutcome.roundsDistribution);
-  const maxRounds = getMaxFromDistribution(rootOutcome.roundsDistribution);
+  // Single-pass statistics for each distribution
+  const damageDealtStats = getDistributionStats(rootOutcome.damageDealtDistribution);
+  const damageTakenStats = getDistributionStats(rootOutcome.damageTakenDistribution);
+  const roundsStats = getDistributionStats(rootOutcome.roundsDistribution);
 
   return {
     hasOutcome: true,
     winRate,
     otkRate,
-    modeDamageDealt: Math.round(damageDealtMode),
-    modeDamageTaken: Math.round(damageTakenMode),
-    modeRounds: Math.round(modeRounds),
-    minDamageDealt: Math.round(minDamageDealt),
-    maxDamageDealt: Math.round(maxDamageDealt),
-    minDamageTaken: Math.round(minDamageTaken),
-    maxDamageTaken: Math.round(maxDamageTaken),
-    minRounds: Math.round(minRounds),
-    maxRounds: Math.round(maxRounds),
+    modeDamageDealt: Math.round(damageDealtStats.mode),
+    modeDamageTaken: Math.round(damageTakenStats.mode),
+    modeRounds: Math.round(roundsStats.mode),
+    minDamageDealt: Math.round(damageDealtStats.min),
+    maxDamageDealt: Math.round(damageDealtStats.max),
+    minDamageTaken: Math.round(damageTakenStats.min),
+    maxDamageTaken: Math.round(damageTakenStats.max),
+    minRounds: Math.round(roundsStats.min),
+    maxRounds: Math.round(roundsStats.max),
     computedVia: 'deterministic',
   };
 };
@@ -710,29 +701,24 @@ export const calculateMonteCarloCombatResult = (
   const winRate = Number(((wins / iterations) * 100).toFixed(1));
   const otkRate = Number(((otkCount / iterations) * 100).toFixed(1));
 
-  const modeDamageDealt = getModeFromDistribution(damageDealtDistribution);
-  const modeDamageTaken = getModeFromDistribution(damageTakenDistribution);
-  const modeRounds = getModeFromDistribution(roundsDistribution);
-  const minDamageDealt = getMinFromDistribution(damageDealtDistribution);
-  const maxDamageDealt = getMaxFromDistribution(damageDealtDistribution);
-  const minDamageTaken = getMinFromDistribution(damageTakenDistribution);
-  const maxDamageTaken = getMaxFromDistribution(damageTakenDistribution);
-  const minRounds = getMinFromDistribution(roundsDistribution);
-  const maxRounds = getMaxFromDistribution(roundsDistribution);
+  // Single-pass statistics for each distribution
+  const damageDealtStats = getDistributionStats(damageDealtDistribution);
+  const damageTakenStats = getDistributionStats(damageTakenDistribution);
+  const roundsStats = getDistributionStats(roundsDistribution);
 
   return {
     hasOutcome: true,
     winRate,
     otkRate,
-    modeDamageDealt: Math.round(modeDamageDealt),
-    modeDamageTaken: Math.round(modeDamageTaken),
-    modeRounds: Math.round(modeRounds),
-    minDamageDealt: Math.round(minDamageDealt),
-    maxDamageDealt: Math.round(maxDamageDealt),
-    minDamageTaken: Math.round(minDamageTaken),
-    maxDamageTaken: Math.round(maxDamageTaken),
-    minRounds: Math.round(minRounds),
-    maxRounds: Math.round(maxRounds),
+    modeDamageDealt: Math.round(damageDealtStats.mode),
+    modeDamageTaken: Math.round(damageTakenStats.mode),
+    modeRounds: Math.round(roundsStats.mode),
+    minDamageDealt: Math.round(damageDealtStats.min),
+    maxDamageDealt: Math.round(damageDealtStats.max),
+    minDamageTaken: Math.round(damageTakenStats.min),
+    maxDamageTaken: Math.round(damageTakenStats.max),
+    minRounds: Math.round(roundsStats.min),
+    maxRounds: Math.round(roundsStats.max),
     computedVia: 'monteCarlo',
   };
 };

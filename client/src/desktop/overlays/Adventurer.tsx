@@ -1,14 +1,16 @@
 import { STARTING_HEALTH } from '@/constants/game';
 import { useController } from '@/contexts/controller';
+import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
 import { CombatStats } from '@/types/game';
-import { calculateLevel, calculateNextLevelXP, calculateProgress } from '@/utils/game';
+import { calculateLevel, calculateNextLevelXP } from '@/utils/game';
 import { Box, LinearProgress, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 
 export default function Adventurer({ combatStats }: { combatStats?: CombatStats }) {
   const { playerName } = useController();
+  const { scalePx } = useResponsiveScale();
   const { adventurer, metadata, battleEvent, beast } = useGameStore();
   const { cart } = useMarketStore();
 
@@ -24,7 +26,7 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
     if (!beast) {
       setHealth(adventurer!.health);
     }
-  }, [adventurer?.health]);
+  }, [adventurer?.health, beast]);
 
   const maxHealth = STARTING_HEALTH + (adventurer!.stats.vitality * 15);
   const healthPercent = (health / maxHealth) * 100;
@@ -42,147 +44,185 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
   const xpRequiredForNext = nextLevelXp - currentLevelFloor;
   const xpProgress = xpRequiredForNext > 0 ? (currentXpIntoLevel / xpRequiredForNext) * 100 : 100;
 
+  // Responsive sizes
+  const edgeOffset = scalePx(30);
+  const panelWidth = scalePx(360);
+
   return (
-    <>
-      {/* Portrait */}
-      <Box sx={styles.portraitWrapper}>
-        <img src="/images/adventurer.png" alt="Adventurer" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
-        <Box sx={styles.levelCircle}>
-          <Typography variant="body2" sx={styles.levelText}>
-            {calculateLevel(adventurer?.xp || 0)}
-          </Typography>
+    <Box sx={{
+      ...styles.panel,
+      top: edgeOffset,
+      left: scalePx(8),
+      width: panelWidth,
+    }}>
+      {/* Portrait with level badge */}
+      <Box sx={styles.portraitContainer}>
+        <img src="/images/adventurer.png" alt="Adventurer" style={styles.portraitImage} />
+        <Box sx={styles.levelBadge}>
+          <Typography sx={styles.levelBadgeText}>{currentLevel}</Typography>
         </Box>
       </Box>
 
-      {/* Health Bar */}
-      <Box sx={styles.healthBarContainer}>
-        {/* Adventurer Name */}
-        {!beast && <Typography
-          variant="h6"
-          sx={{ ml: 4, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', height: '26px', lineHeight: '24px' }}
-        >
-          {metadata?.player_name || playerName || 'Adventurer'}
-        </Typography>}
-        {/* HP Info */}
-        <Box sx={{ ml: beast ? '42px' : '32px', display: 'flex', flexDirection: 'column', height: beast ? '100%' : 'initial', justifyContent: 'center' }}>
-          <Box sx={{ position: 'relative' }}>
-            {beast && <Box sx={styles.healthIconContainer}>
+      {/* Name and bars */}
+      <Box sx={{ ...styles.barsContainer, pl: beast ? '20px' : 0 }}>
+        {!beast && (
+          <Typography sx={styles.adventurerName}>
+            {metadata?.player_name || playerName || 'Adventurer'}
+          </Typography>
+        )}
+
+        {/* Health Bar */}
+        <Box sx={{ position: 'relative' }}>
+          {beast && (
+            <Box sx={styles.barIconContainer}>
               <span style={styles.heartIcon}>❤️</span>
-            </Box>}
+            </Box>
+          )}
+          <LinearProgress
+            variant="determinate"
+            value={healthPercent}
+            sx={styles.healthBar}
+          />
+          {cart.potions > 0 && (
             <LinearProgress
               variant="determinate"
-              value={healthPercent}
-              sx={styles.adventurerHealthBar}
+              value={previewHealthPercent}
+              sx={styles.previewHealthBar}
             />
-            {cart.potions > 0 && (
-              <LinearProgress
-                variant="determinate"
-                value={previewHealthPercent}
-                sx={styles.previewHealthBar}
-              />
-            )}
-            <Typography
-              variant="body2"
-              sx={styles.healthOverlayText}
-            >
-              {previewHealth}/{maxHealth}
-            </Typography>
-          </Box>
-          {/* XP Bar */}
-          <Box sx={{ mt: 1 }}>
-            <Box sx={{ position: 'relative', mb: beast && combatStats ? 0.75 : 0 }}>
-              {beast && (
-                <Box sx={styles.iconContainer}>
-                  <span style={styles.bookIcon}>📘</span>
-                </Box>
-              )}
-              <LinearProgress
-                variant="determinate"
-                value={adventurer?.stat_upgrades_available! > 0 ? 100 : xpProgress}
-                sx={styles.xpBar}
-              />
-              <Typography variant="body2" sx={styles.xpOverlayText}>
-                {adventurer?.stat_upgrades_available! > 0
-                  ? 'LEVEL UP'
-                  : `${currentXpIntoLevel}/${xpRequiredForNext}`}
-              </Typography>
-            </Box>
-
-            {beast && combatStats && (
-              <>
-                {/* Attack Bar */}
-                <Box sx={{ position: 'relative', mb: 0.5 }}>
-                  <Box sx={styles.iconContainer}>
-                    <span style={styles.swordIcon}>⚔️</span>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={Math.min(100, Math.floor(combatStats.baseDamage / beast.health * 100))}
-                    sx={styles.attackBar}
-                  />
-                  {previewAttack > combatStats.baseDamage && (
-                    <LinearProgress
-                      variant="determinate"
-                      value={previewAttackPercent}
-                      sx={styles.previewAttackBar}
-                    />
-                  )}
-                </Box>
-                {/* Defense Bar */}
-                <Box sx={{ position: 'relative' }}>
-                  <Box sx={styles.iconContainer}>
-                    <span style={styles.shieldIcon}>🛡️</span>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={combatStats.protection}
-                    sx={styles.defenseBar}
-                  />
-                  {previewProtection > combatStats.protection && (
-                    <LinearProgress
-                      variant="determinate"
-                      value={previewProtectionPercent}
-                      sx={styles.previewDefenseBar}
-                    />
-                  )}
-                </Box>
-              </>
-            )}
-          </Box>
+          )}
+          <Typography sx={styles.barOverlayText}>
+            {previewHealth}/{maxHealth}
+          </Typography>
         </Box>
+
+        {/* XP Bar */}
+        <Box sx={{ position: 'relative', mt: 0.75 }}>
+          {beast && (
+            <Box sx={styles.barIconContainer}>
+              <span style={styles.bookIcon}>📘</span>
+            </Box>
+          )}
+          <LinearProgress
+            variant="determinate"
+            value={adventurer?.stat_upgrades_available! > 0 ? 100 : xpProgress}
+            sx={styles.xpBar}
+          />
+          <Typography sx={styles.barOverlayText}>
+            {adventurer?.stat_upgrades_available! > 0
+              ? 'LEVEL UP'
+              : `${currentXpIntoLevel}/${xpRequiredForNext}`}
+          </Typography>
+        </Box>
+
+        {/* Attack/Defense bars during combat */}
+        {beast && combatStats && (
+          <>
+            {/* Attack Bar */}
+            <Box sx={{ position: 'relative', mt: 0.75 }}>
+              <Box sx={styles.barIconContainer}>
+                <span style={styles.swordIcon}>⚔️</span>
+              </Box>
+              <LinearProgress
+                variant="determinate"
+                value={Math.min(100, Math.floor(combatStats.baseDamage / beast.health * 100))}
+                sx={styles.attackBar}
+              />
+              {previewAttack > combatStats.baseDamage && (
+                <LinearProgress
+                  variant="determinate"
+                  value={previewAttackPercent}
+                  sx={styles.previewAttackBar}
+                />
+              )}
+            </Box>
+            {/* Defense Bar */}
+            <Box sx={{ position: 'relative', mt: 0.75 }}>
+              <Box sx={styles.barIconContainer}>
+                <span style={styles.shieldIcon}>🛡️</span>
+              </Box>
+              <LinearProgress
+                variant="determinate"
+                value={combatStats.protection}
+                sx={styles.defenseBar}
+              />
+              {previewProtection > combatStats.protection && (
+                <LinearProgress
+                  variant="determinate"
+                  value={previewProtectionPercent}
+                  sx={styles.previewDefenseBar}
+                />
+              )}
+            </Box>
+          </>
+        )}
       </Box>
-    </>
+    </Box>
   );
 }
 
 const styles = {
-  portraitWrapper: {
+  panel: {
     position: 'absolute',
-    top: 24,
-    left: 24,
-    width: 80,
-    height: 80,
-    borderRadius: '50%',
-    background: 'rgba(24, 40, 24, 1)',
-    border: '3px solid #083e22',
-    boxShadow: '0 0 8px rgba(0,0,0,0.6)',
-    zIndex: 100,
-  },
-  healthBarContainer: {
-    position: 'absolute',
-    top: 30,
-    left: '80px',
-    width: '300px',
-    height: '86px',
-    padding: '6px 10px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '10px 14px',
     background: 'rgba(24, 40, 24, 0.55)',
     border: '2px solid #083e22',
-    borderRadius: '12px',
-    boxSizing: 'border-box',
+    borderRadius: '10px',
+    boxShadow: '0 0 8px rgba(0,0,0,0.6)',
     backdropFilter: 'blur(8px)',
+    zIndex: 100,
   },
-  adventurerHealthBar: {
-    height: '14px',
+  portraitContainer: {
+    position: 'relative',
+    width: '68px',
+    height: '68px',
+    flexShrink: 0,
+  },
+  portraitImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: '50%',
+    border: '3px solid #083e22',
+    background: 'rgba(24, 40, 24, 1)',
+  } as React.CSSProperties,
+  levelBadge: {
+    position: 'absolute',
+    bottom: -2,
+    left: -2,
+    width: '22px',
+    height: '22px',
+    borderRadius: '50%',
+    backgroundColor: 'rgba(0, 0, 0, 1)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '2px solid #083e22',
+    zIndex: 1,
+  },
+  levelBadgeText: {
+    fontWeight: 'bold',
+    fontSize: '12px',
+    lineHeight: 1,
+  },
+  barsContainer: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  adventurerName: {
+    fontSize: '15px',
+    fontWeight: 600,
+    marginBottom: '6px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  healthBar: {
+    height: '16px',
     borderRadius: '6px',
     backgroundColor: 'rgba(0,0,0,0.3)',
     '& .MuiLinearProgress-bar': {
@@ -191,7 +231,7 @@ const styles = {
     },
   },
   previewHealthBar: {
-    height: '14px',
+    height: '16px',
     borderRadius: '6px',
     backgroundColor: 'transparent',
     position: 'absolute',
@@ -203,22 +243,8 @@ const styles = {
       boxShadow: '0 0 8px rgba(76, 175, 80, 0.3)',
     },
   },
-  healthOverlayText: {
-    position: 'absolute',
-    top: 1,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#fff',
-    fontWeight: 'bold',
-    textShadow: '0 0 4px #000',
-    pointerEvents: 'none',
-  },
   xpBar: {
-    height: '14px',
+    height: '16px',
     borderRadius: '6px',
     backgroundColor: 'rgba(0,0,0,0.3)',
     '& .MuiLinearProgress-bar': {
@@ -226,51 +252,17 @@ const styles = {
       boxShadow: '0 0 8px rgba(156, 39, 176, 0.5)',
     },
   },
-  xpOverlayText: {
-    position: 'absolute',
-    top: 1,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#fff',
-    fontWeight: 'bold',
-    textShadow: '0 0 4px #000',
-    pointerEvents: 'none',
-    fontSize: '0.82rem',
-  },
-  levelCircle: {
-    position: 'absolute',
-    bottom: -4,
-    left: -4,
-    width: '24px',
-    height: '24px',
-    borderRadius: '50%',
-    backgroundColor: 'rgba(0, 0, 0, 1)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    border: '2px solid #083e22',
-    zIndex: 1,
-  },
-  levelText: {
-    fontWeight: 'bold',
-    fontSize: '14px',
-    lineHeight: '5px',
-  },
   attackBar: {
-    height: '12px',
+    height: '14px',
     borderRadius: '5px',
     backgroundColor: 'rgba(0,0,0,0.3)',
     '& .MuiLinearProgress-bar': {
-      backgroundColor: '#FF8C00', // darker golden color for power
+      backgroundColor: '#FF8C00',
       boxShadow: '0 0 8px rgba(184, 134, 11, 0.5)',
     },
   },
   defenseBar: {
-    height: '12px',
+    height: '14px',
     borderRadius: '5px',
     backgroundColor: 'rgba(0,0,0,0.3)',
     '& .MuiLinearProgress-bar': {
@@ -278,54 +270,8 @@ const styles = {
       boxShadow: '0 0 8px rgba(192, 192, 192, 0.5)',
     },
   },
-  iconContainer: {
-    position: 'absolute',
-    top: 0,
-    left: -16,
-    width: '12px',
-    height: '12px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  swordIcon: {
-    fontSize: '12px',
-  },
-  shieldIcon: {
-    fontSize: '12px',
-  },
-  bookIcon: {
-    fontSize: '12px',
-  },
-  healthIconContainer: {
-    position: 'absolute',
-    top: 0,
-    left: -16,
-    width: '14px',
-    height: '14px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  heartIcon: {
-    fontSize: '12px',
-  },
-  previewDefenseBar: {
-    height: '12px',
-    borderRadius: '5px',
-    backgroundColor: 'transparent',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    '& .MuiLinearProgress-bar': {
-      backgroundColor: 'rgba(192, 192, 192, 0.3)',
-    },
-  },
   previewAttackBar: {
-    height: '12px',
+    height: '14px',
     borderRadius: '5px',
     backgroundColor: 'transparent',
     position: 'absolute',
@@ -336,4 +282,54 @@ const styles = {
       backgroundColor: 'rgba(255, 140, 0, 0.3)',
     },
   },
-}; 
+  previewDefenseBar: {
+    height: '14px',
+    borderRadius: '5px',
+    backgroundColor: 'transparent',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    '& .MuiLinearProgress-bar': {
+      backgroundColor: 'rgba(192, 192, 192, 0.3)',
+    },
+  },
+  barOverlayText: {
+    position: 'absolute',
+    top: 1,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#fff',
+    fontWeight: 'bold',
+    textShadow: '0 0 4px #000',
+    pointerEvents: 'none',
+    fontSize: '0.8rem',
+  },
+  barIconContainer: {
+    position: 'absolute',
+    top: 0,
+    left: -18,
+    width: '16px',
+    height: '16px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  heartIcon: {
+    fontSize: '14px',
+  } as React.CSSProperties,
+  bookIcon: {
+    fontSize: '14px',
+  } as React.CSSProperties,
+  swordIcon: {
+    fontSize: '14px',
+  } as React.CSSProperties,
+  shieldIcon: {
+    fontSize: '14px',
+  } as React.CSSProperties,
+};
