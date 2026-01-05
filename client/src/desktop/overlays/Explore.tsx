@@ -107,8 +107,10 @@ export default function ExploreOverlay() {
       <Box sx={{
         ...styles.middleSection,
         top: scalePx(30),
-        width: scalePx(340),
-        padding: `${scalePx(6)}px ${scalePx(8)}px`,
+        width: 'auto',
+        minWidth: scalePx(300),
+        maxWidth: scalePx(500),
+        padding: `${scalePx(6)}px ${scalePx(16)}px`,
       }}>
         <Box sx={styles.eventLogContainer}>
           {event && <Box sx={styles.encounterDetails}>
