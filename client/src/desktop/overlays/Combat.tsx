@@ -2,8 +2,8 @@ import AnimatedText from '@/desktop/components/AnimatedText';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useGameStore } from '@/stores/gameStore';
-import { defaultSimulationResult, simulateCombatOutcomes } from '@/utils/combatSimulation';
-import { ability_based_percentage, calculateCombatStats, calculateLevel, getNewItemsEquipped } from '@/utils/game';
+import { useCombatSimulation } from '@/hooks/useCombatSimulation';
+import { ability_based_percentage, calculateLevel, getNewItemsEquipped } from '@/utils/game';
 import { potionPrice } from '@/utils/market';
 import { Box, Button, Checkbox, Typography } from '@mui/material';
 import { keyframes } from '@emotion/react';
@@ -80,10 +80,22 @@ export default function CombatOverlay() {
   const [equipInProgress, setEquipInProgress] = useState(false);
   const [suggestInProgress, setSuggestInProgress] = useState(false);
   const [combatLog, setCombatLog] = useState("");
-  const [simulationResult, setSimulationResult] = useState(defaultSimulationResult);
-  const [simulationActionCount, setSimulationActionCount] = useState<number | null>(null);
+
+  // Determine if new items are equipped (beast attacks first)
+  const hasNewItemsEquipped = useMemo(() => {
+    if (!adventurer?.equipment || !adventurerState?.equipment) return false;
+    return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
+  }, [adventurer?.equipment, adventurerState?.equipment]);
+
+  // Use optimized combat simulation hook with debouncing and state hashing
+  const { simulationResult, combatStats, simulationActionCount } = useCombatSimulation(
+    adventurer ?? null,
+    beast ?? null,
+    bag,
+    { debounceMs: 150, initialBeastStrike: hasNewItemsEquipped }
+  );
+
   const fleePercentage = ability_based_percentage(adventurer!.xp, adventurer!.stats.dexterity);
-  const combatStats = calculateCombatStats(adventurer!, bag, beast);
   const attackPreviewDamage = combatStats.critChance >= 100
     ? combatStats.criticalDamage
     : combatStats.baseDamage;
@@ -317,11 +329,6 @@ export default function CombatOverlay() {
     setUntilLastHit(checked);
   };
 
-  const hasNewItemsEquipped = useMemo(() => {
-    if (!adventurer?.equipment || !adventurerState?.equipment) return false;
-    return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
-  }, [adventurer?.equipment, adventurerState?.equipment]);
-
   const isJackpot = useMemo(() => {
     return currentNetworkConfig.beasts && JACKPOT_BEASTS.includes(beast?.name!);
   }, [beast]);
@@ -369,115 +376,6 @@ export default function CombatOverlay() {
 
     return calculateLevel(adventurer.xp);
   }, [adventurer?.xp]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let resolved = false;
-
-    if (!adventurer || !beast || !combatOverview) {
-      console.log('[CombatSimulation] skipping run due to incomplete data', {
-        hasAdventurer: Boolean(adventurer),
-        hasBeast: Boolean(beast),
-        hasOverview: Boolean(combatOverview),
-      });
-      setSimulationResult(defaultSimulationResult);
-      setSimulationActionCount(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const now = () => {
-      if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-        return performance.now();
-      }
-
-      return Date.now();
-    };
-
-    const startTime = now();
-    console.log('[CombatSimulation] starting run', {
-      heroHp: adventurer.health,
-      beastHp: beast.health,
-      beast: beast.baseName,
-      initialBeastStrike: hasNewItemsEquipped,
-    });
-
-    const runSimulation = async () => {
-      try {
-        const result = await simulateCombatOutcomes(adventurer, beast, {
-          initialBeastStrike: hasNewItemsEquipped,
-        });
-        if (cancelled) {
-          console.log('[CombatSimulation] discarding result received after cancellation', {
-            durationMs: Math.round(now() - startTime),
-            computedVia: result.computedVia ?? 'unknown',
-          });
-          return;
-        }
-
-        resolved = true;
-        const durationMs = Math.round(now() - startTime);
-        console.log('[CombatSimulation] completed run', {
-          durationMs,
-          computedVia: result.computedVia ?? 'unknown',
-          winRate: result.winRate,
-          otkRate: result.otkRate,
-          hasOutcome: result.hasOutcome,
-        });
-        setSimulationResult(result);
-        setSimulationActionCount(adventurer.action_count);
-      } catch (error) {
-        if (cancelled) {
-          console.log('[CombatSimulation] received error after cancellation', error);
-          return;
-        }
-
-        console.error('[CombatSimulation] failed to compute outcomes', error);
-      }
-    };
-
-    void runSimulation();
-
-    return () => {
-      cancelled = true;
-      if (!resolved) {
-        console.log('[CombatSimulation] cancelling run before completion', {
-          durationMs: Math.round(now() - startTime),
-        });
-      }
-    };
-  }, [
-    adventurer?.health,
-    adventurer?.xp,
-    adventurer?.item_specials_seed,
-    adventurer?.stats.strength,
-    adventurer?.stats.luck,
-    adventurer?.equipment.weapon.id,
-    adventurer?.equipment.weapon.xp,
-    adventurer?.equipment.chest.id,
-    adventurer?.equipment.chest.xp,
-    adventurer?.equipment.head.id,
-    adventurer?.equipment.head.xp,
-    adventurer?.equipment.waist.id,
-    adventurer?.equipment.waist.xp,
-    adventurer?.equipment.hand.id,
-    adventurer?.equipment.hand.xp,
-    adventurer?.equipment.foot.id,
-    adventurer?.equipment.foot.xp,
-    adventurer?.equipment.neck.id,
-    adventurer?.equipment.neck.xp,
-    adventurer?.equipment.ring.id,
-    adventurer?.equipment.ring.xp,
-    adventurer?.beast_health,
-    beast?.health,
-    beast?.level,
-    beast?.tier,
-    beast?.specialPrefix,
-    beast?.specialSuffix,
-    combatOverview?.goldReward,
-    hasNewItemsEquipped,
-  ]);
 
   const potionCost = useMemo(() => {
     if (!adventurer) {

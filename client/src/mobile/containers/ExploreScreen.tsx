@@ -2,11 +2,11 @@ import { useGameDirector } from '@/mobile/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
 import { getEventIcon, getEventTitle } from '@/utils/events';
 import { Box, Button, Typography, keyframes } from '@mui/material';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AdventurerInfo from '../components/AdventurerInfo';
 import BeastCollectedPopup from '@/components/BeastCollectedPopup';
 import { useMarketStore } from '@/stores/marketStore';
-import { getExplorationInsights } from '@/utils/exploration';
+import { useExplorationWorker } from '@/hooks/useExplorationWorker';
 
 export default function ExploreScreen() {
   const { executeGameAction, actionFailed } = useGameDirector();
@@ -17,9 +17,10 @@ export default function ExploreScreen() {
   const [isExploring, setIsExploring] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const explorationInsights = useMemo(
-    () => getExplorationInsights(adventurer ?? null, gameSettings ?? null),
-    [adventurer, gameSettings],
+  // Use Web Worker for lethal chance calculations (Monte Carlo, 100k samples)
+  const { ambushLethalChance, trapLethalChance } = useExplorationWorker(
+    adventurer ?? null,
+    gameSettings ?? null,
   );
 
   const formatPercent = (value: number | null | undefined) => {
@@ -29,9 +30,6 @@ export default function ExploreScreen() {
 
     return `${value.toFixed(1)}%`;
   };
-
-  const ambushLethalChance = explorationInsights.ready ? explorationInsights.beasts.overallLethalChance : null;
-  const trapLethalChance = explorationInsights.ready ? explorationInsights.obstacles.overallLethalChance : null;
 
   // Function to scroll to top
   const scrollToTop = () => {

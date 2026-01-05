@@ -6,14 +6,14 @@ import { streamIds } from '@/utils/cloudflare';
 import { getEventTitle } from '@/utils/events';
 import { ItemUtils } from '@/utils/loot';
 import { Box, Button, Checkbox, Typography } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import BeastCollectedPopup from '../../components/BeastCollectedPopup';
 import Adventurer from './Adventurer';
 import InventoryOverlay from './Inventory';
 import MarketOverlay from './Market';
 import { useUIStore } from '@/stores/uiStore';
 import { useSnackbar } from 'notistack';
-import { getExplorationInsights } from '@/utils/exploration';
+import { useExplorationWorker } from '@/hooks/useExplorationWorker';
 
 export default function ExploreOverlay() {
   const { executeGameAction, actionFailed, setVideoQueue } = useGameDirector();
@@ -39,9 +39,10 @@ export default function ExploreOverlay() {
   const [isExploring, setIsExploring] = useState(false);
   const [isSelectingStats, setIsSelectingStats] = useState(false);
 
-  const explorationInsights = useMemo(
-    () => getExplorationInsights(adventurer ?? null, gameSettings ?? null),
-    [adventurer, gameSettings],
+  // Use Web Worker for lethal chance calculations (Monte Carlo, 100k samples)
+  const { ambushLethalChance, trapLethalChance } = useExplorationWorker(
+    adventurer ?? null,
+    gameSettings ?? null,
   );
 
   const formatPercent = (value: number | null | undefined) => {
@@ -51,9 +52,6 @@ export default function ExploreOverlay() {
 
     return `${value.toFixed(1)}%`;
   };
-
-  const ambushLethalChance = explorationInsights.ready ? explorationInsights.beasts.overallLethalChance : null;
-  const trapLethalChance = explorationInsights.ready ? explorationInsights.obstacles.overallLethalChance : null;
 
   useEffect(() => {
     setIsExploring(false);
