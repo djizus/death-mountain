@@ -719,6 +719,7 @@ export default function MarketOverlay() {
       top: scalePx(8),
       right: scalePx(8),
       width: scalePx(390),
+      minHeight: scalePx(600),
     }}>
       <Box sx={styles.tabBar}>
         <Tabs

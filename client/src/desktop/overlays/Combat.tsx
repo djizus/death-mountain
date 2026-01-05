@@ -559,8 +559,8 @@ export default function CombatOverlay() {
         <Box sx={{
           ...styles.insightsPanel,
           top: scalePx(150),
-          right: contentOffset + scalePx(40),
-          width: scalePx(300),
+          right: scalePx(8),
+          width: scalePx(360),
           padding: `${scalePx(12)}px ${scalePx(14)}px`,
         }}>
           <Typography sx={styles.insightsTitle}>Combat Insights</Typography>
