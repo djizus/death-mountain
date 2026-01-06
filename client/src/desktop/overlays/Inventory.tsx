@@ -770,6 +770,7 @@ const styles = {
     position: 'absolute',
     // top, left, width set dynamically via useResponsiveScale
     maxHeight: '90vh',
+    minWidth: '460px',
     background: 'rgba(24, 40, 24, 0.55)',
     border: '2px solid #083e22',
     borderRadius: '10px',

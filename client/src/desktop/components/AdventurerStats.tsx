@@ -304,8 +304,8 @@ const styles = {
     fontSize: '11px',
     color: 'rgba(255, 255, 255, 0.8)',
     lineHeight: 1.2,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
+    whiteSpace: 'normal',
+    wordBreak: 'break-word',
   },
   statControls: {
     display: 'flex',
