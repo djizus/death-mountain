@@ -207,8 +207,21 @@ export const useGameTokens = () => {
       })
 
       let data = await sql.json()
+
+      if (!data || data.length === 0) {
+        return null;
+      }
+
       let owner_address = data[0].owner_address
-      return lookupAddressName(owner_address)
+      const name = await lookupAddressName(owner_address)
+
+      if (name) {
+        return name
+      }
+
+      // Fallback to shortened address: 0x002...549f9
+      const shortened = `${owner_address.slice(0, 5)}...${owner_address.slice(-5)}`
+      return shortened
     } catch (error) {
       console.error("Error getting beast owner:", error);
       return null;

@@ -37,7 +37,7 @@ export default function Beast() {
   }, []);
 
   useEffect(() => {
-    if (beast && beast.specialPrefix && dungeon.id === "survivor" && !collectable) {
+    if (beast && beast.specialPrefix && dungeon.id === "survivor") {
       getBeastOwner(beast).then((name: string | null) => setOwnerName(name));
     }
   }, [beast]);
