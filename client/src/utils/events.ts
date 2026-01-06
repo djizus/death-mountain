@@ -286,13 +286,13 @@ export const getEventIcon = (event: GameEvent) => {
     case 'fled_beast':
       return getBeastImageById(event.beast_id!);
     case 'stat_upgrade':
-      return '/images/mobile/adventurer.png';
+      return '/images/mobile/adventurer.png?v=2';
     case 'level_up':
       return '/images/mobile/upgrade.png';
     case 'buy_items':
       return '/images/mobile/market.png';
     default:
-      return '/images/mobile/adventurer.png';
+      return '/images/mobile/adventurer.png?v=2';
   }
 };
 
