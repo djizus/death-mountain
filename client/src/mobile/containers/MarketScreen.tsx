@@ -7,7 +7,7 @@ import { calculateLevel } from '@/utils/game';
 import { ItemUtils, ItemType, slotIcons, typeIcons, Tier } from '@/utils/loot';
 import { MarketItem, generateMarketItems, getTierOneArmorSetStats, potionPrice, STAT_FILTER_OPTIONS, type ArmorSetStatSummary, type StatDisplayName } from '@/utils/market';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
-import PersonIcon from '@mui/icons-material/Person';
+import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
 import { Box, Button, IconButton, Modal, Paper, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import JewelryTooltip from '@/components/JewelryTooltip';
@@ -506,46 +506,54 @@ export default function MarketScreen() {
                 sx={styles.filterButtons}
               >
                 {Object.keys(typeIcons).filter(type => ['Cloth', 'Hide', 'Metal'].includes(type)).map((type) => renderTypeToggleButton(type as keyof typeof typeIcons))}
-              </ToggleButtonGroup>
-
-              <ToggleButtonGroup
-                value={tierFilter}
-                exclusive
-                onChange={handleTierFilter}
-                aria-label="item tier"
-                sx={[styles.filterButtons, { fontSize: '1rem' }]}
-              >
                 {Object.values(Tier)
                   .filter(tier => typeof tier === 'number' && tier > 0)
-                  .map((tier) => renderTierToggleButton(tier as Tier))}
+                  .map((tier) => (
+                    <ToggleButton
+                      key={tier}
+                      value={tier}
+                      aria-label={`Tier ${tier}`}
+                      onClick={(e) => { e.stopPropagation(); handleTierFilter(e, tierFilter === tier ? null : tier as Tier); }}
+                    >
+                      <Box
+                        sx={{
+                          color: ItemUtils.getTierColor(tier as Tier),
+                          fontWeight: 'bold',
+                          fontSize: '1rem',
+                          lineHeight: '1.5rem',
+                          width: '24px',
+                          height: '24px',
+                        }}
+                      >
+                        T{tier}
+                      </Box>
+                    </ToggleButton>
+                  ))}
               </ToggleButtonGroup>
             </Box>
 
             {specialsUnlocked && (
               <Box sx={styles.filterGroup}>
-                <Box sx={styles.statFilterRow}>
-                  <Button
-                    variant="outlined"
-                    onClick={() => setShowSetStats(true)}
-                    sx={styles.setStatsButton}
+                <ToggleButtonGroup
+                  value={statFilter}
+                  exclusive
+                  onChange={handleStatFilter}
+                  aria-label="item stat"
+                  sx={styles.filterButtons}
+                >
+                  <ToggleButton
+                    value=""
+                    onClick={(e) => { e.preventDefault(); setShowSetStats(true); }}
                     aria-label="Show level 15 armor set stats"
                   >
-                    <PersonIcon sx={{ fontSize: 18 }} />
-                  </Button>
-                  <ToggleButtonGroup
-                    value={statFilter}
-                    exclusive
-                    onChange={handleStatFilter}
-                    aria-label="item stat"
-                    sx={[styles.filterButtons, styles.statFilterButtons]}
-                  >
-                    {STAT_FILTER_OPTIONS.map((stat) => (
-                      <ToggleButton key={stat} value={stat} aria-label={stat}>
-                        <Typography sx={styles.statFilterLabel}>{STAT_ABBREVIATIONS[stat]}</Typography>
-                      </ToggleButton>
-                    ))}
-                  </ToggleButtonGroup>
-                </Box>
+                    <KeyboardDoubleArrowUpIcon sx={{ fontSize: 24, color: '#EDCF33' }} />
+                  </ToggleButton>
+                  {STAT_FILTER_OPTIONS.map((stat) => (
+                    <ToggleButton key={stat} value={stat} aria-label={stat}>
+                      <Box sx={styles.statFilterLabel}>{STAT_ABBREVIATIONS[stat]}</Box>
+                    </ToggleButton>
+                  ))}
+                </ToggleButtonGroup>
               </Box>
             )}
           </Box>
@@ -918,8 +926,9 @@ const styles = {
   },
   statFilterLabel: {
     fontFamily: 'VT323, monospace',
-    fontSize: '0.75rem',
-    color: 'rgba(128, 255, 0, 0.8)',
+    fontSize: '1rem',
+    lineHeight: '1.5rem',
+    color: '#EDCF33',
   },
   itemHeader: {
     display: 'flex',
@@ -1106,9 +1115,9 @@ const styles = {
     flex: 1,
   },
   filterToggleButton: {
-    width: 36,
-    height: 36,
-    minWidth: 36,
+    width: 44,
+    minWidth: 44,
+    alignSelf: 'stretch',
     padding: 0,
     background: 'rgba(0, 0, 0, 0.2)',
     border: '1px solid rgba(255, 165, 0, 0.3)',

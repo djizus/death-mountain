@@ -14,7 +14,7 @@ import { getExplorationInsights, type DamageBucket, type SlotDamageSummary } fro
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
-import PersonIcon from '@mui/icons-material/Person';
+import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -1000,27 +1000,24 @@ export default function MarketOverlay() {
 
                 {specialsUnlocked && (
                   <Box sx={styles.filterGroup}>
-                    <Box sx={styles.statFilterRow}>
-                      <Button
-                        variant="outlined"
-                        onClick={() => setShowSetStats(true)}
-                        sx={styles.setStatsButton}
+                    <ToggleButtonGroup
+                      value={statFilter}
+                      exclusive
+                      onChange={handleStatFilter}
+                      aria-label="item stat"
+                      sx={styles.filterButtons}>
+                      <ToggleButton
+                        value=""
+                        onClick={(e) => { e.preventDefault(); setShowSetStats(true); }}
                         aria-label="Show level 15 armor set stats">
-                        <PersonIcon sx={{ fontSize: 18 }} />
-                      </Button>
-                      <ToggleButtonGroup
-                        value={statFilter}
-                        exclusive
-                        onChange={handleStatFilter}
-                        aria-label="item stat"
-                        sx={[styles.filterButtons, styles.statFilterButtons]}>
-                        {STAT_FILTER_OPTIONS.map((stat) => (
-                          <ToggleButton key={stat} value={stat} aria-label={stat}>
-                            <Typography sx={styles.statFilterLabel}>{STAT_ABBREVIATIONS[stat]}</Typography>
-                          </ToggleButton>
-                        ))}
-                      </ToggleButtonGroup>
-                    </Box>
+                        <KeyboardDoubleArrowUpIcon sx={{ fontSize: 24, color: '#EDCF33' }} />
+                      </ToggleButton>
+                      {STAT_FILTER_OPTIONS.map((stat) => (
+                        <ToggleButton key={stat} value={stat} aria-label={stat}>
+                          <Box sx={styles.statFilterLabel}>{STAT_ABBREVIATIONS[stat]}</Box>
+                        </ToggleButton>
+                      ))}
+                    </ToggleButtonGroup>
                   </Box>
                 )}
               </Box>
@@ -2025,9 +2022,9 @@ const styles = {
     flex: 1,
   },
   statFilterLabel: {
-    fontSize: '0.75rem',
-    fontWeight: 600,
-    color: 'rgba(215, 197, 41, 0.85)',
+    fontSize: '1rem',
+    lineHeight: '1.5rem',
+    color: '#EDCF33',
   },
   setStatsButton: {
     minWidth: '40px',
