@@ -132,7 +132,7 @@ export default function GameTokensList() {
               }}
             >
               <img
-                src={"/images/mobile/adventurer.png"}
+                src={"/images/mobile/adventurer.png?v=2"}
                 alt="Adventurer"
                 style={{ width: "32px", height: "32px" }}
               />

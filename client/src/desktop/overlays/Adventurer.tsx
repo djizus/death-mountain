@@ -57,7 +57,7 @@ export default function Adventurer({ combatStats }: { combatStats?: CombatStats 
     }}>
       {/* Portrait with level badge */}
       <Box sx={styles.portraitContainer}>
-        <img src="/images/adventurer.png" alt="Adventurer" style={styles.portraitImage} />
+        <img src="/images/adventurer.png?v=2" alt="Adventurer" style={styles.portraitImage} />
         <Box sx={styles.levelBadge}>
           <Typography sx={styles.levelBadgeText}>{currentLevel}</Typography>
         </Box>

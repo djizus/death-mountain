@@ -512,7 +512,7 @@ export default function BeastScreen() {
           <Box sx={styles.adventurerStatusRow}>
             <Box sx={styles.adventurerImageContainer}>
               <img
-                src={'/images/mobile/adventurer.png'}
+                src={'/images/mobile/adventurer.png?v=2'}
                 alt="Adventurer"
                 style={styles.adventurerImage}
               />

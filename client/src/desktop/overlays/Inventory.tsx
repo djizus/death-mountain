@@ -55,7 +55,7 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
     <Box sx={styles.equipmentPanel}>
       <Box sx={styles.characterPortraitWrapper}>
         <img
-          src={'/images/adventurer.png'}
+          src={'/images/adventurer.png?v=2'}
           alt="adventurer"
           style={{
             ...styles.characterPortrait,

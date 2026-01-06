@@ -122,7 +122,7 @@ export default function BeastSlainScreen() {
                 <Box sx={styles.adventurerImageContainer}>
                   <Box
                     component="img"
-                    src={'/images/mobile/adventurer.png'}
+                    src={'/images/mobile/adventurer.png?v=2'}
                     alt="Adventurer"
                     sx={styles.adventurerImage}
                   />

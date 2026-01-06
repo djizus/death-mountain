@@ -42,7 +42,7 @@ export default function BottomNav({ activeNavItem, setActiveNavItem }: BottomNav
   const navItems = [
     {
       key: 'GAME',
-      icon: <img src={'/images/mobile/adventurer.png'} alt="Game" style={{ height: 32 }} />,
+      icon: <img src={'/images/mobile/adventurer.png?v=2'} alt="Game" style={{ height: 32 }} />,
       onClick: () => setActiveNavItem('GAME'),
       active: activeNavItem === 'GAME'
     },
