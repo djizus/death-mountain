@@ -9,7 +9,7 @@ import { Item } from '@/types/game';
 import { calculateAttackDamage, calculateBeastDamageDetails, calculateCombatStats, calculateLevel } from '@/utils/game';
 import { ItemType, ItemUtils, Tier } from '@/utils/loot';
 import { keyframes } from '@emotion/react';
-import { DeleteOutline, Star } from '@mui/icons-material';
+import { Check, Close, DeleteOutline, Star } from '@mui/icons-material';
 import { Box, Button, Tooltip, Typography } from '@mui/material';
 import { useCallback, useEffect, useState } from 'react';
 import type { GearPreset } from '@/utils/gearPresets';
@@ -316,13 +316,16 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
   );
 }
 
-function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, newItems, onItemHover }: {
+function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, newItems, onItemHover, onCancelDrop, onConfirmDrop, dropInProgress }: {
   isDropMode: boolean,
   itemsToDrop: number[],
   onItemClick: (item: any) => void,
   onDropModeToggle: () => void,
   newItems: number[],
-  onItemHover: (itemId: number) => void
+  onItemHover: (itemId: number) => void,
+  onCancelDrop: () => void,
+  onConfirmDrop: () => void,
+  dropInProgress: boolean
 }) {
   const { bag, adventurer, beast } = useGameStore();
 
@@ -587,6 +590,43 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
             <Typography sx={styles.dropText}>drop</Typography>
           </Box>
         )}
+
+        {isDropMode && (
+          <>
+            <Box
+              key="cancel-button"
+              sx={[styles.bagSlot, styles.cancelTileButton]}
+              onClick={!dropInProgress ? onCancelDrop : undefined}
+            >
+              <Close sx={styles.cancelIcon} />
+              <Typography sx={styles.cancelTileText}>cancel</Typography>
+            </Box>
+            <Box
+              key="confirm-button"
+              sx={[
+                styles.bagSlot,
+                styles.confirmTileButton,
+                (dropInProgress || itemsToDrop.length === 0) && styles.confirmTileButtonDisabled
+              ]}
+              onClick={!dropInProgress && itemsToDrop.length > 0 ? onConfirmDrop : undefined}
+            >
+              {dropInProgress ? (
+                <div className='dotLoader yellow' />
+              ) : (
+                <>
+                  <Check sx={[
+                    styles.confirmIcon,
+                    (itemsToDrop.length === 0) && styles.confirmIconDisabled
+                  ]} />
+                  <Typography sx={[
+                    styles.confirmTileText,
+                    (itemsToDrop.length === 0) && styles.confirmTileTextDisabled
+                  ]}>confirm</Typography>
+                </>
+              )}
+            </Box>
+          </>
+        )}
       </Box>
     </Box>
   );
@@ -695,40 +735,10 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
           onDropModeToggle={() => setIsDropMode(true)}
           newItems={newItems}
           onItemHover={handleItemHover}
+          onCancelDrop={handleCancelDrop}
+          onConfirmDrop={handleConfirmDrop}
+          dropInProgress={dropInProgress}
         />
-
-        {/* Drop Mode Controls */}
-        {isDropMode && (
-          <Box sx={styles.dropControls}>
-            <Button
-              variant="contained"
-              color="error"
-              onClick={handleCancelDrop}
-              sx={styles.cancelDropButton}
-              disabled={dropInProgress}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleConfirmDrop}
-              sx={styles.dropControlButton}
-              disabled={dropInProgress || itemsToDrop.length === 0}
-            >
-              {dropInProgress
-                ? <Box display={'flex'} alignItems={'baseline'}>
-                  <Typography>
-                    Dropping items
-                  </Typography>
-                  <div className='dotLoader yellow' />
-                </Box>
-                : <Typography>
-                  Confirm
-                </Typography>
-              }
-            </Button>
-          </Box>
-        )}
       </Box>
     </>
   );
@@ -769,7 +779,7 @@ const styles = {
   popup: {
     position: 'absolute',
     // top, left, width set dynamically via useResponsiveScale
-    maxHeight: '90vh',
+    maxHeight: 'calc(100dvh - 100px)',
     minWidth: '460px',
     background: 'rgba(24, 40, 24, 0.55)',
     border: '2px solid #083e22',
@@ -782,6 +792,7 @@ const styles = {
     alignItems: 'stretch',
     padding: 1.5,
     overflow: 'hidden',
+    minHeight: 0,
   },
   inventoryRoot: {
     display: 'flex',
@@ -789,7 +800,8 @@ const styles = {
     alignItems: 'stretch',
     justifyContent: 'flex-start',
     gap: 1,
-    mb: 1
+    mb: 1,
+    flexShrink: 0,
   },
   equipmentPanel: {
     height: '405px',
@@ -916,13 +928,23 @@ const styles = {
     boxShadow: '0 0 8px #000a',
     boxSizing: 'border-box',
     borderRadius: '8px',
+    flex: 1,
+    minHeight: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
   },
   bagGrid: {
     display: 'flex',
     flexWrap: 'wrap',
     gap: 0.5,
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    alignContent: 'flex-start',
     justifyContent: 'flex-start',
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
+    overflowX: 'hidden',
   },
   bagSlot: {
     width: 56,
@@ -974,10 +996,70 @@ const styles = {
     lineHeight: 1,
     mt: 0.5,
   },
+  cancelTileButton: {
+    background: 'rgba(255, 0, 0, 0.15)',
+    border: '2px solid rgba(255, 0, 0, 0.3)',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    flexDirection: 'column',
+    '&:hover': {
+      background: 'rgba(255, 0, 0, 0.25)',
+      border: '2px solid rgba(255, 0, 0, 0.5)',
+    },
+  },
+  cancelIcon: {
+    width: 16,
+    height: 16,
+    color: 'rgba(255, 100, 100, 0.9)',
+  },
+  cancelTileText: {
+    fontSize: '0.7rem',
+    color: 'rgba(255, 100, 100, 0.9)',
+    lineHeight: 1,
+    mt: 0.5,
+  },
+  confirmTileButton: {
+    background: 'rgba(128, 255, 0, 0.3)',
+    border: '2px solid rgba(128, 255, 0, 0.7)',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    flexDirection: 'column',
+    '&:hover': {
+      background: 'rgba(128, 255, 0, 0.45)',
+      border: '2px solid rgba(128, 255, 0, 0.9)',
+    },
+  },
+  confirmTileButtonDisabled: {
+    background: 'rgba(100, 120, 100, 0.15)',
+    border: '2px solid rgba(100, 120, 100, 0.3)',
+    cursor: 'default',
+    '&:hover': {
+      background: 'rgba(100, 120, 100, 0.15)',
+      border: '2px solid rgba(100, 120, 100, 0.3)',
+    },
+  },
+  confirmIcon: {
+    width: 16,
+    height: 16,
+    color: 'rgba(128, 255, 0, 0.9)',
+  },
+  confirmIconDisabled: {
+    color: 'rgba(100, 120, 100, 0.5)',
+  },
+  confirmTileText: {
+    fontSize: '0.7rem',
+    color: 'rgba(128, 255, 0, 0.9)',
+    lineHeight: 1,
+    mt: 0.5,
+  },
+  confirmTileTextDisabled: {
+    color: 'rgba(100, 120, 100, 0.5)',
+  },
   dropControls: {
     display: 'flex',
     gap: 1,
     mt: 1,
+    flexShrink: 0,
   },
   cancelDropButton: {
     flex: 1,
