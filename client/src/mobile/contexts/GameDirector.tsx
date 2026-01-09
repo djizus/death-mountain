@@ -172,7 +172,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       if (eventQueue.length > 0 && !isProcessing) {
         setIsProcessing(true);
         const event = eventQueue[0];
-        await processEvent(event, skipCombatDelays || skipCombat);
+        // When spectating (replay), always use delays; otherwise respect skip flags
+        await processEvent(event, !spectating && (skipCombatDelays || skipCombat));
         setEventQueue((prev) => prev.slice(1));
         setIsProcessing(false);
         setEventsProcessed((prev) => prev + 1);
@@ -180,7 +181,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     };
 
     processNextEvent();
-  }, [eventQueue, isProcessing, skipCombat, skipCombatDelays]);
+  }, [eventQueue, isProcessing, skipCombat, skipCombatDelays, spectating]);
 
   useEffect(() => {
     if (beastDefeated && collectable && currentNetworkConfig.beasts) {
