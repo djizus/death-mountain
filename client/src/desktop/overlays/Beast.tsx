@@ -56,8 +56,8 @@ export default function Beast() {
       }}>
         {/* Portrait with level badge and tooltips */}
         <Box sx={collectable ? styles.portraitContainerCollectable : styles.portraitContainer}>
-          {collectable ? (
-            <Box sx={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100%', borderRadius: '50%' }}>
+          <Box sx={{ position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: '50%' }}>
+            {collectable ? (
               <img src={collectableImage(beast!.baseName, collectableTraits!)}
                 alt="Beast" style={{
                   width: '58px',
@@ -67,10 +67,10 @@ export default function Beast() {
                   left: '50%',
                   transform: 'translate(-50%, -50%)'
                 }} />
-            </Box>
-          ) : (
-            <img src="/images/beast.png" alt="Beast" style={styles.portraitImage} />
-          )}
+            ) : (
+              <img src="/images/beast.png" alt="Beast" style={styles.portraitImage} />
+            )}
+          </Box>
 
           {/* Level badge */}
           <Box sx={collectable ? styles.levelBadgeCollectable : styles.levelBadge}>
@@ -236,19 +236,22 @@ const styles = {
     width: '68px',
     height: '68px',
     flexShrink: 0,
+    borderRadius: '50%',
+    border: '3px solid #083e22',
+    background: 'rgba(0, 0, 0, 1)',
   },
   portraitContainerCollectable: {
     position: 'relative',
     width: '68px',
     height: '68px',
     flexShrink: 0,
+    borderRadius: '50%',
+    border: '3px solid #EDCF33',
+    background: 'rgba(0, 0, 0, 1)',
   },
   portraitImage: {
     width: '100%',
     height: '100%',
-    borderRadius: '50%',
-    border: '3px solid #083e22',
-    background: 'rgba(0, 0, 0, 1)',
   } as React.CSSProperties,
   levelBadge: {
     position: 'absolute',
