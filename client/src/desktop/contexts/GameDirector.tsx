@@ -60,6 +60,20 @@ const delayTimes: any = {
   flee: 1000,
 };
 
+const replayDelayTimes: any = {
+  discovery: 2000,
+  obstacle: 2000,
+  attack: 2000,
+  beast_attack: 2000,
+  beast: 2000,
+  flee: 2000,
+  fled_beast: 2000,
+  defeated_beast: 1000,
+  buy_items: 2000,
+  equip: 2000,
+  drop: 2000,
+};
+
 const ExplorerLogEvents = [
   "discovery",
   "obstacle",
@@ -176,7 +190,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       if (eventQueue.length > 0 && !isProcessing) {
         setIsProcessing(true);
         const event = eventQueue[0];
-        await processEvent(event, skipCombatDelays || skipCombat);
+        // When spectating (replay), always use delays; otherwise respect skip flags
+        await processEvent(event, !spectating && (skipCombatDelays || skipCombat));
         setEventQueue((prev) => prev.slice(1));
         setIsProcessing(false);
         setEventsProcessed((prev) => prev + 1);
@@ -184,7 +199,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     };
 
     processNextEvent();
-  }, [eventQueue, isProcessing, skipCombatDelays, skipCombat]);
+  }, [eventQueue, isProcessing, skipCombatDelays, skipCombat, spectating]);
 
   useEffect(() => {
     if (beastDefeated && collectable && currentNetworkConfig.beasts) {
@@ -387,8 +402,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       ]);
     }
 
-    if (delayTimes[event.type] && !skipDelay) {
-      await delay(delayTimes[event.type]);
+    if (!skipDelay && (delayTimes[event.type] || replayDelayTimes[event.type])) {
+      await delay(spectating ? replayDelayTimes[event.type] : delayTimes[event.type]);
     }
   };
 

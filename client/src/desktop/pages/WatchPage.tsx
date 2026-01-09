@@ -8,6 +8,8 @@ import { ExplorerReplayEvents, processGameEvent } from '@/utils/events';
 import { calculateLevel } from '@/utils/game';
 import CloseIcon from '@mui/icons-material/Close';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import PauseIcon from '@mui/icons-material/Pause';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
 import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
 import VideocamIcon from '@mui/icons-material/Videocam';
@@ -424,56 +426,49 @@ export default function WatchPage() {
           </>
         ) : (
           <>
-            <Box sx={styles.modeRow}>
-              <VideocamIcon sx={styles.theatersIcon} />
-            </Box>
-
             {isLiveGame ? (
-              <Box sx={styles.liveStatus}>
-                <VisibilityIcon sx={styles.visibilityIcon} />
-                <Typography sx={styles.liveText}>
-                  watching live
-                </Typography>
-              </Box>
+              <>
+                <Box sx={styles.modeRow}>
+                  <VideocamIcon sx={styles.theatersIcon} />
+                </Box>
+                <Box sx={styles.liveStatus}>
+                  <VisibilityIcon sx={styles.visibilityIcon} />
+                  <Typography sx={styles.liveText}>
+                    watching live
+                  </Typography>
+                </Box>
+                <ExitToAppIcon sx={styles.closeIcon} onClick={handleEndWatching} />
+              </>
             ) : (
-              <Box sx={{ display: 'flex', flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'space-evenly', gap: '8px' }}>
-                <Button
-                  disabled={isPlaying}
-                  onClick={replayBackward}
-                  sx={styles.controlButton}
-                >
+              <Box sx={{ display: 'flex', flex: 1, alignItems: 'center', gap: '4px' }}>
+                <VideocamIcon sx={styles.theatersIcon} />
+                <Button onClick={() => handlePlayPause(!isPlaying)} sx={styles.controlButton}>
+                  {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+                </Button>
+                <Button disabled={isPlaying} onClick={replayBackward} sx={styles.controlButton}>
                   <SkipPreviousIcon />
                 </Button>
-
-                <Box sx={{ flex: 1, px: 1 }}>
-                  <Slider
-                    value={sliderValue}
-                    min={1}
-                    max={Math.max(0, replayEvents.length - 1)}
-                    onChange={handleSliderChange}
-                    onChangeCommitted={handleSliderChangeCommitted}
-                    disabled={isPlaying || replayEvents.length === 0}
-                    valueLabelDisplay="auto"
-                    valueLabelFormat={(value) => {
-                      const level = eventLevelMap.get(value) || 1;
-                      return `Lvl ${level}`;
-                    }}
-                    sx={styles.slider}
-                    size="small"
-                  />
-                </Box>
-
-                <Button
-                  onClick={replayForward}
-                  disabled={isPlaying}
-                  sx={styles.controlButton}
-                >
+                <Slider
+                  value={sliderValue}
+                  min={1}
+                  max={Math.max(0, replayEvents.length - 1)}
+                  onChange={handleSliderChange}
+                  onChangeCommitted={handleSliderChangeCommitted}
+                  disabled={isPlaying || replayEvents.length === 0}
+                  valueLabelDisplay="auto"
+                  valueLabelFormat={(value) => {
+                    const level = eventLevelMap.get(value) || 1;
+                    return `Lvl ${level}`;
+                  }}
+                  sx={{ ...styles.slider, flex: 1 }}
+                  size="small"
+                />
+                <Button disabled={isPlaying} onClick={replayForward} sx={styles.controlButton}>
                   <SkipNextIcon />
                 </Button>
+                <ExitToAppIcon sx={styles.closeIcon} onClick={handleEndWatching} />
               </Box>
             )}
-
-            <ExitToAppIcon sx={styles.closeIcon} onClick={handleEndWatching} />
           </>
         )}
       </Box>}
