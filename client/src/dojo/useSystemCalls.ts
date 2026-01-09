@@ -54,52 +54,59 @@ export const useSystemCalls = () => {
     "settings_systems"
   )?.address;
 
-  /**
-   * Custom hook to handle system calls and state management in the Dojo application.
-   * Provides functionality for game actions and managing optimistic updates.
-   *
-   * @returns An object containing system call functions:
-   *   - mintAndStartGame: Function to mint a new game
-   *   - startGame: Function to start a new game with a weapon
-   *   - explore: Function to explore the world
-   *   - attack: Function to attack a beast
-   *   - flee: Function to flee from a beast
-   *   - equip: Function to equip items
-   *   - drop: Function to drop items
-   *   - levelUp: Function to level up and purchase items
-   */
+  const OPTIMISTIC_ENTRYPOINTS = ['drop', 'select_stat_upgrades', 'buy_items'];
+
+  function isOptimisticEntrypoint(entrypoint: string): boolean {
+    return OPTIMISTIC_ENTRYPOINTS.includes(entrypoint);
+  }
+
+  function countOptimisticCalls(calls: any[]): number {
+    return calls.filter(call => isOptimisticEntrypoint(call.entrypoint)).length;
+  }
+
   const executeAction = async (calls: any[], forceResetAction: () => void) => {
-    // Check if ANY of the calls are optimistic
-    const hasOptimisticCall = calls.some(call =>
-      ['drop', 'select_stat_upgrades', 'buy_items'].includes(call.entrypoint)
+    const optimisticCalls = calls.filter(call =>
+      isOptimisticEntrypoint(call.entrypoint) || call.entrypoint === 'equip'
     );
 
-    if (hasOptimisticCall) {
-      // Add ALL optimistic calls to preCalls (not just the last one)
-      const optimisticCalls = calls.filter(call =>
-        ['equip', 'drop', 'select_stat_upgrades', 'buy_items'].includes(call.entrypoint)
-      );
-      setPreCalls(prev => [...prev, ...optimisticCalls]);
-
-      // Return optimistic events for all optimistic calls
-      return optimisticCalls.flatMap(call =>
-        optimisticGameEvents(adventurer!, bag, call)
-      );
+    if (optimisticCalls.length === 0) {
+      return executeTransaction(calls, forceResetAction);
     }
 
+    setPreCalls(prev => [...prev, ...optimisticCalls]);
+
+    // Chain optimistic events so each call uses updated state from previous calls
+    let currentAdventurer = adventurer!;
+    let currentBag = bag;
+    const optimisticEvents: GameEvent[] = [];
+
+    for (const call of optimisticCalls) {
+      const events = optimisticGameEvents(currentAdventurer, currentBag, call);
+      optimisticEvents.push(...events);
+
+      const advEvent = events.find(e => e.type === 'adventurer');
+      if (advEvent?.adventurer) currentAdventurer = advEvent.adventurer;
+
+      const bagEvent = events.find(e => e.type === 'bag');
+      if (bagEvent?.bag) currentBag = bagEvent.bag;
+    }
+
+    return optimisticEvents;
+  };
+
+  async function executeTransaction(calls: any[], forceResetAction: () => void): Promise<GameEvent[] | undefined> {
     try {
       await waitForGlobalState(preCalls, calls, 0);
 
-      let callsToExecute = [...preCalls, ...calls];
+      const callsToExecute = [...preCalls, ...calls];
       console.log('callsToExecute', callsToExecute);
-      let tx = await account!.execute(callsToExecute);
-      let receipt: any = await waitForPreConfirmedTransaction(tx.transaction_hash, 0);
+
+      const tx = await account!.execute(callsToExecute);
+      const receipt: any = await waitForPreConfirmedTransaction(tx.transaction_hash, 0);
 
       if (receipt.execution_status === "REVERTED") {
         forceResetAction();
-        txRevertedEvent({
-          txHash: tx.transaction_hash,
-        });
+        txRevertedEvent({ txHash: tx.transaction_hash });
         enqueueSnackbar('Action failed', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } });
         return;
       }
@@ -121,7 +128,7 @@ export const useSystemCalls = () => {
       forceResetAction();
       throw error;
     }
-  };
+  }
 
   const waitForAcceptedTransaction = async (txHash: string, retries: number) => {
     if (retries > 5) {
@@ -208,8 +215,8 @@ export const useSystemCalls = () => {
       }
     }
 
-    let adventurerState = await getAdventurerState(gameId!);
-    let optimisticActionCount = preCalls.filter((call: any) => ['drop', 'select_stat_upgrades', 'buy_items'].includes(call.entrypoint)).length;
+    const adventurerState = await getAdventurerState(gameId!);
+    const optimisticActionCount = countOptimisticCalls(preCalls);
 
     if ((adventurerState?.action_count || 0) >= (adventurer!.action_count - optimisticActionCount) || retries > 9) {
       return true;

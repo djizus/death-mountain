@@ -388,6 +388,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     }
 
     const events = await executeAction(txs, setActionFailed);
+    if (!events) return;
 
     if (dungeon.id === "survivor" && events.some((event: any) => event.type === "defeated_beast")) {
       setBeastDefeated(true);
