@@ -454,7 +454,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     } else if (action.type === "flee") {
       txs.push(flee(gameId!, action.untilDeath!));
     } else if (action.type === "buy_items") {
-      txs.push(buyItems(gameId!, action.potions!, action.itemPurchases!));
+      console.log('[GameDirector] buy_items action', { gameId, potions: action.potions, itemPurchases: action.itemPurchases, remainingGold: action.remainingGold });
+      txs.push(buyItems(gameId!, action.potions!, action.itemPurchases!, action.remainingGold!));
     } else if (action.type === "select_stat_upgrades") {
       txs.push(selectStatUpgrades(gameId!, action.statUpgrades!));
     } else if (action.type === "equip") {

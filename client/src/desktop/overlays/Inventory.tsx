@@ -413,6 +413,26 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
     return a.id - b.id;
   });
 
+  // Auto-equip new T1/T2/T3 weapons when current weapon is T5
+  useEffect(() => {
+    if (!bag || !adventurer) return;
+
+    const currentWeaponTier = ItemUtils.getItemTier(adventurer.equipment.weapon.id!);
+    if (currentWeaponTier !== Tier.T5) return;
+
+    for (const item of bag) {
+      const isNew = newItems.includes(item.id);
+      const slot = ItemUtils.getItemSlot(item.id).toLowerCase();
+      const isWeaponSlot = slot === 'weapon';
+      const tier = ItemUtils.getItemTier(item.id);
+
+      if (isNew && isWeaponSlot && [Tier.T1, Tier.T2, Tier.T3].includes(tier)) {
+        onItemClick(item);
+        break; // Only auto-equip one weapon
+      }
+    }
+  }, [newItems, bag, adventurer, onItemClick]);
+
   const remainingSlots = Math.max(0, 15 - (bag?.length || 0));
   const emptySlots = Array.from({ length: remainingSlots }).map((_, index) => (
     <Box key={`empty-${index}`} sx={[styles.bagSlot, styles.emptyBagSlot]}>
@@ -452,11 +472,6 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
         damage = attackSummary.baseDamage;
         critDamage = attackSummary.criticalDamage;
       }
-    }
-
-    if (isNew && isWeaponSlot && [Tier.T1, Tier.T2, Tier.T3].includes(tier)
-      && ItemUtils.getItemTier(adventurer?.equipment.weapon.id!) === Tier.T5) {
-      onItemClick(item);
     }
 
     const hasDamageOverlay = (damage > 0 || damageTaken > 0) && !!beast;
@@ -1308,5 +1323,21 @@ const styles = {
   damageIndicatorTextGreen: {
     color: '#FFFFFF',
     textShadow: '0 1px 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(255, 255, 255, 0.3)',
+  },
+  levelLabel: {
+    position: 'absolute',
+    bottom: '1px',
+    left: '1px',
+    backgroundColor: '#000000',
+    color: '#FFFFFF',
+    fontSize: '0.65rem',
+    fontWeight: 'bold',
+    fontFamily: 'VT323, monospace',
+    padding: '1px 3px',
+    borderRadius: '2px',
+    lineHeight: 1,
+    zIndex: 20,
+    minWidth: '14px',
+    textAlign: 'center',
   },
 };

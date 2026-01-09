@@ -208,6 +208,7 @@ export default function AdventurerStats({ variant }: AdventurerStatsProps) {
 
 const styles = {
   statsPanel: {
+    flex: 1,
     background: 'rgba(24, 40, 24, 0.95)',
     border: '2px solid #083e22',
     borderRadius: '8px',
@@ -294,7 +295,7 @@ const styles = {
     minWidth: 0,
   },
   statLabel: {
-    fontSize: '13px',
+    fontSize: '14px',
     fontWeight: '500',
     pt: '1px',
     whiteSpace: 'nowrap',

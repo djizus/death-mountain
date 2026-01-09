@@ -14,6 +14,8 @@ import MarketOverlay from './Market';
 import { useUIStore } from '@/stores/uiStore';
 import { useSnackbar } from 'notistack';
 import { useExplorationWorker } from '@/hooks/useExplorationWorker';
+import { potionPrice } from '@/utils/market';
+import { calculateLevel } from '@/utils/game';
 
 export default function ExploreOverlay() {
   const { executeGameAction, actionFailed, setVideoQueue } = useGameDirector();
@@ -80,17 +82,33 @@ export default function ExploreOverlay() {
   };
 
   const handleCheckout = () => {
+    console.log('[Explore] handleCheckout called', { cart, inProgress, isExploring, isSelectingStats });
     setInProgress(true);
 
-    let itemPurchases = cart.items.map(item => ({
-      item_id: item.id,
-      equip: adventurer?.equipment[ItemUtils.getItemSlot(item.id).toLowerCase() as keyof typeof adventurer.equipment]?.id === 0 ? true : false,
-    }));
+    const slotsToEquip = new Set<string>();
+    let itemPurchases = cart.items.map(item => {
+      const slot = ItemUtils.getItemSlot(item.id).toLowerCase();
+      const slotEmpty = adventurer?.equipment[slot as keyof typeof adventurer.equipment]?.id === 0;
+      const shouldEquip = slotEmpty && !slotsToEquip.has(slot);
+      if (shouldEquip) {
+        slotsToEquip.add(slot);
+      }
+      return {
+        item_id: item.id,
+        equip: shouldEquip,
+      };
+    });
 
+    const potionCost = potionPrice(calculateLevel(adventurer?.xp || 0), adventurer?.stats?.charisma || 0);
+    const totalCost = cart.items.reduce((sum, item) => sum + item.price, 0) + (cart.potions * potionCost);
+    const remainingGold = (adventurer?.gold || 0) - totalCost;
+
+    console.log('[Explore] executeGameAction buy_items', { potions: cart.potions, itemPurchases, remainingGold });
     executeGameAction({
       type: 'buy_items',
       potions: cart.potions,
       itemPurchases,
+      remainingGold,
     });
   };
 
@@ -203,7 +221,20 @@ export default function ExploreOverlay() {
 
       <InventoryOverlay disabledEquip={isExploring || isSelectingStats || inProgress} />
 
-      {adventurer?.beast_health === 0 && <MarketOverlay />}
+      {adventurer?.beast_health === 0 && (
+        <>
+          {console.log('[Explore] MarketOverlay props', {
+            isExploring,
+            isSelectingStats,
+            stat_upgrades_available: adventurer?.stat_upgrades_available,
+            disabledPurchase: isExploring || isSelectingStats || (adventurer?.stat_upgrades_available ?? 0) > 0
+          })}
+          <MarketOverlay
+            disabledPurchase={isExploring || isSelectingStats || (adventurer?.stat_upgrades_available ?? 0) > 0}
+            disabledReason={isExploring ? 'exploring' : 'stats'}
+          />
+        </>
+      )}
 
       {/* Bottom Buttons */}
       <Box sx={{
