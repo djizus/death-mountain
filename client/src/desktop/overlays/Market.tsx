@@ -117,7 +117,6 @@ interface MarketOverlayProps {
 }
 
 export default function MarketOverlay({ disabledPurchase = false, disabledReason }: MarketOverlayProps) {
-  console.log('[MarketOverlay] rendered', { disabledPurchase, disabledReason });
   const { scalePx, contentOffset } = useResponsiveScale();
   const dungeon = useDungeon();
   const navigate = useNavigate();
@@ -232,19 +231,16 @@ export default function MarketOverlay({ disabledPurchase = false, disabledReason
   }, [specialsUnlocked, showSetStats]);
 
   useEffect(() => {
-    console.log('[Market] cart effect triggered', { inProgress, cartItems: cart.items.length, cartPotions: cart.potions, marketItemIds: marketItemIds?.length, gold: adventurer?.gold, charisma: adventurer?.stats?.charisma });
     if (inProgress) {
       if (cart.items.length > 0) {
         setNewInventoryItems(cart.items.map(item => item.id));
         setShowInventory(true);
       }
 
-
       setShowCart(false);
       setInProgress(false);
     }
 
-    console.log('[Market] clearing cart');
     clearCart();
   }, [marketItemIds, adventurer?.gold, adventurer?.stats?.charisma]);
 
@@ -311,7 +307,6 @@ export default function MarketOverlay({ disabledPurchase = false, disabledReason
   }, [marketItemIds, adventurer?.gold, adventurer?.stats?.charisma, adventurer?.item_specials_seed, isItemOwned]);
 
   const handleBuyItem = (item: MarketItem) => {
-    console.log('[Market] handleBuyItem called', { item, disabledPurchase, cart });
     addToCart(item);
   };
 
@@ -320,11 +315,7 @@ export default function MarketOverlay({ disabledPurchase = false, disabledReason
   };
 
   const handleCheckout = () => {
-    console.log('[Market] handleCheckout called', { disabledPurchase, disabledReason, cart, inProgress });
-    if (disabledPurchase) {
-      console.log('[Market] handleCheckout early return due to disabledPurchase');
-      return;
-    }
+    if (disabledPurchase) return;
 
     setInProgress(true);
 
@@ -342,7 +333,6 @@ export default function MarketOverlay({ disabledPurchase = false, disabledReason
       };
     });
 
-    console.log('[Market] executeGameAction buy_items', { potions: cart.potions, itemPurchases, remainingGold });
     executeGameAction({
       type: 'buy_items',
       potions: cart.potions,

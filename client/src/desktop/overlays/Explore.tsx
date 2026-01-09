@@ -82,7 +82,6 @@ export default function ExploreOverlay() {
   };
 
   const handleCheckout = () => {
-    console.log('[Explore] handleCheckout called', { cart, inProgress, isExploring, isSelectingStats });
     setInProgress(true);
 
     const slotsToEquip = new Set<string>();
@@ -103,7 +102,6 @@ export default function ExploreOverlay() {
     const totalCost = cart.items.reduce((sum, item) => sum + item.price, 0) + (cart.potions * potionCost);
     const remainingGold = (adventurer?.gold || 0) - totalCost;
 
-    console.log('[Explore] executeGameAction buy_items', { potions: cart.potions, itemPurchases, remainingGold });
     executeGameAction({
       type: 'buy_items',
       potions: cart.potions,
@@ -222,18 +220,10 @@ export default function ExploreOverlay() {
       <InventoryOverlay disabledEquip={isExploring || isSelectingStats || inProgress} />
 
       {adventurer?.beast_health === 0 && (
-        <>
-          {console.log('[Explore] MarketOverlay props', {
-            isExploring,
-            isSelectingStats,
-            stat_upgrades_available: adventurer?.stat_upgrades_available,
-            disabledPurchase: isExploring || isSelectingStats || (adventurer?.stat_upgrades_available ?? 0) > 0
-          })}
-          <MarketOverlay
-            disabledPurchase={isExploring || isSelectingStats || (adventurer?.stat_upgrades_available ?? 0) > 0}
-            disabledReason={isExploring ? 'exploring' : 'stats'}
-          />
-        </>
+        <MarketOverlay
+          disabledPurchase={isExploring || isSelectingStats || (adventurer?.stat_upgrades_available ?? 0) > 0}
+          disabledReason={isExploring ? 'exploring' : 'stats'}
+        />
       )}
 
       {/* Bottom Buttons */}

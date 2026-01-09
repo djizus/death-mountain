@@ -69,27 +69,22 @@ export const useSystemCalls = () => {
    *   - levelUp: Function to level up and purchase items
    */
   const executeAction = async (calls: any[], forceResetAction: () => void) => {
-    console.log('[useSystemCalls] executeAction called', { calls, preCalls });
     // Check if ANY of the calls are optimistic
     const hasOptimisticCall = calls.some(call =>
       ['drop', 'select_stat_upgrades', 'buy_items'].includes(call.entrypoint)
     );
-    console.log('[useSystemCalls] hasOptimisticCall', hasOptimisticCall);
 
     if (hasOptimisticCall) {
       // Add ALL optimistic calls to preCalls (not just the last one)
       const optimisticCalls = calls.filter(call =>
         ['equip', 'drop', 'select_stat_upgrades', 'buy_items'].includes(call.entrypoint)
       );
-      console.log('[useSystemCalls] optimistic calls queued', { optimisticCalls });
       setPreCalls(prev => [...prev, ...optimisticCalls]);
 
       // Return optimistic events for all optimistic calls
-      const optimisticEvents = optimisticCalls.flatMap(call =>
+      return optimisticCalls.flatMap(call =>
         optimisticGameEvents(adventurer!, bag, call)
       );
-      console.log('[useSystemCalls] returning optimistic events', { optimisticEvents });
-      return optimisticEvents;
     }
 
     try {
@@ -429,7 +424,6 @@ export const useSystemCalls = () => {
    * @param items Array of items to purchase
    */
   const buyItems = (gameId: number, potions: number, items: ItemPurchase[], remainingGold: number) => {
-    console.log('[useSystemCalls] buyItems called', { gameId, potions, items, remainingGold });
     return {
       contractAddress: GAME_ADDRESS,
       entrypoint: "buy_items",
