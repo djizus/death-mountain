@@ -159,11 +159,11 @@ export default function MainMenu() {
     }
   };
   // Responsive sizes
-  const containerWidth = scalePx(340);
+  const containerWidth = scalePx(370);
   const containerTop = scalePx(30);
   const containerMinHeight = scalePx(600);
-  const edgeOffset = scalePx(8);
-  const rewardsWidth = scalePx(300);
+  const edgeOffset = scalePx(40);
+  const rewardsWidth = scalePx(370);
 
   return (
     <>
