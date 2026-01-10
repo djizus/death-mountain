@@ -11,26 +11,28 @@ import {
   Payment,
   Stats,
 } from "@/types/game";
-import { translateGameEvent } from "@/utils/translation";
-import { getContractByName } from "@dojoengine/core";
-import { delay, stringToFelt } from "@/utils/utils";
-import { CairoOption, CairoOptionVariant, CallData, byteArray } from "starknet";
 import { useAnalytics } from "@/utils/analytics";
+import { GameEvent } from "@/utils/events";
+import { optimisticGameEvents, translateGameEvent } from "@/utils/translation";
+import { delay, stringToFelt } from "@/utils/utils";
+import { getContractByName } from "@dojoengine/core";
 import { useSnackbar } from "notistack";
+import { useState } from "react";
+import { CairoOption, CairoOptionVariant, CallData, byteArray, num } from "starknet";
 import { useGameTokens } from "./useGameTokens";
-import { num } from "starknet";
 
 const TICKET_PRICE_WEI = BigInt("1000000000000000000");
 
 export const useSystemCalls = () => {
   const { enqueueSnackbar } = useSnackbar();
   const { getBeastTokenURI, getAdventurerState } = useStarknetApi();
-  const { setCollectableTokenURI, gameId, adventurer } = useGameStore();
+  const { setCollectableTokenURI, gameId, adventurer, beast, bag, exploreLog } = useGameStore();
   const { getBeastTokenId } = useGameTokens();
   const { account } = useController();
   const { currentNetworkConfig } = useDynamicConnector();
   const dungeon = useDungeon();
   const { txRevertedEvent } = useAnalytics();
+  const [preCalls, setPreCalls] = useState<any[]>([]);
 
   const namespace = currentNetworkConfig.namespace;
   const VRF_PROVIDER_ADDRESS = import.meta.env.VITE_PUBLIC_VRF_PROVIDER_ADDRESS;
@@ -67,13 +69,30 @@ export const useSystemCalls = () => {
    *   - levelUp: Function to level up and purchase items
    */
   const executeAction = async (calls: any[], forceResetAction: () => void) => {
-    try {
-      if (adventurer) {
-        await waitForGlobalState(adventurer.action_count);
-      }
+    // Check if ANY of the calls are optimistic
+    const hasOptimisticCall = calls.some(call =>
+      ['drop', 'select_stat_upgrades', 'buy_items'].includes(call.entrypoint)
+    );
 
-      let tx = await account!.execute(calls);
-      let receipt: any = await waitForAcceptedTransaction(tx.transaction_hash, 0);
+    if (hasOptimisticCall) {
+      // Add ALL optimistic calls to preCalls (not just the last one)
+      const optimisticCalls = calls.filter(call =>
+        ['equip', 'drop', 'select_stat_upgrades', 'buy_items'].includes(call.entrypoint)
+      );
+      setPreCalls(prev => [...prev, ...optimisticCalls]);
+
+      // Return optimistic events for all optimistic calls
+      return optimisticCalls.flatMap(call =>
+        optimisticGameEvents(adventurer!, bag, call)
+      );
+    }
+
+    try {
+      await waitForGlobalState(preCalls, calls, 0);
+
+      let callsToExecute = [...preCalls, ...calls];
+      let tx = await account!.execute(callsToExecute);
+      let receipt: any = await waitForPreConfirmedTransaction(tx.transaction_hash, 0);
 
       if (receipt.execution_status === "REVERTED") {
         forceResetAction();
@@ -94,7 +113,8 @@ export const useSystemCalls = () => {
         return;
       }
 
-      return translatedEvents.filter(Boolean);
+      setPreCalls([]);
+      return translatedEvents.filter((event: GameEvent) => Boolean(event) && event.action_count > (adventurer?.action_count || 0));
     } catch (error) {
       console.error("Error executing action:", error);
       forceResetAction();
@@ -102,7 +122,7 @@ export const useSystemCalls = () => {
     }
   };
 
-  const waitForAcceptedTransaction = async (txHash: string, retries: number) => {
+  const waitForPreConfirmedTransaction = async (txHash: string, retries: number) => {
     if (retries > 5) {
       throw new Error("Transaction failed");
     }
@@ -110,14 +130,14 @@ export const useSystemCalls = () => {
     try {
       const receipt: any = await account!.waitForTransaction(
         txHash,
-        { retryInterval: 275, successStates: ["ACCEPTED_ON_L2", "ACCEPTED_ON_L1"] }
+        { retryInterval: 275, successStates: ["PRE_CONFIRMED", "ACCEPTED_ON_L2", "ACCEPTED_ON_L1"] }
       );
 
       return receipt;
     } catch (error) {
-      console.error("Error waiting for accepted transaction:", error);
+      console.error("Error waiting for pre confirmed transaction:", error);
       await delay(500);
-      return waitForAcceptedTransaction(txHash, retries + 1);
+      return waitForPreConfirmedTransaction(txHash, retries + 1);
     }
   }
 
@@ -140,19 +160,43 @@ export const useSystemCalls = () => {
     }
   }
 
-  const waitForGlobalState = async (expectedActionCount: number, retries: number = 0): Promise<void> => {
-    let adventurerState = await getAdventurerState(gameId!);
+  const waitForGlobalState = async (preCalls: any, calls: any, retries: number): Promise<boolean> => {
+    if (!adventurer) return true;
 
-    if (adventurerState && adventurerState.action_count >= expectedActionCount) {
-      return;
+    if (beast && adventurer.beast_health > 0 && adventurer.beast_health < beast.health) {
+      return true;
     }
 
-    if (retries > 19) {
-      throw new Error("Timed out waiting for global state to catch up");
+    let lastEvent = exploreLog[exploreLog.length - 1];
+    if (lastEvent?.type === "discovery") {
+      if (lastEvent.discovery?.type === "Health") {
+        return true;
+      }
+      if (lastEvent.discovery?.type === "Gold" && !calls.find((call: any) => call.entrypoint === 'buy_items')) {
+        return true;
+      }
+      if (lastEvent.discovery?.type === "Loot" && !calls.find((call: any) => call.entrypoint === 'equip' || call.entrypoint === 'drop')) {
+        return true;
+      }
+    } else if (lastEvent?.type === "obstacle") {
+      if (!calls.find((call: any) => call.entrypoint === 'buy_items' && call.calldata[1] > 0)) {
+        return true;
+      }
+    } else if (lastEvent?.type === "buy_items") {
+      if (lastEvent.items_purchased?.length === 0 || !calls.find((call: any) => call.entrypoint === 'equip')) {
+        return true;
+      }
+    }
+
+    let adventurerState = await getAdventurerState(gameId!);
+    let optimisticActionCount = preCalls.filter((call: any) => ['drop', 'select_stat_upgrades', 'buy_items'].includes(call.entrypoint)).length;
+
+    if ((adventurerState?.action_count || 0) >= (adventurer!.action_count - optimisticActionCount) || retries > 9) {
+      return true;
     }
 
     await delay(500);
-    return waitForGlobalState(expectedActionCount, retries + 1);
+    return waitForGlobalState(preCalls, calls, retries + 1);
   };
 
   /**
@@ -359,11 +403,12 @@ export const useSystemCalls = () => {
    * @param statUpgrades Object containing stat upgrades
    * @param items Array of items to purchase
    */
-  const buyItems = (gameId: number, potions: number, items: ItemPurchase[], _remainingGold?: number) => {
+  const buyItems = (gameId: number, potions: number, items: ItemPurchase[], remainingGold: number) => {
     return {
       contractAddress: GAME_ADDRESS,
       entrypoint: "buy_items",
       calldata: [gameId, potions, items],
+      remainingGold,
     };
   };
 
