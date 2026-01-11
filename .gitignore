@@ -12,4 +12,10 @@ veo-client/tsconfig.tsbuildinfo
 *.env.bak
 argent_account_*.json
 references
+backend/data/*.db
+backend/data/*.db-shm
+backend/data/*.db-wal
+backend/data/*.sqlite
+backend/data/*.sqlite-shm
+backend/data/*.sqlite-wal
 

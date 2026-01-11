@@ -1,26 +1,16 @@
-import ROUTER_ABI from "@/abi/router-abi.json";
-import { generateSwapCalls, getSwapQuote } from "@/api/ekubo";
+import { createOrder, getTreasuryStatus, submitOrderPayment, type OrderResponse, type PayToken, type TreasuryStatus } from "@/api/orders";
 import { useController } from "@/contexts/controller";
 import { useDungeon } from "@/dojo/useDungeon";
 import { NETWORKS } from "@/utils/networkConfig";
-import { formatAmount } from "@/utils/utils";
+import { stringToFelt } from "@/utils/utils";
 import CloseIcon from "@mui/icons-material/Close";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
-import SportsEsportsOutlinedIcon from "@mui/icons-material/SportsEsportsOutlined";
 import TokenIcon from "@mui/icons-material/Token";
-import {
-  Box,
-  Button,
-  IconButton,
-  Link,
-  Menu,
-  MenuItem,
-  Typography,
-} from "@mui/material";
-import { useProvider } from "@starknet-react/core";
+import { Box, Button, IconButton, Menu, MenuItem, Tab, Tabs, Typography } from "@mui/material";
 import { AnimatePresence, motion } from "framer-motion";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Contract } from "starknet";
+import { useNavigate } from "react-router-dom";
+import { CallData, cairo } from "starknet";
 
 interface PaymentOptionsModalProps {
   open: boolean;
@@ -33,7 +23,38 @@ interface TokenSelectionProps {
   tokenQuote: { amount: string; loading: boolean; error?: string };
   onTokenChange: (tokenSymbol: string) => void;
   styles: any;
-  buyDungeonTicket: () => void;
+  onPay: () => void;
+  isPaying: boolean;
+  hasTreasuryAddress: boolean;
+  treasuryStatus: TreasuryStatus | null;
+}
+
+// Format amount to significant decimals based on token type
+function formatDisplayAmount(amount: string, symbol: string): string {
+  if (!amount) return "";
+  const num = parseFloat(amount);
+  if (isNaN(num)) return amount;
+
+  // Stablecoins: 2 decimals
+  if (symbol === "USDC" || symbol === "USDC_E" || symbol === "USDC.e Bridged") {
+    return num.toFixed(2);
+  }
+
+  // For other tokens, use significant figures
+  if (num >= 1000) {
+    return num.toFixed(2);
+  } else if (num >= 100) {
+    return num.toFixed(3);
+  } else if (num >= 10) {
+    return num.toFixed(4);
+  } else if (num >= 1) {
+    return num.toFixed(5);
+  } else if (num >= 0.01) {
+    return num.toFixed(6);
+  } else {
+    // Very small amounts - show up to 8 decimals, trim trailing zeros
+    return num.toFixed(8).replace(/\.?0+$/, "");
+  }
 }
 
 // Memoized token selection component
@@ -43,7 +64,10 @@ const TokenSelectionContent = memo(
     selectedToken,
     tokenQuote,
     onTokenChange,
-    buyDungeonTicket,
+    onPay,
+    isPaying,
+    hasTreasuryAddress,
+    treasuryStatus,
     styles,
   }: TokenSelectionProps) => {
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -65,29 +89,37 @@ const TokenSelectionContent = memo(
     };
 
     const hasEnoughBalance = useMemo(() => {
+      if (!selectedTokenData) return false;
+      if (!tokenQuote.amount) return false;
       return Number(selectedTokenData.balance) >= Number(tokenQuote.amount);
-    }, [selectedTokenData, tokenQuote]);
+    }, [selectedTokenData, tokenQuote.amount]);
 
-    return (
-      <Box
-        sx={{
-          ...styles.paymentCard,
-          position: "relative",
-          overflow: "visible",
-        }}
-      >
-        <Box sx={styles.cardHeader}>
-          <Box sx={styles.iconContainer}>
-            <TokenIcon sx={{ fontSize: 28, color: "#d0c98d" }} />
+    const displayAmount = useMemo(() => {
+      if (!tokenQuote.amount) return "";
+      return formatDisplayAmount(tokenQuote.amount, selectedToken);
+    }, [tokenQuote.amount, selectedToken]);
+
+    // Show empty state if no tokens available
+    if (userTokens.length === 0) {
+      return (
+        <Box sx={styles.tabContent}>
+          <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+            <TokenIcon sx={{ fontSize: 64, color: "rgba(208, 201, 141, 0.3)" }} />
           </Box>
-          <Box sx={{ flex: 1 }}>
-            <Typography sx={styles.paymentTitle}>Pay with Crypto</Typography>
-            <Typography sx={styles.paymentSubtitle}>
-              Select any token in your controller wallet
+          <Box sx={{ textAlign: "center", px: 2 }}>
+            <Typography sx={{ fontSize: 14, color: "rgba(208, 201, 141, 0.8)", mb: 1 }}>
+              No supported tokens found
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: "rgba(255, 215, 0, 0.6)" }}>
+              Add ETH, STRK, LORDS, USDC, or SURVIVOR to your wallet
             </Typography>
           </Box>
         </Box>
+      );
+    }
 
+    return (
+      <Box sx={styles.tabContent}>
         <Box sx={styles.sectionContainer} pb={2} mt={1}>
           <Button
             variant="outlined"
@@ -185,24 +217,43 @@ const TokenSelectionContent = memo(
               ? "Loading quote..."
               : tokenQuote.error
                 ? `Error: ${tokenQuote.error}`
-                : tokenQuote.amount
-                  ? `Cost: ${tokenQuote.amount} ${selectedToken}`
+                : displayAmount
+                  ? `Cost: ${displayAmount} ${selectedToken}`
                   : "Loading..."}
           </Typography>
         </Box>
 
-        <Box sx={{ display: "flex", justifyContent: "center", px: 2, mb: 2 }}>
+        {treasuryStatus && !treasuryStatus.canFulfillOrders && (
+          <Box sx={{ px: 2, mt: 1, textAlign: "center" }}>
+            <Typography sx={{ fontSize: 12, color: "#ff6b6b" }}>
+              Service temporarily unavailable. Please try again later.
+            </Typography>
+          </Box>
+        )}
+
+        <Box sx={{ display: "flex", justifyContent: "center", px: 2, mt: 2 }}>
           <Button
             variant="contained"
             sx={styles.activateButton}
-            onClick={buyDungeonTicket}
+            onClick={onPay}
             fullWidth
             disabled={
-              tokenQuote.loading || !!tokenQuote.error || !hasEnoughBalance
+              isPaying ||
+              tokenQuote.loading ||
+              !!tokenQuote.error ||
+              !hasEnoughBalance ||
+              !hasTreasuryAddress ||
+              (treasuryStatus !== null && !treasuryStatus.canFulfillOrders)
             }
           >
             <Typography sx={styles.buttonText}>
-              {hasEnoughBalance ? "Enter Dungeon" : "Insufficient Balance"}
+              {treasuryStatus && !treasuryStatus.canFulfillOrders
+                ? "Unavailable"
+                : isPaying
+                  ? "Sending..."
+                  : hasEnoughBalance
+                    ? "Pay & Enter"
+                    : "Insufficient Balance"}
             </Typography>
           </Button>
         </Box>
@@ -211,26 +262,45 @@ const TokenSelectionContent = memo(
   }
 );
 
+// Fiat tab content
+const FiatContent = memo(({ styles }: { styles: any }) => (
+  <Box sx={styles.tabContent}>
+    <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+      <CreditCardIcon sx={{ fontSize: 64, color: "rgba(208, 201, 141, 0.3)" }} />
+    </Box>
+    <Box sx={{ textAlign: "center", px: 2 }}>
+      <Typography sx={{ fontSize: 14, color: "rgba(208, 201, 141, 0.8)", mb: 2 }}>
+        Pay with credit card, Apple Pay, or Google Pay
+      </Typography>
+      <Typography sx={{ fontSize: 12, color: "rgba(255, 215, 0, 0.6)" }}>
+        Coming soon
+      </Typography>
+    </Box>
+    <Box sx={{ display: "flex", justifyContent: "center", px: 2, mt: 3 }}>
+      <Button
+        variant="contained"
+        sx={styles.activateButton}
+        fullWidth
+        disabled
+      >
+        <Typography sx={styles.buttonText}>Coming Soon</Typography>
+      </Button>
+    </Box>
+  </Box>
+));
+
 export default function PaymentOptionsModal({
   open,
   onClose,
 }: PaymentOptionsModalProps) {
-  const { tokenBalances, goldenPassIds, enterDungeon, openBuyTicket, bulkMintGames } =
+  const { account, tokenBalances, enterDungeon, address, playerName } =
     useController();
 
-  // Use the provider from StarknetConfig
-  const { provider } = useProvider();
+  const navigate = useNavigate();
   const dungeon = useDungeon();
 
-  const routerContract = useMemo(
-    () =>
-      new Contract({
-        abi: ROUTER_ABI,
-        address: NETWORKS.SN_MAIN.ekuboRouter,
-        providerOrAccount: provider,
-      }),
-    [provider]
-  );
+  // Tab state: 0 = Crypto, 1 = Fiat
+  const [activeTab, setActiveTab] = useState(0);
 
   // Get payment tokens from network config
   const paymentTokens = useMemo(() => {
@@ -249,8 +319,7 @@ export default function PaymentOptionsModal({
       .filter(
         (token: any) =>
           Number(token.balance) > 0 &&
-          token.address !== dungeon.ticketAddress &&
-          token.name !== "SURVIVOR"
+          token.address !== dungeon.ticketAddress
       );
   }, [paymentTokens, tokenBalances]);
 
@@ -264,9 +333,6 @@ export default function PaymentOptionsModal({
   }, [paymentTokens, tokenBalances]);
 
   const [selectedToken, setSelectedToken] = useState("");
-  const [currentView, setCurrentView] = useState<
-    "golden" | "dungeon" | "token" | "credit" | null
-  >(null);
   const [tokenQuote, setTokenQuote] = useState<{
     amount: string;
     loading: boolean;
@@ -276,24 +342,55 @@ export default function PaymentOptionsModal({
     loading: false,
   });
 
+  const [order, setOrder] = useState<OrderResponse | null>(null);
+  const [isPaying, setIsPaying] = useState(false);
+  const [treasuryStatus, setTreasuryStatus] = useState<TreasuryStatus | null>(null);
+
+  // Fetch treasury status when modal opens
+  useEffect(() => {
+    if (!open) {
+      setTreasuryStatus(null);
+      return;
+    }
+
+    getTreasuryStatus().then(setTreasuryStatus);
+  }, [open]);
+
   useEffect(() => {
     if (userTokens.length > 0 && !selectedToken) {
       setSelectedToken(userTokens[0].symbol);
     }
   }, [userTokens]);
 
-  const handleCreditCardSelect = () => {
-    openBuyTicket();
-    onClose();
-  };
-
   const fetchTokenQuote = useCallback(
     async (tokenSymbol: string) => {
-      const selectedTokenData = userTokens.find(
-        (t: any) => t.symbol === tokenSymbol
-      );
+      if (!address) {
+        setOrder(null);
+        setTokenQuote({
+          amount: "",
+          loading: false,
+          error: "Wallet not connected",
+        });
+        return;
+      }
 
-      if (!selectedTokenData?.address || !dungeon.ticketAddress) {
+      const payToken: PayToken | null =
+        tokenSymbol === "USDC.e Bridged"
+          ? "USDC_E"
+          : tokenSymbol === "USDC"
+            ? "USDC"
+            : tokenSymbol === "ETH"
+              ? "ETH"
+              : tokenSymbol === "STRK"
+                ? "STRK"
+                : tokenSymbol === "LORDS"
+                  ? "LORDS"
+                  : tokenSymbol === "SURVIVOR"
+                    ? "SURVIVOR"
+                    : null;
+
+      if (!payToken) {
+        setOrder(null);
         setTokenQuote({
           amount: "",
           loading: false,
@@ -303,33 +400,28 @@ export default function PaymentOptionsModal({
       }
 
       setTokenQuote({ amount: "", loading: true });
+      setOrder(null);
 
       try {
-        const quote = await getSwapQuote(
-          -1e18,
-          dungeon.ticketAddress,
-          selectedTokenData.address
-        );
-        if (quote) {
-          const rawAmount =
-            (quote.total * -1) / Math.pow(10, selectedTokenData.decimals || 18);
-          if (rawAmount === 0) {
-            setTokenQuote({
-              amount: "",
-              loading: false,
-              error: "No liquidity",
-            });
-          } else {
-            const amount = formatAmount(rawAmount);
-            setTokenQuote({ amount, loading: false });
-          }
-        } else {
-          setTokenQuote({
-            amount: "",
-            loading: false,
-            error: "No quote available",
-          });
+        const candidateName = (playerName || "Adventurer").trim();
+        const truncatedName = candidateName.slice(0, 31);
+        let resolvedName = "Adventurer";
+        try {
+          stringToFelt(truncatedName);
+          resolvedName = truncatedName;
+        } catch {
+          resolvedName = "Adventurer";
         }
+
+        const created = await createOrder({
+          dungeonId: "survivor",
+          payToken,
+          recipientAddress: address,
+          playerName: resolvedName,
+        });
+
+        setOrder(created);
+        setTokenQuote({ amount: created.requiredAmount, loading: false });
       } catch (error) {
         console.error("Error fetching quote:", error);
         setTokenQuote({
@@ -339,78 +431,85 @@ export default function PaymentOptionsModal({
         });
       }
     },
-    [userTokens]
+    [address, playerName]
   );
 
-  const useGoldenToken = () => {
-    enterDungeon(
-      {
-        paymentType: "Golden Pass",
-        goldenPass: {
-          address: NETWORKS.SN_MAIN.goldenToken,
-          tokenId: goldenPassIds[0],
-        },
-      },
-      []
-    );
-  };
+  const hasTicket = dungeonTicketCount >= 1;
 
-  const useDungeonTicket = () => {
+  const enterWithTicket = () => {
     enterDungeon({ paymentType: "Ticket" }, []);
+    onClose();
   };
 
-  const buyDungeonTicket = async () => {
-    const selectedTokenData = userTokens.find(
-      (t: any) => t.symbol === selectedToken
-    );
-    const quote = await getSwapQuote(
-      -1e18,
-      dungeon.ticketAddress!,
-      selectedTokenData!.address
-    );
+  const payWithCrypto = async () => {
+    if (isPaying) return;
+    if (!account || !address) return;
 
-    let tokenSwapData = {
-      tokenAddress: dungeon.ticketAddress!,
-      minimumAmount: 1,
-      quote: quote,
-    };
-    const calls = generateSwapCalls(
-      routerContract,
-      selectedTokenData!.address,
-      tokenSwapData
-    );
+    if (!order) {
+      fetchTokenQuote(selectedToken);
+      return;
+    }
 
-    enterDungeon({ paymentType: "Ticket" }, calls);
+    if (Date.now() > order.expiresAt) {
+      setOrder(null);
+      setTokenQuote({
+        amount: "",
+        loading: false,
+        error: "Quote expired, refresh",
+      });
+      return;
+    }
+
+    const selectedTokenData = userTokens.find((t: any) => t.symbol === selectedToken);
+    if (!selectedTokenData?.address) {
+      setTokenQuote({
+        amount: "",
+        loading: false,
+        error: "Token not supported",
+      });
+      return;
+    }
+
+    setIsPaying(true);
+    try {
+      const amount = BigInt(order.requiredAmountRaw);
+      const u256 = cairo.uint256(amount);
+
+      const tx = await account.execute([
+        {
+          contractAddress: selectedTokenData.address,
+          entrypoint: "transfer",
+          calldata: CallData.compile([order.treasuryAddress, u256.low, u256.high]),
+        },
+      ]);
+
+      const txHash: string | undefined = tx?.transaction_hash;
+      if (!txHash) {
+        throw new Error("missing_tx_hash");
+      }
+
+      await submitOrderPayment({ orderId: order.id, txHash });
+
+      onClose();
+      navigate(`/${dungeon.id}/play?mode=entering&orderId=${order.id}`, {
+        replace: true,
+      });
+    } catch (error) {
+      console.error("Error paying with crypto:", error);
+      setTokenQuote((prev) => ({
+        ...prev,
+        loading: false,
+        error: "Payment failed",
+      }));
+    } finally {
+      setIsPaying(false);
+    }
   };
 
   // Handle token selection change
-  const handleTokenChange = useCallback(
-    (tokenSymbol: string) => {
-      setSelectedToken(tokenSymbol);
-      fetchTokenQuote(tokenSymbol);
-    },
-    [fetchTokenQuote]
-  );
-
-  // Reusable motion wrapper component - only animates on view changes, not token changes
-  const MotionWrapper = ({
-    children,
-    viewKey,
-  }: {
-    children: React.ReactNode;
-    viewKey: string;
-  }) => (
-    <motion.div
-      key={viewKey}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-      style={{ width: "100%" }}
-    >
-      {children}
-    </motion.div>
-  );
+  const handleTokenChange = useCallback((tokenSymbol: string) => {
+    setSelectedToken(tokenSymbol);
+  }, []);
 
   // Reusable action button component
   const ActionButton = ({
@@ -435,31 +534,35 @@ export default function PaymentOptionsModal({
     </Box>
   );
 
-  // Initialize the view based on user's situation
-  useEffect(() => {
-    if (currentView === null) {
-      if (goldenPassIds.length > 0) {
-        setCurrentView("golden");
-      } else if (dungeonTicketCount >= 1) {
-        setCurrentView("dungeon");
-      } else if (
-        userTokens &&
-        userTokens.length > 0 &&
-        userTokens.some((t: any) => parseFloat(t.balance) > 0)
-      ) {
-        setCurrentView("token");
-      } else {
-        setCurrentView("credit");
-      }
-    }
-  }, [currentView]);
+  // Determine if user has any supported crypto tokens
+  const hasCryptoTokens = userTokens.length > 0;
 
-  // Fetch initial quote when component loads or selected token changes
   useEffect(() => {
-    if (selectedToken && currentView === "token") {
+    if (!open) {
+      setOrder(null);
+      setTokenQuote({ amount: "", loading: false });
+      setActiveTab(0);
+      return;
+    }
+
+    // If user has ticket, show ticket view (no tabs)
+    if (hasTicket) {
+      setOrder(null);
+      setTokenQuote({ amount: "", loading: false });
+      return;
+    }
+
+    // If user has no crypto tokens, default to fiat tab
+    if (!hasCryptoTokens) {
+      setActiveTab(1);
+      return;
+    }
+
+    // Fetch quote when on crypto tab with a selected token
+    if (selectedToken && activeTab === 0) {
       fetchTokenQuote(selectedToken);
     }
-  }, [selectedToken, currentView]);
+  }, [open, hasTicket, hasCryptoTokens, selectedToken, fetchTokenQuote, activeTab]);
 
   return (
     <AnimatePresence>
@@ -487,302 +590,106 @@ export default function PaymentOptionsModal({
                   <Box sx={styles.titleUnderline} />
                 </Box>
                 <Typography sx={styles.subtitle}>
-                  Select payment method
+                  {hasTicket ? "Use your ticket" : "Select payment method"}
                 </Typography>
               </Box>
 
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 1,
-                  width: "100%",
-                  maxWidth: "330px",
-                  mx: "auto",
-                }}
-              >
-                <AnimatePresence mode="wait">
-                  {/* Golden Token Option */}
-                  {currentView === "golden" && (
-                    <MotionWrapper viewKey="golden">
-                      <Box sx={styles.paymentCard}>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            justifyContent: "center",
-                            mb: 0,
-                            mt: 2,
+              <Box sx={{ width: "100%", maxWidth: "330px", mx: "auto", pb: 2 }}>
+                {hasTicket ? (
+                  <motion.div
+                    key="ticket"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                  >
+                    <Box sx={styles.ticketCard}>
+                      <Box sx={styles.goldenTokenContainer}>
+                        <img
+                          src="/images/dungeon_ticket.png"
+                          alt="Dungeon Ticket"
+                          style={{
+                            width: "120px",
+                            height: "120px",
+                            objectFit: "contain",
+                            display: "block",
                           }}
-                        >
-                          <Typography sx={styles.paymentTitle}>
-                            Use Golden Token
-                          </Typography>
-                        </Box>
-
-                        <Box sx={styles.goldenTokenContainer}>
-                          <img
-                            src={"/images/golden_token.svg"}
-                            alt="Golden Token"
-                            style={{
-                              width: "150px",
-                              height: "150px",
-                            }}
-                          />
-                        </Box>
-
-                        <ActionButton onClick={useGoldenToken}>
-                          Enter Dungeon
-                        </ActionButton>
+                          onError={(e) => {
+                            console.error("Failed to load dungeon ticket image");
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
                       </Box>
-                    </MotionWrapper>
-                  )}
 
-                  {/* Dungeon Ticket Option */}
-                  {currentView === "dungeon" && (
-                    <MotionWrapper viewKey="dungeon">
-                      <Box sx={styles.paymentCard}>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            justifyContent: "center",
-                            mb: 0,
-                            mt: 2,
-                          }}
-                        >
-                          <Typography sx={styles.paymentTitle}>
-                            Use Dungeon Ticket
-                          </Typography>
-                        </Box>
-
-                        <Box sx={styles.goldenTokenContainer}>
-                          <img
-                            src="/images/dungeon_ticket.png"
-                            alt="Dungeon Ticket"
-                            style={{
-                              width: "120px",
-                              height: "120px",
-                              objectFit: "contain",
-                              display: "block",
-                            }}
-                            onError={(e) => {
-                              console.error(
-                                "Failed to load dungeon ticket image"
-                              );
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        </Box>
-
-                        <Box
-                          sx={{
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                            gap: 0.5,
-                            mb: 0.5,
-                          }}
-                        >
-                          <Typography sx={styles.ticketCount}>
-                            You have {dungeonTicketCount} ticket
-                            {dungeonTicketCount > 1 ? "s" : ""}
-                          </Typography>
-                        </Box>
-
-
-                        <ActionButton onClick={useDungeonTicket}>
-                          Enter Dungeon
-                        </ActionButton>
-
-                        {dungeonTicketCount > 1 && <Box
-                          onClick={() => bulkMintGames(dungeonTicketCount, onClose)}
-                          textAlign="center"
-                          mt={'-10px'}
-                        >
-                          <Typography sx={styles.mintAll}>Bulk Mint {dungeonTicketCount > 50 ? "50" : "All"} Games</Typography>
-                        </Box>}
-
+                      <Box sx={{ textAlign: "center", mb: 1 }}>
+                        <Typography sx={styles.ticketCount}>
+                          You have {dungeonTicketCount} ticket
+                          {dungeonTicketCount > 1 ? "s" : ""}
+                        </Typography>
                       </Box>
-                    </MotionWrapper>
-                  )}
 
-                  {/* Token Payment Option */}
-                  {currentView === "token" && (
-                    <motion.div
-                      key="token-view"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.2, ease: "easeOut" }}
-                      style={{ width: "100%" }}
+                      <ActionButton onClick={enterWithTicket}>
+                        Enter Dungeon
+                      </ActionButton>
+                    </Box>
+                  </motion.div>
+                ) : (
+                  <>
+                    <Tabs
+                      value={activeTab}
+                      onChange={(_, newValue) => setActiveTab(newValue)}
+                      variant="fullWidth"
+                      sx={styles.tabs}
                     >
-                      <TokenSelectionContent
-                        userTokens={userTokens}
-                        selectedToken={selectedToken}
-                        tokenQuote={tokenQuote}
-                        onTokenChange={handleTokenChange}
-                        styles={styles}
-                        buyDungeonTicket={buyDungeonTicket}
+                      <Tab
+                        icon={<TokenIcon sx={{ fontSize: 20 }} />}
+                        iconPosition="start"
+                        label="Crypto"
+                        sx={styles.tab}
                       />
-                    </motion.div>
-                  )}
+                      <Tab
+                        icon={<CreditCardIcon sx={{ fontSize: 20 }} />}
+                        iconPosition="start"
+                        label="Fiat"
+                        sx={styles.tab}
+                      />
+                    </Tabs>
 
-                  {/* Credit Card Option */}
-                  {currentView === "credit" && (
-                    <MotionWrapper viewKey="credit">
-                      <Box sx={styles.paymentCard}>
-                        <Box sx={[styles.cardHeader, { py: 1, pt: 2 }]}>
-                          <Box sx={styles.iconContainer}>
-                            <SportsEsportsOutlinedIcon
-                              sx={{ fontSize: 28, color: "text.primary" }}
-                            />
-                          </Box>
-                          <Box>
-                            <Typography sx={styles.paymentTitle}>
-                              Cartridge
-                            </Typography>
-                            <Typography sx={styles.paymentSubtitle}>
-                              Purchase system
-                            </Typography>
-                          </Box>
-                        </Box>
-
-                        <Box sx={styles.sectionContainer} pb={1}>
-                          <Box sx={styles.paymentOption} mb={0.5}>
-                            <Box sx={styles.optionHeader} mb={0.5}>
-                              <CreditCardIcon
-                                sx={{
-                                  fontSize: 18,
-                                  color: "text.primary",
-                                  mr: 1,
-                                }}
-                              />
-                              <Typography sx={styles.optionTitle}>
-                                Credit Card
-                              </Typography>
-                            </Box>
-                            <Typography sx={styles.optionDescription}>
-                              Traditional payment method
-                            </Typography>
-                          </Box>
-                          <Box sx={styles.paymentOption}>
-                            <Box sx={styles.optionHeader} mb={0.5}>
-                              <TokenIcon
-                                sx={{
-                                  fontSize: 18,
-                                  color: "text.primary",
-                                  mr: 1,
-                                }}
-                              />
-                              <Typography sx={styles.optionTitle}>
-                                Crypto
-                              </Typography>
-                            </Box>
-                            <Typography sx={styles.optionDescription}>
-                              multiple blockchain networks
-                            </Typography>
-                          </Box>
-                        </Box>
-
-                        <ActionButton onClick={handleCreditCardSelect}>
-                          Continue
-                        </ActionButton>
-                      </Box>
-                    </MotionWrapper>
-                  )}
-                </AnimatePresence>
-              </Box>
-
-              {/* Footer links */}
-              <Box sx={styles.footer}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    gap: 2,
-                    justifyContent: "center",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {currentView === "golden" &&
-                    (dungeonTicketCount >= 1 ? (
-                      <Link
-                        component="button"
-                        onClick={() => setCurrentView("dungeon")}
-                        sx={styles.footerLink}
-                      >
-                        Use dungeon ticket instead
-                      </Link>
-                    ) : true ? (
-                      <Link
-                        component="button"
-                        onClick={() => setCurrentView("token")}
-                        sx={styles.footerLink}
-                      >
-                        Pay with crypto in your wallet
-                      </Link>
-                    ) : (
-                      <Link
-                        component="button"
-                        onClick={() => setCurrentView("credit")}
-                        sx={styles.footerLink}
-                      ></Link>
-                    ))}
-
-                  {currentView === "dungeon" &&
-                    (true ? (
-                      <Link
-                        component="button"
-                        onClick={() => setCurrentView("token")}
-                        sx={styles.footerLink}
-                      >
-                        Pay with crypto in your wallet
-                      </Link>
-                    ) : (
-                      <Link
-                        component="button"
-                        onClick={() => setCurrentView("credit")}
-                        sx={styles.footerLink}
-                      ></Link>
-                    ))}
-
-                  {/* TODO: Temporarily disabled - waiting for additional support from Cartridge
-                  {currentView === "token" && (
-                    <Link
-                      component="button"
-                      onClick={() => setCurrentView("credit")}
-                      sx={styles.footerLink}
-                    >
-                      Pay with credit card or other wallet
-                    </Link>
-                  )}
-                  */}
-
-                  {currentView === "credit" &&
-                    (userTokens.length > 0 ? (
-                      <Link
-                        component="button"
-                        onClick={() => setCurrentView("token")}
-                        sx={styles.footerLink}
-                      >
-                        Pay with crypto in your wallet
-                      </Link>
-                    ) : dungeonTicketCount >= 1 ? (
-                      <Link
-                        component="button"
-                        onClick={() => setCurrentView("dungeon")}
-                        sx={styles.footerLink}
-                      >
-                        Use dungeon ticket instead
-                      </Link>
-                    ) : goldenPassIds.length > 0 ? (
-                      <Link
-                        component="button"
-                        onClick={() => setCurrentView("golden")}
-                        sx={styles.footerLink}
-                      >
-                        Use golden token instead
-                      </Link>
-                    ) : null)}
-                </Box>
+                    <AnimatePresence mode="wait">
+                      {activeTab === 0 ? (
+                        <motion.div
+                          key="crypto-tab"
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 20 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          <TokenSelectionContent
+                            userTokens={userTokens}
+                            selectedToken={selectedToken}
+                            tokenQuote={tokenQuote}
+                            onTokenChange={handleTokenChange}
+                            styles={styles}
+                            onPay={payWithCrypto}
+                            isPaying={isPaying}
+                            hasTreasuryAddress={!!order?.treasuryAddress}
+                            treasuryStatus={treasuryStatus}
+                          />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="fiat-tab"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          <FiatContent styles={styles} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </>
+                )}
               </Box>
             </Box>
           </motion.div>
@@ -807,8 +714,10 @@ export const paymentModalStyles = {
     backdropFilter: "blur(8px)",
   },
   modal: {
-    width: "420px",
+    width: "380px",
     maxWidth: "90dvw",
+    maxHeight: "90dvh",
+    overflowY: "auto",
     p: 0,
     borderRadius: 3,
     background: "linear-gradient(145deg, #1a2f1a 0%, #0f1f0f 100%)",
@@ -872,44 +781,46 @@ export const paymentModalStyles = {
     opacity: 0.8,
     letterSpacing: 0.5,
   },
-  paymentCard: {
-    height: "250px",
+  tabs: {
+    mx: 2,
+    mt: 2,
+    mb: 1,
+    minHeight: 42,
+    background: "rgba(0, 0, 0, 0.3)",
+    borderRadius: 1,
+    "& .MuiTabs-indicator": {
+      backgroundColor: "#d0c98d",
+      height: 3,
+      borderRadius: 1,
+    },
+  },
+  tab: {
+    minHeight: 42,
+    textTransform: "none",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "rgba(208, 201, 141, 0.6)",
+    "&.Mui-selected": {
+      color: "#d0c98d",
+    },
+    "& .MuiTab-iconWrapper": {
+      marginRight: 1,
+    },
+  },
+  tabContent: {
+    px: 2,
+    py: 1,
+    minHeight: 180,
+  },
+  ticketCard: {
     m: 2,
+    p: 2,
     background: "rgba(24, 40, 24, 0.6)",
     border: "2px solid rgba(208, 201, 141, 0.3)",
     borderRadius: 2,
-    overflow: "visible",
-    position: "relative",
-    backdropFilter: "blur(4px)",
   },
-  cardHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: 2,
-    p: 2,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: "8px",
-    background: "rgba(0, 0, 0, 0.3)",
-    border: "1px solid rgba(208, 201, 141, 0.2)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  paymentTitle: {
-    fontSize: 16,
-    fontWeight: 600,
-    letterSpacing: 0.5,
-    mb: 0.5,
-  },
-  paymentSubtitle: {
-    fontSize: 12,
-    color: "#FFD700",
-    opacity: 0.7,
-    letterSpacing: 0.5,
-    lineHeight: 1.2,
+  sectionContainer: {
+    px: 0,
   },
   mobileSelectButton: {
     height: "48px",
@@ -928,38 +839,6 @@ export const paymentModalStyles = {
       background: "rgba(0, 0, 0, 0.5)",
     },
   },
-  selectControl: {
-    "& .MuiOutlinedInput-root": {
-      background: "rgba(0, 0, 0, 0.3)",
-    },
-  },
-  cyberpunkSelect: {
-    background: "rgba(0, 0, 0, 0.4)",
-    border: "1px solid rgba(208, 201, 141, 0.3)",
-    borderRadius: 1,
-    "& .MuiSelect-select": {
-      py: 1.5,
-      fontSize: 14,
-    },
-    "& .MuiOutlinedInput-notchedOutline": {
-      border: "none",
-    },
-    "&:hover": {
-      borderColor: "rgba(208, 201, 141, 0.5)",
-    },
-    "&.Mui-focused": {
-      borderColor: "#d0c98d",
-    },
-  },
-  selectItem: {
-    background: "rgba(24, 40, 24, 0.8)",
-    "&:hover": {
-      background: "rgba(208, 201, 141, 0.1)",
-    },
-    "&.Mui-selected": {
-      background: "rgba(208, 201, 141, 0.2)",
-    },
-  },
   tokenRow: {
     display: "flex",
     alignItems: "center",
@@ -972,9 +851,6 @@ export const paymentModalStyles = {
     alignItems: "center",
     gap: 1.5,
   },
-  tokenIcon: {
-    fontSize: 18,
-  },
   tokenName: {
     fontSize: 14,
     fontWeight: 600,
@@ -984,13 +860,9 @@ export const paymentModalStyles = {
     color: "#FFD700",
     opacity: 0.7,
   },
-  sectionContainer: {
-    px: 2,
-  },
   costDisplay: {
-    px: 3,
-    mb: 1,
-    mt: 1,
+    px: 1,
+    mt: 2,
     textAlign: "center",
   },
   costText: {
@@ -998,49 +870,17 @@ export const paymentModalStyles = {
     fontWeight: 600,
     letterSpacing: 0.5,
   },
-  paymentOption: {
-    py: 1,
-    px: 1.5,
-    borderRadius: 1,
-  },
-  optionHeader: {
-    display: "flex",
-    alignItems: "center",
-  },
-  optionTitle: {
-    fontSize: 14,
-    fontWeight: 600,
-    letterSpacing: 0.3,
-  },
-  optionDescription: {
-    fontSize: 12,
-    color: "#FFD700",
-    opacity: 0.7,
-    letterSpacing: 0.5,
-    lineHeight: 1.2,
-  },
   goldenTokenContainer: {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
+    py: 1,
   },
   ticketCount: {
     fontSize: 14,
     color: "#FFD700",
     opacity: 0.9,
     letterSpacing: 0.5,
-  },
-  mintAll: {
-    fontFamily: "Tiems",
-    fontSize: 13,
-    color: "#FFD700",
-    opacity: 0.9,
-    textDecoration: "underline",
-    cursor: "pointer",
-    "&:hover": {
-      color: "text.primary",
-      textDecoration: "underline",
-    },
   },
   activateButton: {
     background: "#d0c98d",
@@ -1059,30 +899,18 @@ export const paymentModalStyles = {
     "&:active": {
       transform: "translateY(1px)",
     },
+    "&.Mui-disabled": {
+      background: "rgba(208, 201, 141, 0.3)",
+      color: "rgba(26, 47, 26, 0.6)",
+    },
     transition: "all 0.2s ease",
   },
   buttonText: {
     fontSize: 13,
     fontWeight: 600,
     letterSpacing: 0.5,
-    color: "#1a2f1a",
+    color: "inherit",
     textAlign: "center",
-  },
-  footer: {
-    p: 2,
-    textAlign: "center",
-    borderTop: "1px solid rgba(208, 201, 141, 0.2)",
-  },
-  footerLink: {
-    fontSize: 13,
-    color: "#FFD700",
-    textDecoration: "underline",
-    letterSpacing: 0.5,
-    transition: "color 0.2s",
-    "&:hover": {
-      color: "text.primary",
-      textDecoration: "underline",
-    },
   },
 };
 

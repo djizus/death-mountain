@@ -1,3 +1,4 @@
+import { getOrder } from "@/api/orders";
 import { useController } from "@/contexts/controller";
 import { useDynamicConnector } from "@/contexts/starknet";
 import { useDungeon } from "@/dojo/useDungeon";
@@ -55,6 +56,7 @@ export default function GamePage() {
   const game_id = Number(searchParams.get("id"));
   const settings_id = Number(searchParams.get("settingsId"));
   const mode = searchParams.get("mode");
+  const orderId = searchParams.get("orderId");
 
   async function mint() {
     setLoadingProgress(45);
@@ -116,6 +118,45 @@ export default function GamePage() {
       mint();
     }
   }, [game_id, controllerAddress, isPending, account, currentNetworkConfig.chainId]);
+
+  useEffect(() => {
+    if (mode !== "entering" || !orderId) return;
+
+    let cancelled = false;
+    let timeout: number | null = null;
+
+    const poll = async () => {
+      try {
+        const order = await getOrder(orderId);
+        if (cancelled) return;
+
+        if (order.status === "fulfilled" && order.gameId) {
+          navigate(`/${dungeon.id}/play?id=${order.gameId}`, { replace: true });
+          return;
+        }
+
+        if (order.status === "failed" || order.status === "expired") {
+          navigate(`/${dungeon.id}`, { replace: true });
+          return;
+        }
+      } catch (error) {
+        console.error("Error polling order:", error);
+      }
+
+      if (!cancelled) {
+        timeout = window.setTimeout(poll, 1000);
+      }
+    };
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      if (timeout !== null) {
+        window.clearTimeout(timeout);
+      }
+    };
+  }, [mode, orderId, dungeon.id, navigate]);
 
   useEffect(() => {
     setActiveNavItem("GAME");

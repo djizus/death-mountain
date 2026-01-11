@@ -211,12 +211,14 @@ export const useSystemCalls = () => {
     name: string,
     preCalls: any[],
     amount: number,
-    callback: () => void
+    callback: () => void,
+    recipientAddress?: string
   ) => {
     let paymentData =
       payment.paymentType === "Ticket"
         ? [0]
         : [1, payment.goldenPass!.address, payment.goldenPass!.tokenId];
+    const recipient = recipientAddress || account!.address;
 
     if (payment.paymentType === "Ticket") {
       preCalls.push({
@@ -231,15 +233,15 @@ export const useSystemCalls = () => {
         [
           ...preCalls,
           ...Array.from({ length: amount }, () => ({
-            contractAddress: DUNGEON_ADDRESS,
-            entrypoint: "buy_game",
-            calldata: CallData.compile([
-              ...paymentData,
-              new CairoOption(CairoOptionVariant.Some, stringToFelt(name)),
-              account!.address, // send game to this address
-              false, // soulbound
-            ]),
-          })),
+              contractAddress: DUNGEON_ADDRESS,
+              entrypoint: "buy_game",
+              calldata: CallData.compile([
+                ...paymentData,
+                new CairoOption(CairoOptionVariant.Some, stringToFelt(name)),
+                recipient, // send game to this address
+                false, // soulbound
+              ]),
+            })),
         ]
       );
 
@@ -264,8 +266,9 @@ export const useSystemCalls = () => {
    * @param name The name of the game
    * @param settingsId The settings ID for the game
    */
-  const mintGame = async (name: string, settingsId = 0) => {
+  const mintGame = async (name: string, settingsId = 0, recipientAddress?: string) => {
     try {
+      const recipient = recipientAddress || account!.address;
       let tx = await account!.execute(
         [
           {
@@ -280,7 +283,7 @@ export const useSystemCalls = () => {
               1, // context
               1, // client_url
               1, // renderer_address
-              account!.address,
+              recipient,
               false, // soulbound
             ]),
           },
