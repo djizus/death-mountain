@@ -11,8 +11,10 @@ import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { Box, Button, Divider, Typography } from "@mui/material";
 import { useAccount } from "@starknet-react/core";
-import { useState } from "react";
+import { useGameTokens } from "metagame-sdk/sql";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { addAddressPadding } from "starknet";
 import GameTokensList from "../components/GameTokensList";
 import Leaderboard from "../components/Leaderboard";
 import ReplayGamesList from "../components/ReplayGamesList";
@@ -73,6 +75,29 @@ export default function LandingPage() {
 
   const disableGameButtons = dungeon.status !== "online";
   const DungeonRewards = dungeon.rewards;
+
+  const { games: unfilteredGames } = useGameTokens({
+    owner: account?.address || "0x0",
+    sortBy: "minted_at",
+    sortOrder: "desc",
+    gameOver: false,
+    mintedByAddress: dungeon.address ? addAddressPadding(dungeon.address) : "0",
+    includeMetadata: false,
+    limit: 1000,
+  });
+
+  const gamesCount = useMemo(() => {
+    if (!unfilteredGames) return 0;
+
+    const now = Date.now();
+
+    return unfilteredGames.filter(game => {
+      const expiresAt = (game?.lifecycle?.end ?? 0) * 1000;
+      const isExpired = expiresAt !== 0 && expiresAt < now;
+
+      return !isExpired;
+    }).length;
+  }, [unfilteredGames]);
 
   return (
     <>
@@ -155,6 +180,7 @@ export default function LandingPage() {
                     alignItems: "center",
                     justifyContent: "center",
                     width: "100%",
+                    position: "relative",
                   }}
                 >
                   <Box sx={{ display: "flex", alignItems: "center" }}>
@@ -172,6 +198,19 @@ export default function LandingPage() {
                       My Games
                     </Typography>
                   </Box>
+                  {gamesCount > 0 && (
+                    <Typography
+                      variant="h6"
+                      fontWeight={500}
+                      sx={{
+                        position: "absolute",
+                        right: 8,
+                        color: "#111111",
+                      }}
+                    >
+                      {gamesCount} NEW
+                    </Typography>
+                  )}
                 </Box>
               </Button>
 
@@ -285,34 +324,7 @@ export default function LandingPage() {
           )}
 
           {showReplays && (
-            <>
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1,
-                  justifyContent: "center",
-                }}
-              >
-                <Box sx={styles.adventurersHeader}>
-                  <Button
-                    variant="text"
-                    size="large"
-                    onClick={() => setShowReplays(false)}
-                    sx={styles.backButton}
-                    startIcon={
-                      <ArrowBackIcon fontSize="large" sx={{ mr: 1 }} />
-                    }
-                  >
-                    <Typography variant="h4" color="primary">
-                      Replay Games
-                    </Typography>
-                  </Button>
-                </Box>
-              </Box>
-
-              <ReplayGamesList onBack={() => setShowReplays(false)} />
-            </>
+            <ReplayGamesList onBack={() => setShowReplays(false)} />
           )}
 
           {showLeaderboard && (

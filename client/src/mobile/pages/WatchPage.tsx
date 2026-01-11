@@ -507,7 +507,7 @@ const styles = {
     width: '444px',
     maxWidth: 'calc(100dvw - 6px)',
     position: 'fixed',
-    bottom: '67px',
+    bottom: '3px',
     left: '50%',
     transform: 'translateX(-50%)',
     backgroundColor: 'rgba(0, 0, 0, 0.8)',

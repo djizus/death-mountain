@@ -196,7 +196,7 @@ export default function GamePage() {
       {activeNavItem === "MARKET" && <MarketScreen />}
       {activeNavItem === "SETTINGS" && <SettingsScreen />}
 
-      {!isLoading && (
+      {!isLoading && !spectating && (
         <BottomNav
           activeNavItem={activeNavItem}
           setActiveNavItem={setActiveNavItem}
