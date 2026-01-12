@@ -131,6 +131,7 @@ export default function MainMenu() {
     mintedByAddress: dungeon.address ? addAddressPadding(dungeon.address) : "0",
     includeMetadata: false,
     limit: 1000,
+    refetchInterval: 5000,
   });
 
   const gamesCount = useMemo(() => {
