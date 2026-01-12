@@ -63,7 +63,13 @@ const envSchema = z.object({
   ORDER_FEE_BPS: z.coerce.number().int().min(0).max(10_000).default(300),
 
   WORKER_POLL_INTERVAL_MS: z.coerce.number().int().min(250).default(2000),
-  FULFILLMENT_WAIT_TIMEOUT_MS: z.coerce.number().int().min(10_000).default(180_000)
+  FULFILLMENT_WAIT_TIMEOUT_MS: z.coerce.number().int().min(10_000).default(180_000),
+
+  // Ticket reserve settings
+  TICKET_RESERVE_TARGET: z.coerce.number().int().min(1).default(50),
+  TICKET_RESERVE_MINIMUM: z.coerce.number().int().min(0).default(5),
+  // Max slippage for restock swaps (0.05 = 5%)
+  RESTOCK_SLIPPAGE: z.coerce.number().min(0).max(1).default(0.05)
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

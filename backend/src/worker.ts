@@ -5,6 +5,9 @@ import { requireNormalizedAddress } from "./starknet/address.js";
 import { getErc20Balance } from "./starknet/balance.js";
 import { MAINNET_TICKET_TOKEN_ADDRESS } from "./starknet/tokens.js";
 import { verifyPaymentTx } from "./starknet/payment.js";
+import { canFulfillOrder, restockTicketsIfNeeded } from "./starknet/restock.js";
+
+const ONE_TICKET = 1_000_000_000_000_000_000n;
 
 export interface WorkerState {
   running: boolean;
@@ -15,11 +18,23 @@ export function startWorker(params: {
   config: AppConfig;
 }): WorkerState {
   let busy = false;
+  let lastRestockCheck = 0;
+  const RESTOCK_CHECK_INTERVAL_MS = 60_000; // Check every minute
   const state: WorkerState = { running: true };
 
   const tick = async () => {
     if (!state.running) return;
     if (busy) return;
+
+    // Periodic restock check (independent of order processing)
+    const now = Date.now();
+    if (now - lastRestockCheck > RESTOCK_CHECK_INTERVAL_MS) {
+      lastRestockCheck = now;
+      // Fire and forget - don't block order processing
+      restockTicketsIfNeeded({ config: params.config }).catch((err) => {
+        console.error("[worker] Periodic restock check failed:", err);
+      });
+    }
 
     const order = params.db
       .prepare(
@@ -100,7 +115,13 @@ export function startWorker(params: {
           accountAddress: treasuryAddress
         });
 
-        if (ticketBalance < 1_000_000_000_000_000_000n) {
+        const currentTickets = Number(ticketBalance / ONE_TICKET);
+
+        // Check if we can fulfill (must have MORE than minimum reserve)
+        if (!canFulfillOrder(ticketBalance, params.config.TICKET_RESERVE_MINIMUM)) {
+          console.log(
+            `[worker] Cannot fulfill order: ${currentTickets} tickets <= ${params.config.TICKET_RESERVE_MINIMUM} minimum reserve`
+          );
           params.db
             .prepare(
               "UPDATE orders SET status = ?, updated_at = ?, last_error = ? WHERE id = ?"
@@ -112,6 +133,17 @@ export function startWorker(params: {
               order.id
             );
           return;
+        }
+
+        // Trigger restock in background if below target (don't block fulfillment)
+        if (currentTickets < params.config.TICKET_RESERVE_TARGET) {
+          console.log(
+            `[worker] Tickets (${currentTickets}) below target (${params.config.TICKET_RESERVE_TARGET}), triggering restock`
+          );
+          // Fire and forget - don't await, let it run in background
+          restockTicketsIfNeeded({ config: params.config }).catch((err) => {
+            console.error("[worker] Background restock failed:", err);
+          });
         }
 
         const tx = await submitBuyGameTx({

@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { AppConfig } from "../config.js";
 import { getErc20Balance } from "../starknet/balance.js";
 import { MAINNET_TICKET_TOKEN_ADDRESS } from "../starknet/tokens.js";
+import { canFulfillOrder, getRestockState } from "../starknet/restock.js";
 
 const ONE_TICKET = 1_000_000_000_000_000_000n;
 
@@ -17,12 +18,20 @@ export function buildTreasuryRouter(params: { config: AppConfig }): Router {
       });
 
       const ticketCount = Number(ticketBalance / ONE_TICKET);
-      const canFulfillOrders = ticketBalance >= ONE_TICKET;
+      const canFulfill = canFulfillOrder(ticketBalance, params.config.TICKET_RESERVE_MINIMUM);
+      const restockState = getRestockState();
 
       return res.json({
-        canFulfillOrders,
+        canFulfillOrders: canFulfill,
         ticketBalance: ticketCount,
-        treasuryAddress: params.config.STARKNET_TREASURY_ADDRESS
+        treasuryAddress: params.config.STARKNET_TREASURY_ADDRESS,
+        reserve: {
+          target: params.config.TICKET_RESERVE_TARGET,
+          minimum: params.config.TICKET_RESERVE_MINIMUM,
+          needsRestock: ticketCount < params.config.TICKET_RESERVE_TARGET,
+          isRestocking: restockState.isRestocking,
+          lastRestockResult: restockState.lastRestockResult
+        }
       });
     } catch (error) {
       console.error("Error fetching treasury status:", error);

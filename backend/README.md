@@ -65,6 +65,9 @@ Optional variables:
 | `ORDER_FEE_BPS` | `300` | Fee in basis points (3%) |
 | `WORKER_POLL_INTERVAL_MS` | `2000` | Worker polling interval |
 | `FULFILLMENT_WAIT_TIMEOUT_MS` | `180000` | Tx confirmation timeout (3 min) |
+| `TICKET_RESERVE_TARGET` | `50` | Target ticket balance to maintain |
+| `TICKET_RESERVE_MINIMUM` | `5` | Minimum reserve - orders rejected at or below |
+| `RESTOCK_SLIPPAGE` | `0.05` | Max slippage for restock swaps (5%) |
 
 ### Treasury Setup
 
@@ -73,7 +76,24 @@ The treasury account must hold TICKET tokens to fulfill orders:
 - **TICKET Token**: `0x0452810188C4Cb3AEbD63711a3b445755BC0D6C4f27B923fDd99B1A118858136`
 - **Dungeon Contract**: `0x00a67ef20b61a9846e1c82b411175e6ab167ea9f8632bd6c2091823c3629ec42`
 
-When treasury runs out of TICKETs, orders will fail with `insufficient_ticket_balance`.
+### Automatic Ticket Reserve
+
+The backend automatically maintains a reserve of tickets:
+
+1. **Target Reserve (50)**: When ticket balance falls below this, the system automatically restocks
+2. **Minimum Reserve (5)**: Orders are rejected if balance is at or below this threshold
+3. **Auto-Restock Flow**: Automatically selects the token with highest USD value -> LORDS -> TICKET via AVNU
+
+The restock process:
+- Runs every 60 seconds (periodic check) and when fulfilling orders
+- Checks balances of ETH, STRK, USDC, USDC_E, and SURVIVOR
+- Gets USD prices via AVNU quotes
+- Selects the token with highest USD value that can cover the required LORDS
+- Swaps to LORDS, then LORDS to TICKET
+
+To fund the treasury for restocking, ensure it has sufficient balance of any supported token (ETH, STRK, USDC, etc.).
+
+When treasury runs out of TICKETs (at or below minimum), orders will fail with `insufficient_ticket_balance`.
 
 ## Development
 
