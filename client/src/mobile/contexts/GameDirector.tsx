@@ -24,7 +24,7 @@ import {
 import { useAnalytics } from "@/utils/analytics";
 import { BEAST_SPECIAL_NAME_LEVEL_UNLOCK } from "@/constants/beast";
 import { useDungeon } from "@/dojo/useDungeon";
-import { useUIStore } from "@/stores/uiStore";
+import { optimisticGameEvents } from "@/utils/translation";
 
 export interface GameDirectorContext {
   executeGameAction: (action: GameAction) => void;
@@ -104,6 +104,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
   const {
     gameId,
     beast,
+    bag,
     adventurer,
     adventurerState,
     collectable,
@@ -135,7 +136,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
   const [skipCombat, setSkipCombat] = useState(false);
   const [showSkipCombat, setShowSkipCombat] = useState(false);
   const [beastDefeated, setBeastDefeated] = useState(false);
-  const { skipCombatDelays } = useUIStore();
+  const [optimisticTxs, setOptimisticTxs] = useState<any[]>([]);
 
   useEffect(() => {
     if (gameId && !metadata) {
@@ -172,8 +173,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       if (eventQueue.length > 0 && !isProcessing) {
         setIsProcessing(true);
         const event = eventQueue[0];
-        // When spectating (replay), always use delays; otherwise respect skip flags
-        await processEvent(event, !spectating && (skipCombatDelays || skipCombat));
+        await processEvent(event, skipCombat);
         setEventQueue((prev) => prev.slice(1));
         setIsProcessing(false);
         setEventsProcessed((prev) => prev + 1);
@@ -181,7 +181,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     };
 
     processNextEvent();
-  }, [eventQueue, isProcessing, skipCombat, skipCombatDelays, spectating]);
+  }, [eventQueue, isProcessing]);
 
   useEffect(() => {
     if (beastDefeated && collectable && currentNetworkConfig.beasts) {
@@ -312,8 +312,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
 
   const executeGameAction = async (action: GameAction) => {
     if (spectating) return;
-
-    let txs: any[] = [];
+    let txs: any[] = [...optimisticTxs];
 
     if (action.type === "start_game") {
       if (
@@ -326,7 +325,6 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
           )
         );
       }
-      delay(2000); // Small delay to ensure UI updates before transaction
       txs.push(startGame(action.gameId!));
     }
 
@@ -373,11 +371,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       txs.push(attack(gameId!, action.untilDeath!));
     } else if (action.type === "flee") {
       txs.push(flee(gameId!, action.untilDeath!));
-    } else if (action.type === "buy_items") {
-      txs.push(buyItems(gameId!, action.potions!, action.itemPurchases!, action.remainingGold!));
-    } else if (action.type === "select_stat_upgrades") {
-      txs.push(selectStatUpgrades(gameId!, action.statUpgrades!));
     } else if (action.type === "equip") {
+      setOptimisticTxs((prev) => [...prev, equip(gameId!, newItemsEquipped.map((item) => item.id))]);
       txs.push(
         equip(
           gameId!,
@@ -386,9 +381,19 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       );
     } else if (action.type === "drop") {
       txs.push(drop(gameId!, action.items!));
+    } else if (action.type === "buy_items") {
+      setOptimisticTxs((prev) => [...prev, buyItems(gameId!, action.potions!, action.itemPurchases!)]);
+    } else if (action.type === "select_stat_upgrades") {
+      setOptimisticTxs((prev) => [...prev, selectStatUpgrades(gameId!, action.statUpgrades!)]);
     }
 
-    const events = await executeAction(txs, setActionFailed);
+    const hasOptimisticTx = ['select_stat_upgrades', 'buy_items'].includes(action.type)
+    let events = [];
+    if (hasOptimisticTx) {
+      events = optimisticGameEvents(adventurer!, bag, action);
+    } else {
+      events = await executeAction(txs, setActionFailed, () => setOptimisticTxs([]));
+    }
     if (!events) return;
 
     if (dungeon.id === "survivor" && events.some((event: any) => event.type === "defeated_beast")) {

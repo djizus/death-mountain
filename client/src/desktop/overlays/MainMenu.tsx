@@ -123,7 +123,7 @@ export default function MainMenu() {
     dungeon.status !== "online" || (dungeon.id === "survivor" && !isDungeonOpen);
   const DungeonRewards = dungeon.rewards;
 
-  const { games: unfilteredGames } = useGameTokens({
+  const { games: unfilteredGames, refetch } = useGameTokens({
     owner: account?.address || "0x0",
     sortBy: "minted_at",
     sortOrder: "desc",
@@ -131,8 +131,15 @@ export default function MainMenu() {
     mintedByAddress: dungeon.address ? addAddressPadding(dungeon.address) : "0",
     includeMetadata: false,
     limit: 1000,
-    refetchInterval: 5000,
   });
+
+  // Refetch games periodically to keep count updated
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetch?.();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [refetch]);
 
   const gamesCount = useMemo(() => {
     if (!unfilteredGames) return 0;

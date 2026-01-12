@@ -14,6 +14,7 @@ import InventoryOverlay from './Inventory';
 import { JACKPOT_BEASTS, GOLD_MULTIPLIER, GOLD_REWARD_DIVISOR, MINIMUM_XP_REWARD } from '@/constants/beast';
 import { useDynamicConnector } from '@/contexts/starknet';
 import { suggestBestCombatGear } from '@/utils/gearSuggestion';
+import { useUIStore } from '@/stores/uiStore';
 
 const attackMessage = "Attacking";
 const fleeMessage = "Attempting to flee";
@@ -70,6 +71,7 @@ export default function CombatOverlay() {
     applyGearSuggestion,
     spectating,
   } = useGameStore();
+  const { fastBattle } = useUIStore();
 
   const [untilDeath, setUntilDeath] = useState(false);
   const [untilLastHit, setUntilLastHit] = useState(false);
@@ -123,7 +125,7 @@ export default function CombatOverlay() {
 
   useEffect(() => {
     if (battleEvent && !skipCombat) {
-      if (battleEvent.type === "attack") {
+      if (battleEvent.type === "attack" && !fastBattle) {
         setCombatLog(`You attacked ${beast!.baseName} for ${battleEvent.attack?.damage} damage ${battleEvent.attack?.critical_hit ? 'CRITICAL HIT!' : ''}`);
       }
 

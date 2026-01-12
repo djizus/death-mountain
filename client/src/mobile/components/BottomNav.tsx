@@ -1,6 +1,5 @@
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
-import { ItemUtils, Tier } from '@/utils/loot';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { Box, Tooltip } from '@mui/material';
 import { useEffect } from 'react';
@@ -11,25 +10,13 @@ interface BottomNavProps {
 }
 
 export default function BottomNav({ activeNavItem, setActiveNavItem }: BottomNavProps) {
-  const { adventurer, marketItemIds, newMarket, setNewMarket, setNewInventoryItems, equipItem, spectating } = useGameStore();
-  const { cart, inProgress, clearCart, setInProgress } = useMarketStore();
+  const { adventurer, marketItemIds, newMarket, setNewMarket, setNewInventoryItems, spectating } = useGameStore();
+  const { cart, clearCart } = useMarketStore();
 
   useEffect(() => {
-    if (inProgress) {
-      if (cart.items.length > 0) {
-        setNewInventoryItems(cart.items.map(item => item.id));
-
-        cart.items.forEach(item => {
-          if (ItemUtils.getItemSlot(item.id).toLowerCase() === 'weapon'
-            && [Tier.T1, Tier.T2, Tier.T3].includes(ItemUtils.getItemTier(item.id))
-            && ItemUtils.getItemTier(adventurer?.equipment.weapon.id!) === Tier.T5) {
-            equipItem({ id: item.id, xp: 0 });
-          }
-        });
-      }
-      setInProgress(false);
+    if (cart.items.length > 0) {
+      setNewInventoryItems(cart.items.map(item => item.id));
     }
-
     clearCart();
   }, [marketItemIds, adventurer?.gold, adventurer?.stats?.charisma]);
 

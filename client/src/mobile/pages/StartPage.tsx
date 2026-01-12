@@ -12,7 +12,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import { Box, Button, Divider, Typography } from "@mui/material";
 import { useAccount } from "@starknet-react/core";
 import { useGameTokens } from "metagame-sdk/sql";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { addAddressPadding } from "starknet";
 import GameTokensList from "../components/GameTokensList";
@@ -76,7 +76,7 @@ export default function LandingPage() {
   const disableGameButtons = dungeon.status !== "online";
   const DungeonRewards = dungeon.rewards;
 
-  const { games: unfilteredGames } = useGameTokens({
+  const { games: unfilteredGames, refetch } = useGameTokens({
     owner: account?.address || "0x0",
     sortBy: "minted_at",
     sortOrder: "desc",
@@ -84,8 +84,15 @@ export default function LandingPage() {
     mintedByAddress: dungeon.address ? addAddressPadding(dungeon.address) : "0",
     includeMetadata: false,
     limit: 1000,
-    refetchInterval: 5000,
   });
+
+  // Refetch games periodically to keep count updated
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetch?.();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [refetch]);
 
   const gamesCount = useMemo(() => {
     if (!unfilteredGames) return 0;
