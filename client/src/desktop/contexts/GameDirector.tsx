@@ -119,7 +119,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     spectating,
   } = useGameStore();
   const { setIsOpen } = useMarketStore();
-  const { skipAllAnimations, skipIntroOutro, skipFirstBattle, fastBattle } = useUIStore();
+  const { skipAllAnimations, skipIntroOutro, skipFirstBattle, skipCombatDelays } = useUIStore();
 
   const [VRFEnabled, setVRFEnabled] = useState(VRF_ENABLED);
   const [actionFailed, setActionFailed] = useReducer((x) => x + 1, 0);
@@ -231,14 +231,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       }
     });
 
-    setAdventurer(gameState.adventurer);
-    setBag(
-      Object.values(gameState.bag).filter(
-        (item: any) => typeof item === "object" && item.id !== 0
-      ) as Item[]
-    );
-    setMarketItemIds(gameState.market);
-
+    // Set beast BEFORE adventurer to avoid race condition where
+    // adventurer.beast_health > 0 but beast is still null
     if (gameState.adventurer.beast_health > 0) {
       let beast = processGameEvent({
         action_count: 0,
@@ -248,8 +242,18 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       setCollectable(beast.isCollectable ? beast : null);
     }
 
-    if (gameState.adventurer.stat_upgrades_available > 0) {
+    setAdventurer(gameState.adventurer);
+    setBag(
+      Object.values(gameState.bag).filter(
+        (item: any) => typeof item === "object" && item.id !== 0
+      ) as Item[]
+    );
+    setMarketItemIds(gameState.market);
+
+    // Restore UI state - show inventory and market when not in combat
+    if (gameState.adventurer.beast_health === 0) {
       setShowInventory(true);
+      setIsOpen(true);
     }
   };
 
@@ -346,7 +350,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     }
 
     if (delayTimes[event.type] && !skipDelay) {
-      if (event.type === "flee" || !fastBattle) {
+      if (event.type === "flee" || !skipCombatDelays) {
         await delay(delayTimes[event.type]);
       }
     }

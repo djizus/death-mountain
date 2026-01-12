@@ -71,7 +71,7 @@ export default function CombatOverlay() {
     applyGearSuggestion,
     spectating,
   } = useGameStore();
-  const { fastBattle } = useUIStore();
+  const { skipCombatDelays } = useUIStore();
 
   const [untilDeath, setUntilDeath] = useState(false);
   const [untilLastHit, setUntilLastHit] = useState(false);
@@ -125,7 +125,7 @@ export default function CombatOverlay() {
 
   useEffect(() => {
     if (battleEvent && !skipCombat) {
-      if (battleEvent.type === "attack" && !fastBattle) {
+      if (battleEvent.type === "attack" && !skipCombatDelays) {
         setCombatLog(`You attacked ${beast!.baseName} for ${battleEvent.attack?.damage} damage ${battleEvent.attack?.critical_hit ? 'CRITICAL HIT!' : ''}`);
       }
 

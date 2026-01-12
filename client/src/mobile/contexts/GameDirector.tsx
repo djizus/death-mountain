@@ -235,14 +235,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       }
     });
 
-    setAdventurer(gameState.adventurer);
-    setBag(
-      Object.values(gameState.bag).filter(
-        (item: any) => typeof item === "object" && item.id !== 0
-      ) as Item[]
-    );
-    setMarketItemIds(gameState.market);
-
+    // Set beast BEFORE adventurer to avoid race condition where
+    // adventurer.beast_health > 0 but beast is still null
     if (gameState.adventurer.beast_health > 0) {
       let beast = processGameEvent({
         action_count: 0,
@@ -251,6 +245,14 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       setBeast(beast);
       setCollectable(beast.isCollectable ? beast : null);
     }
+
+    setAdventurer(gameState.adventurer);
+    setBag(
+      Object.values(gameState.bag).filter(
+        (item: any) => typeof item === "object" && item.id !== 0
+      ) as Item[]
+    );
+    setMarketItemIds(gameState.market);
   };
 
   const processEvent = async (event: GameEvent, skipDelay: boolean = false) => {

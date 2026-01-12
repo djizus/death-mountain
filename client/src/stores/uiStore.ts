@@ -20,9 +20,11 @@ interface UIState {
   setSkipIntroOutro: (skip: boolean) => void
   setSkipAllAnimations: (skip: boolean) => void
   setSkipCombatDelays: (skip: boolean) => void
+  setSkipFirstBattle: (skip: boolean) => void
   skipIntroOutro: boolean
   skipAllAnimations: boolean
   skipCombatDelays: boolean
+  skipFirstBattle: boolean
 
   // Exploration controls
   setShowUntilBeastToggle: (show: boolean) => void
@@ -46,9 +48,11 @@ export const useUIStore = create<UIState>()(
       setSkipIntroOutro: (skip) => set({ skipIntroOutro: skip }),
       setSkipAllAnimations: (skip) => set({ skipAllAnimations: skip }),
       setSkipCombatDelays: (skip) => set({ skipCombatDelays: skip }),
+      setSkipFirstBattle: (skip) => set({ skipFirstBattle: skip }),
       skipIntroOutro: false,
       skipAllAnimations: false,
       skipCombatDelays: false,
+      skipFirstBattle: false,
 
       // Exploration controls
       setShowUntilBeastToggle: (show) => set({ showUntilBeastToggle: show }),
@@ -65,6 +69,7 @@ export const useUIStore = create<UIState>()(
         skipIntroOutro: state.skipIntroOutro,
         skipAllAnimations: state.skipAllAnimations,
         skipCombatDelays: state.skipCombatDelays,
+        skipFirstBattle: state.skipFirstBattle,
         showUntilBeastToggle: state.showUntilBeastToggle,
       }),
     }
