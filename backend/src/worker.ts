@@ -1,6 +1,5 @@
-import type Database from "better-sqlite3";
 import type { AppConfig } from "./config.js";
-import type { OrderRow } from "./db.js";
+import type { Database, OrderRow } from "./db.js";
 import { submitBuyGameTx, waitForFulfillment } from "./starknet/fulfill.js";
 import { requireNormalizedAddress } from "./starknet/address.js";
 import { getErc20Balance } from "./starknet/balance.js";
@@ -12,7 +11,7 @@ export interface WorkerState {
 }
 
 export function startWorker(params: {
-  db: Database.Database;
+  db: Database;
   config: AppConfig;
 }): WorkerState {
   let busy = false;

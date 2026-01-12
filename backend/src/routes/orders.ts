@@ -1,9 +1,8 @@
-import type Database from "better-sqlite3";
 import { Router } from "express";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import type { AppConfig } from "../config.js";
-import type { OrderRow } from "../db.js";
+import type { Database, OrderRow } from "../db.js";
 import { fetchBestQuote } from "../avnu/client.js";
 import { requireNormalizedAddress } from "../starknet/address.js";
 import { MAINNET_TICKET_TOKEN_ADDRESS, PAY_TOKENS, type PayTokenSymbol } from "../starknet/tokens.js";
@@ -69,7 +68,7 @@ function mapRow(row: OrderRow) {
 }
 
 export function buildOrdersRouter(params: {
-  db: Database.Database;
+  db: Database;
   config: AppConfig;
 }): Router {
   const router = Router();

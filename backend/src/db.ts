@@ -1,5 +1,3 @@
-import Database from "better-sqlite3";
-
 export interface OrderRow {
   id: string;
   created_at: number;
@@ -27,43 +25,126 @@ export interface OrderRow {
   last_error: string | null;
 }
 
-export function openDb(sqlitePath: string): Database.Database {
-  const db = new Database(sqlitePath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  return db;
+// In-memory database that mimics better-sqlite3 interface
+export interface Database {
+  prepare(sql: string): Statement;
 }
 
-export function initDb(db: Database.Database): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS orders (
-      id TEXT PRIMARY KEY,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      expires_at INTEGER NOT NULL,
-      status TEXT NOT NULL,
-      dungeon_id TEXT NOT NULL,
+interface Statement {
+  run(...params: any[]): { changes: number };
+  get(...params: any[]): any;
+  all(...params: any[]): any[];
+}
 
-      pay_token_symbol TEXT NOT NULL,
-      pay_token_address TEXT NOT NULL,
-      pay_token_decimals INTEGER NOT NULL,
+class InMemoryDatabase implements Database {
+  private orders: Map<string, OrderRow> = new Map();
 
-      required_amount_raw TEXT NOT NULL,
-      quote_sell_amount_raw TEXT NOT NULL,
+  prepare(sql: string): Statement {
+    const self = this;
+    const normalizedSql = sql.replace(/\s+/g, " ").trim().toLowerCase();
 
-      recipient_address TEXT NOT NULL,
-      player_name TEXT NOT NULL,
+    return {
+      run(...params: any[]): { changes: number } {
+        // Handle named params (object) or positional params
+        const p = params[0];
+        
+        if (normalizedSql.includes("insert into orders")) {
+          const order: OrderRow = {
+            id: p.id,
+            created_at: p.created_at,
+            updated_at: p.updated_at,
+            expires_at: p.expires_at,
+            status: p.status,
+            dungeon_id: p.dungeon_id,
+            pay_token_symbol: p.pay_token_symbol,
+            pay_token_address: p.pay_token_address,
+            pay_token_decimals: p.pay_token_decimals,
+            required_amount_raw: p.required_amount_raw,
+            quote_sell_amount_raw: p.quote_sell_amount_raw,
+            recipient_address: p.recipient_address,
+            player_name: p.player_name,
+            payment_tx_hash: null,
+            paid_amount_raw: null,
+            fulfill_tx_hash: null,
+            game_id: null,
+            last_error: null,
+          };
+          self.orders.set(order.id, order);
+          return { changes: 1 };
+        }
 
-      payment_tx_hash TEXT,
-      paid_amount_raw TEXT,
+        if (normalizedSql.includes("update orders")) {
+          // Positional params for updates
+          const id = params[params.length - 1];
+          const order = self.orders.get(id);
+          if (!order) return { changes: 0 };
 
-      fulfill_tx_hash TEXT,
-      game_id INTEGER,
+          // Parse the SET clause to know which fields to update
+          if (normalizedSql.includes("status = ?") && normalizedSql.includes("updated_at = ?") && normalizedSql.includes("last_error = ?") && !normalizedSql.includes("paid_amount_raw")) {
+            order.status = params[0];
+            order.updated_at = params[1];
+            order.last_error = params[2];
+          } else if (normalizedSql.includes("status = ?") && normalizedSql.includes("updated_at = ?") && normalizedSql.includes("paid_amount_raw = ?")) {
+            order.status = params[0];
+            order.updated_at = params[1];
+            order.paid_amount_raw = params[2];
+            order.last_error = null;
+          } else if (normalizedSql.includes("status = ?") && normalizedSql.includes("updated_at = ?") && normalizedSql.includes("game_id = ?")) {
+            order.status = params[0];
+            order.updated_at = params[1];
+            order.game_id = params[2];
+            order.last_error = null;
+          } else if (normalizedSql.includes("updated_at = ?") && normalizedSql.includes("fulfill_tx_hash = ?") && normalizedSql.includes("last_error = null")) {
+            order.updated_at = params[0];
+            order.fulfill_tx_hash = params[1];
+            order.last_error = null;
+          } else if (normalizedSql.includes("payment_tx_hash = ?") && normalizedSql.includes("updated_at = ?")) {
+            order.payment_tx_hash = params[0];
+            order.updated_at = params[1];
+          } else if (normalizedSql.includes("status = ?") && normalizedSql.includes("updated_at = ?")) {
+            order.status = params[0];
+            order.updated_at = params[1];
+          } else if (normalizedSql.includes("updated_at = ?") && normalizedSql.includes("last_error = ?")) {
+            order.updated_at = params[0];
+            order.last_error = params[1];
+          }
 
-      last_error TEXT
-    );
+          return { changes: 1 };
+        }
 
-    CREATE INDEX IF NOT EXISTS idx_orders_status_created
-      ON orders(status, created_at);
-  `);
+        return { changes: 0 };
+      },
+
+      get(...params: any[]): any {
+        if (normalizedSql.includes("select") && normalizedSql.includes("from orders where id = ?")) {
+          return self.orders.get(params[0]);
+        }
+
+        if (normalizedSql.includes("select") && normalizedSql.includes("from orders") && normalizedSql.includes("where")) {
+          // Worker query for pending orders
+          const orders = Array.from(self.orders.values());
+          return orders.find(o => 
+            (o.status === "awaiting_payment" && o.payment_tx_hash !== null) ||
+            o.status === "paid" ||
+            o.status === "fulfilling"
+          );
+        }
+
+        return undefined;
+      },
+
+      all(..._params: any[]): any[] {
+        return Array.from(self.orders.values());
+      }
+    };
+  }
+}
+
+export function openDb(_sqlitePath: string): Database {
+  console.log("Using in-memory database (orders will not persist across restarts)");
+  return new InMemoryDatabase();
+}
+
+export function initDb(_db: Database): void {
+  // No-op for in-memory db
 }
