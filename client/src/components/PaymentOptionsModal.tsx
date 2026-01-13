@@ -364,7 +364,10 @@ export default function PaymentOptionsModal({
 
   const fetchTokenQuote = useCallback(
     async (tokenSymbol: string) => {
+      console.log("[fetchTokenQuote] Starting quote fetch", { tokenSymbol, address });
+
       if (!address) {
+        console.log("[fetchTokenQuote] No address, returning");
         setOrder(null);
         setTokenQuote({
           amount: "",
@@ -389,7 +392,10 @@ export default function PaymentOptionsModal({
                     ? "SURVIVOR"
                     : null;
 
+      console.log("[fetchTokenQuote] Mapped payToken", { tokenSymbol, payToken });
+
       if (!payToken) {
+        console.log("[fetchTokenQuote] Unsupported token");
         setOrder(null);
         setTokenQuote({
           amount: "",
@@ -413,6 +419,8 @@ export default function PaymentOptionsModal({
           resolvedName = "Adventurer";
         }
 
+        console.log("[fetchTokenQuote] Creating order", { payToken, address, resolvedName });
+
         const created = await createOrder({
           dungeonId: "survivor",
           payToken,
@@ -420,10 +428,16 @@ export default function PaymentOptionsModal({
           playerName: resolvedName,
         });
 
+        console.log("[fetchTokenQuote] Order created", {
+          orderId: created.id,
+          payToken: created.payToken,
+          requiredAmount: created.requiredAmount,
+        });
+
         setOrder(created);
         setTokenQuote({ amount: created.requiredAmount, loading: false });
       } catch (error) {
-        console.error("Error fetching quote:", error);
+        console.error("[fetchTokenQuote] Error fetching quote:", error);
         setTokenQuote({
           amount: "",
           loading: false,
@@ -442,15 +456,39 @@ export default function PaymentOptionsModal({
   };
 
   const payWithCrypto = async () => {
-    if (isPaying) return;
-    if (!account || !address) return;
+    console.log("[payWithCrypto] Starting payment flow", {
+      isPaying,
+      hasAccount: !!account,
+      hasAddress: !!address,
+      hasOrder: !!order,
+      selectedToken,
+    });
+
+    if (isPaying) {
+      console.log("[payWithCrypto] Already paying, returning");
+      return;
+    }
+    if (!account || !address) {
+      console.log("[payWithCrypto] No account or address, returning");
+      return;
+    }
 
     if (!order) {
+      console.log("[payWithCrypto] No order, fetching quote for", selectedToken);
       fetchTokenQuote(selectedToken);
       return;
     }
 
+    console.log("[payWithCrypto] Order details", {
+      orderId: order.id,
+      orderPayToken: order.payToken,
+      expiresAt: order.expiresAt,
+      now: Date.now(),
+      isExpired: Date.now() > order.expiresAt,
+    });
+
     if (Date.now() > order.expiresAt) {
+      console.log("[payWithCrypto] Order expired");
       setOrder(null);
       setTokenQuote({
         amount: "",
@@ -463,7 +501,14 @@ export default function PaymentOptionsModal({
     // Get the currently selected token's address for validation
     const selectedTokenData = userTokens.find((t: any) => t.symbol === selectedToken);
     
+    console.log("[payWithCrypto] Token validation", {
+      selectedToken,
+      selectedTokenData,
+      userTokens: userTokens.map((t: any) => ({ symbol: t.symbol, address: t.address })),
+    });
+
     if (!order.payToken.address) {
+      console.log("[payWithCrypto] Order has no payToken address");
       setTokenQuote({
         amount: "",
         loading: false,
@@ -474,10 +519,27 @@ export default function PaymentOptionsModal({
 
     // Validate that the selected token's address matches the order's token address
     // This prevents mismatches when user changes token selection after order creation
-    const selectedAddress = selectedTokenData?.address?.toLowerCase();
-    const orderAddress = order.payToken.address.toLowerCase();
+    // Normalize addresses by removing 0x prefix, stripping leading zeros, then comparing
+    const normalizeAddress = (addr: string | undefined): string => {
+      if (!addr) return "";
+      return addr.toLowerCase().replace(/^0x0*/, "");
+    };
     
-    if (!selectedAddress || selectedAddress !== orderAddress) {
+    const selectedAddressNorm = normalizeAddress(selectedTokenData?.address);
+    const orderAddressNorm = normalizeAddress(order.payToken.address);
+    
+    console.log("[payWithCrypto] Address comparison", {
+      selectedAddress: selectedTokenData?.address,
+      orderAddress: order.payToken.address,
+      selectedAddressNorm,
+      orderAddressNorm,
+      match: selectedAddressNorm === orderAddressNorm,
+    });
+
+    if (!selectedAddressNorm || selectedAddressNorm !== orderAddressNorm) {
+      console.log("[payWithCrypto] Address mismatch, refetching quote", {
+        reason: !selectedAddressNorm ? "no selected address" : "addresses differ",
+      });
       // Token changed since order was created, need to fetch new quote
       setOrder(null);
       fetchTokenQuote(selectedToken);
