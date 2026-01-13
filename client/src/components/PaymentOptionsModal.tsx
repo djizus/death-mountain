@@ -460,8 +460,16 @@ export default function PaymentOptionsModal({
       return;
     }
 
-    const selectedTokenData = userTokens.find((t: any) => t.symbol === selectedToken);
-    if (!selectedTokenData?.address) {
+    // Validate that the selected token matches the order's token to prevent mismatches
+    if (selectedToken !== order.payToken.symbol && 
+        !(selectedToken === "USDC.e Bridged" && order.payToken.symbol === "USDC_E")) {
+      // Token changed since order was created, need to fetch new quote
+      setOrder(null);
+      fetchTokenQuote(selectedToken);
+      return;
+    }
+
+    if (!order.payToken.address) {
       setTokenQuote({
         amount: "",
         loading: false,
@@ -475,9 +483,10 @@ export default function PaymentOptionsModal({
       const amount = BigInt(order.requiredAmountRaw);
       const u256 = cairo.uint256(amount);
 
+      // Use the order's token address to ensure amount and token match
       const tx = await account.execute([
         {
-          contractAddress: selectedTokenData.address,
+          contractAddress: order.payToken.address,
           entrypoint: "transfer",
           calldata: CallData.compile([order.treasuryAddress, u256.low, u256.high]),
         },
