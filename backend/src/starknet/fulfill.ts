@@ -14,6 +14,9 @@ import {
 } from "./tokens.js";
 import { getReceiptStatuses } from "./receipts.js";
 
+// Delay after blockchain transactions to avoid nonce issues
+const POST_TX_DELAY_MS = 2000;
+
 export interface FulfillmentResult {
   txHash: string;
   gameId: number | null;
@@ -21,6 +24,16 @@ export interface FulfillmentResult {
   executionStatus?: string;
   finalityStatus?: string;
   revertReason?: string;
+}
+
+function isNonceError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.toLowerCase().includes("nonce") ||
+         message.toLowerCase().includes("invalid transaction nonce");
+}
+
+async function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function stringToFelt(value: string): string {
@@ -64,7 +77,9 @@ export async function submitBuyGameTx(params: {
   playerAddress: string;
   playerName: string;
   ticketAmountRaw?: bigint;
+  maxRetries?: number;
 }): Promise<{ txHash: string } & Partial<FulfillmentResult>> {
+  const maxRetries = params.maxRetries ?? 3;
   const provider = new RpcProvider({ nodeUrl: params.rpcUrl });
   const account = new Account({
     provider,
@@ -94,8 +109,39 @@ export async function submitBuyGameTx(params: {
     ])
   };
 
-  const response = await account.execute([approveCall, buyGameCall]);
-  return { txHash: extractTxHash(response) };
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        // Wait before retry, with exponential backoff
+        const retryDelay = Math.pow(2, attempt) * 1000;
+        console.log(`[fulfill] Retry attempt ${attempt}/${maxRetries} after ${retryDelay}ms`);
+        await delay(retryDelay);
+      }
+
+      const response = await account.execute([approveCall, buyGameCall]);
+      const txHash = extractTxHash(response);
+
+      // Add delay after successful transaction to avoid nonce issues on subsequent txs
+      console.log(`[fulfill] Transaction submitted: ${txHash}, waiting ${POST_TX_DELAY_MS}ms`);
+      await delay(POST_TX_DELAY_MS);
+
+      return { txHash };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      if (isNonceError(error) && attempt < maxRetries) {
+        console.log(`[fulfill] Nonce error detected, will retry: ${lastError.message}`);
+        continue;
+      }
+
+      // For non-nonce errors or if we've exhausted retries, throw
+      throw lastError;
+    }
+  }
+
+  throw lastError ?? new Error("submitBuyGameTx failed");
 }
 
 export async function waitForFulfillment(params: {

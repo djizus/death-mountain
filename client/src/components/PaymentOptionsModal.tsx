@@ -364,10 +364,7 @@ export default function PaymentOptionsModal({
 
   const fetchTokenQuote = useCallback(
     async (tokenSymbol: string) => {
-      console.log("[fetchTokenQuote] Starting quote fetch", { tokenSymbol, address });
-
       if (!address) {
-        console.log("[fetchTokenQuote] No address, returning");
         setOrder(null);
         setTokenQuote({
           amount: "",
@@ -392,10 +389,7 @@ export default function PaymentOptionsModal({
                     ? "SURVIVOR"
                     : null;
 
-      console.log("[fetchTokenQuote] Mapped payToken", { tokenSymbol, payToken });
-
       if (!payToken) {
-        console.log("[fetchTokenQuote] Unsupported token");
         setOrder(null);
         setTokenQuote({
           amount: "",
@@ -419,8 +413,6 @@ export default function PaymentOptionsModal({
           resolvedName = "Adventurer";
         }
 
-        console.log("[fetchTokenQuote] Creating order", { payToken, address, resolvedName });
-
         const created = await createOrder({
           dungeonId: "survivor",
           payToken,
@@ -428,16 +420,9 @@ export default function PaymentOptionsModal({
           playerName: resolvedName,
         });
 
-        console.log("[fetchTokenQuote] Order created", {
-          orderId: created.id,
-          payToken: created.payToken,
-          requiredAmount: created.requiredAmount,
-        });
-
         setOrder(created);
         setTokenQuote({ amount: created.requiredAmount, loading: false });
       } catch (error) {
-        console.error("[fetchTokenQuote] Error fetching quote:", error);
         setTokenQuote({
           amount: "",
           loading: false,
@@ -456,39 +441,15 @@ export default function PaymentOptionsModal({
   };
 
   const payWithCrypto = async () => {
-    console.log("[payWithCrypto] Starting payment flow", {
-      isPaying,
-      hasAccount: !!account,
-      hasAddress: !!address,
-      hasOrder: !!order,
-      selectedToken,
-    });
-
-    if (isPaying) {
-      console.log("[payWithCrypto] Already paying, returning");
-      return;
-    }
-    if (!account || !address) {
-      console.log("[payWithCrypto] No account or address, returning");
-      return;
-    }
+    if (isPaying) return;
+    if (!account || !address) return;
 
     if (!order) {
-      console.log("[payWithCrypto] No order, fetching quote for", selectedToken);
       fetchTokenQuote(selectedToken);
       return;
     }
 
-    console.log("[payWithCrypto] Order details", {
-      orderId: order.id,
-      orderPayToken: order.payToken,
-      expiresAt: order.expiresAt,
-      now: Date.now(),
-      isExpired: Date.now() > order.expiresAt,
-    });
-
     if (Date.now() > order.expiresAt) {
-      console.log("[payWithCrypto] Order expired");
       setOrder(null);
       setTokenQuote({
         amount: "",
@@ -498,17 +459,9 @@ export default function PaymentOptionsModal({
       return;
     }
 
-    // Get the currently selected token's address for validation
     const selectedTokenData = userTokens.find((t: any) => t.symbol === selectedToken);
-    
-    console.log("[payWithCrypto] Token validation", {
-      selectedToken,
-      selectedTokenData,
-      userTokens: userTokens.map((t: any) => ({ symbol: t.symbol, address: t.address })),
-    });
 
     if (!order.payToken.address) {
-      console.log("[payWithCrypto] Order has no payToken address");
       setTokenQuote({
         amount: "",
         loading: false,
@@ -518,8 +471,6 @@ export default function PaymentOptionsModal({
     }
 
     // Validate that the selected token's address matches the order's token address
-    // This prevents mismatches when user changes token selection after order creation
-    // Normalize addresses by removing 0x prefix, stripping leading zeros, then comparing
     const normalizeAddress = (addr: string | undefined): string => {
       if (!addr) return "";
       return addr.toLowerCase().replace(/^0x0*/, "");
@@ -527,40 +478,18 @@ export default function PaymentOptionsModal({
     
     const selectedAddressNorm = normalizeAddress(selectedTokenData?.address);
     const orderAddressNorm = normalizeAddress(order.payToken.address);
-    
-    console.log("[payWithCrypto] Address comparison", {
-      selectedAddress: selectedTokenData?.address,
-      orderAddress: order.payToken.address,
-      selectedAddressNorm,
-      orderAddressNorm,
-      match: selectedAddressNorm === orderAddressNorm,
-    });
 
     if (!selectedAddressNorm || selectedAddressNorm !== orderAddressNorm) {
-      console.log("[payWithCrypto] Address mismatch, refetching quote", {
-        reason: !selectedAddressNorm ? "no selected address" : "addresses differ",
-      });
-      // Token changed since order was created, need to fetch new quote
       setOrder(null);
       fetchTokenQuote(selectedToken);
       return;
     }
 
-    console.log("[payWithCrypto] Address match confirmed, proceeding to payment");
     setIsPaying(true);
     try {
       const amount = BigInt(order.requiredAmountRaw);
       const u256 = cairo.uint256(amount);
 
-      console.log("[payWithCrypto] Executing transfer", {
-        contractAddress: order.payToken.address,
-        treasuryAddress: order.treasuryAddress,
-        amount: order.requiredAmountRaw,
-        u256Low: u256.low.toString(),
-        u256High: u256.high.toString(),
-      });
-
-      // Use the order's token address to ensure amount and token match
       const tx = await account.execute([
         {
           contractAddress: order.payToken.address,
@@ -569,28 +498,18 @@ export default function PaymentOptionsModal({
         },
       ]);
 
-      console.log("[payWithCrypto] Transfer executed", { tx });
-
       const txHash: string | undefined = tx?.transaction_hash;
       if (!txHash) {
-        console.error("[payWithCrypto] No transaction hash returned");
         throw new Error("missing_tx_hash");
       }
 
-      console.log("[payWithCrypto] Submitting order payment", {
-        orderId: order.id,
-        txHash,
-      });
-
-      const submitResult = await submitOrderPayment({ orderId: order.id, txHash });
-      console.log("[payWithCrypto] Order payment submitted", submitResult);
+      await submitOrderPayment({ orderId: order.id, txHash });
 
       onClose();
       navigate(`/${dungeon.id}/play?mode=entering&orderId=${order.id}`, {
         replace: true,
       });
-    } catch (error) {
-      console.error("[payWithCrypto] Error:", error);
+    } catch {
       setTokenQuote((prev) => ({
         ...prev,
         loading: false,

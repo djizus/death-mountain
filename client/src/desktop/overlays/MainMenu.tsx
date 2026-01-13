@@ -446,21 +446,20 @@ const styles = {
     pl: 1,
     height: "36px",
     borderColor: "#80FF00",
-    animation: "pulseGlow 1.8s ease-in-out infinite",
-    "@keyframes pulseGlow": {
+    background: "linear-gradient(135deg, rgba(128, 255, 0, 0.08) 0%, rgba(100, 200, 0, 0.04) 100%)",
+    animation: "greenGlow 2s ease-in-out infinite",
+    "@keyframes greenGlow": {
       "0%, 100%": {
-        boxShadow: "0 0 2px rgba(128, 255, 0, 0.05)",
-        opacity: 0.85,
+        boxShadow: "0 0 4px rgba(128, 255, 0, 0.2)",
       },
       "50%": {
-        boxShadow: "0 0 8px rgba(128, 255, 0, 0.25)",
-        opacity: 1,
+        boxShadow: "0 0 10px rgba(128, 255, 0, 0.35)",
       },
     },
     "&:hover": {
       borderColor: "#a0ff40",
-      backgroundColor: "rgba(128, 255, 0, 0.05)",
-      boxShadow: "0 0 10px rgba(128, 255, 0, 0.3)",
+      background: "linear-gradient(135deg, rgba(128, 255, 0, 0.15) 0%, rgba(100, 200, 0, 0.08) 100%)",
+      boxShadow: "0 0 12px rgba(128, 255, 0, 0.4)",
     },
   },
   rewardsContainer: {

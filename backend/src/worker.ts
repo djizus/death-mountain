@@ -122,11 +122,35 @@ export function startWorker(params: {
         return;
       }
 
-      if (order.status === "paid" && !order.fulfill_tx_hash) {
-        console.log("[worker] Starting fulfillment for order:", order.id);
-        params.db
-          .prepare("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?")
-          .run("fulfilling", now, order.id);
+      // Handle both "paid" orders and "fulfilling" orders without tx hash (retry case)
+      const needsSubmission = 
+        (order.status === "paid" && !order.fulfill_tx_hash) ||
+        (order.status === "fulfilling" && !order.fulfill_tx_hash);
+
+      if (needsSubmission) {
+        const isRetry = order.status === "fulfilling";
+        
+        // Fail permanently if we've been trying for more than 10 minutes
+        const MAX_FULFILLMENT_DURATION_MS = 10 * 60 * 1000;
+        if (isRetry && (now - order.updated_at) > MAX_FULFILLMENT_DURATION_MS) {
+          console.error("[worker] Order fulfillment timed out after 10 minutes:", order.id);
+          params.db
+            .prepare("UPDATE orders SET status = ?, updated_at = ?, last_error = ? WHERE id = ?")
+            .run("failed", now, "fulfillment_timeout_max_retries_exceeded", order.id);
+          return;
+        }
+
+        console.log("[worker] Starting fulfillment for order:", order.id, { 
+          status: order.status, 
+          isRetry,
+          timeSinceLastAttempt: isRetry ? `${Math.round((now - order.updated_at) / 1000)}s` : "N/A"
+        });
+        
+        if (order.status === "paid") {
+          params.db
+            .prepare("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?")
+            .run("fulfilling", now, order.id);
+        }
 
         const treasuryAddress = requireNormalizedAddress(
           params.config.STARKNET_TREASURY_ADDRESS,

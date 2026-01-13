@@ -45,7 +45,7 @@ const envSchema = z.object({
     AVNU_API_URL: z.string().optional(),
     ORDER_QUOTE_TTL_SECONDS: z.coerce.number().int().positive().default(300),
     ORDER_FEE_BPS: z.coerce.number().int().min(0).max(10_000).default(300),
-    WORKER_POLL_INTERVAL_MS: z.coerce.number().int().min(250).default(2000),
+    WORKER_POLL_INTERVAL_MS: z.coerce.number().int().min(250).default(1000),
     FULFILLMENT_WAIT_TIMEOUT_MS: z.coerce.number().int().min(10_000).default(180_000),
     // Ticket reserve settings
     TICKET_RESERVE_TARGET: z.coerce.number().int().min(1).default(50),

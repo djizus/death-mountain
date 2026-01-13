@@ -1,11 +1,62 @@
 import { Account, RpcProvider } from "starknet";
-import { executeSwap, fetchQuotes } from "@avnu/avnu-sdk";
+import { executeSwap, fetchQuotes, type Quote } from "@avnu/avnu-sdk";
 import type { AppConfig } from "../config.js";
 import { getErc20Balance } from "./balance.js";
 import { MAINNET_TICKET_TOKEN_ADDRESS, PAY_TOKENS, type PayTokenSymbol, type TokenConfig } from "./tokens.js";
 
 const ONE_TICKET = 1_000_000_000_000_000_000n;
 const LORDS_ADDRESS = PAY_TOKENS.LORDS.address;
+const POST_TX_DELAY_MS = 2000;
+const MAX_SWAP_RETRIES = 3;
+
+function isNonceError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.toLowerCase().includes("nonce") ||
+         message.toLowerCase().includes("invalid transaction nonce");
+}
+
+async function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function executeSwapWithRetry(
+  account: Account,
+  quote: Quote,
+  options: { slippage: number; executeApprove: boolean },
+  avnuOptions: { baseUrl: string | undefined },
+  description: string
+): Promise<{ transactionHash: string }> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt <= MAX_SWAP_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        const retryDelay = Math.pow(2, attempt) * 1000;
+        console.log(`[restock] Retry ${description} attempt ${attempt}/${MAX_SWAP_RETRIES} after ${retryDelay}ms`);
+        await delay(retryDelay);
+      }
+
+      const result = await executeSwap(account, quote, options, avnuOptions);
+      
+      // Add delay after successful transaction
+      console.log(`[restock] ${description} tx submitted: ${result.transactionHash}, waiting ${POST_TX_DELAY_MS}ms`);
+      await delay(POST_TX_DELAY_MS);
+
+      return result;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      if (isNonceError(error) && attempt < MAX_SWAP_RETRIES) {
+        console.log(`[restock] Nonce error in ${description}, will retry: ${lastError.message}`);
+        continue;
+      }
+
+      throw lastError;
+    }
+  }
+
+  throw lastError ?? new Error(`${description} failed`);
+}
 
 // Tokens that can be sold to acquire LORDS (excludes LORDS itself)
 const SELLABLE_TOKENS: PayTokenSymbol[] = ["ETH", "STRK", "USDC", "USDC_E", "SURVIVOR"];
@@ -195,11 +246,19 @@ export async function restockTicketsIfNeeded(params: {
   const treasuryAddress = config.STARKNET_TREASURY_ADDRESS;
 
   // Check current ticket balance
-  const ticketBalance = await getErc20Balance({
-    rpcUrl: config.STARKNET_RPC_URL,
-    tokenAddress: MAINNET_TICKET_TOKEN_ADDRESS,
-    accountAddress: treasuryAddress
-  });
+  let ticketBalance: bigint;
+  try {
+    ticketBalance = await getErc20Balance({
+      rpcUrl: config.STARKNET_RPC_URL,
+      tokenAddress: MAINNET_TICKET_TOKEN_ADDRESS,
+      accountAddress: treasuryAddress
+    });
+  } catch (error) {
+    // Log and skip restock check if we can't fetch balance (transient RPC error)
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`[restock] Skipping restock check, failed to fetch ticket balance: ${message}`);
+    return null;
+  }
 
   const currentTickets = Number(ticketBalance / ONE_TICKET);
   const targetTickets = config.TICKET_RESERVE_TARGET;
@@ -278,26 +337,22 @@ export async function restockTicketsIfNeeded(params: {
       const sellAmountNeeded = BigInt(sellToLordsQuote.sellAmount);
       console.log(`[restock] Executing swap: ${Number(sellAmountNeeded) / 10 ** sellToken.decimals} ${sellToken.symbol} -> LORDS`);
 
-      // Execute the swap
-      const sellToLordsResult = await executeSwap(
+      // Execute the swap with retry logic
+      const sellToLordsResult = await executeSwapWithRetry(
         account,
         sellToLordsQuote,
         {
           slippage: config.RESTOCK_SLIPPAGE,
           executeApprove: true
         },
-        { baseUrl: getAvnuBaseUrl() }
+        { baseUrl: getAvnuBaseUrl() },
+        `${sellToken.symbol} -> LORDS`
       );
 
       txHashes.push(sellToLordsResult.transactionHash);
-      console.log(`[restock] ${sellToken.symbol} -> LORDS swap tx: ${sellToLordsResult.transactionHash}`);
 
       // Wait for the transaction to be confirmed
       await provider.waitForTransaction(sellToLordsResult.transactionHash);
-
-      // Add delay to avoid nonce errors
-      console.log(`[restock] Waiting 10s before next transaction to avoid nonce errors...`);
-      await new Promise((resolve) => setTimeout(resolve, 10_000));
     }
 
     // Step 4: Now swap LORDS -> TICKET
@@ -320,18 +375,18 @@ export async function restockTicketsIfNeeded(params: {
 
     console.log(`[restock] Executing swap: LORDS -> ${ticketsNeeded} TICKET`);
 
-    const lordsToTicketResult = await executeSwap(
+    const lordsToTicketResult = await executeSwapWithRetry(
       account,
       finalQuote,
       {
         slippage: config.RESTOCK_SLIPPAGE,
         executeApprove: true
       },
-      { baseUrl: getAvnuBaseUrl() }
+      { baseUrl: getAvnuBaseUrl() },
+      `LORDS -> TICKET`
     );
 
     txHashes.push(lordsToTicketResult.transactionHash);
-    console.log(`[restock] LORDS -> TICKET swap tx: ${lordsToTicketResult.transactionHash}`);
 
     // Wait for the transaction to be confirmed
     await provider.waitForTransaction(lordsToTicketResult.transactionHash);

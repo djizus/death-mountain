@@ -139,6 +139,25 @@ export default function LandingPage() {
                   />
                 }
                 sx={{
+                  background: disableEnterDungeon
+                    ? "rgba(208, 201, 141, 0.12)"
+                    : "linear-gradient(135deg, #80FF00 0%, #60DD00 100%)",
+                  boxShadow: disableEnterDungeon
+                    ? "none"
+                    : "0 0 8px rgba(128, 255, 0, 0.25)",
+                  animation: disableEnterDungeon ? "none" : "greenGlow 2s ease-in-out infinite",
+                  "@keyframes greenGlow": {
+                    "0%, 100%": {
+                      boxShadow: "0 0 6px rgba(128, 255, 0, 0.2)",
+                    },
+                    "50%": {
+                      boxShadow: "0 0 14px rgba(128, 255, 0, 0.4)",
+                    },
+                  },
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #90FF20 0%, #80FF00 100%)",
+                    boxShadow: "0 0 16px rgba(128, 255, 0, 0.45)",
+                  },
                   "&.Mui-disabled": {
                     backgroundColor: "rgba(208, 201, 141, 0.12)",
                     color: "rgba(208, 201, 141, 0.4)",
@@ -150,6 +169,7 @@ export default function LandingPage() {
                   color={
                     disableEnterDungeon ? "rgba(208, 201, 141, 0.4)" : "#111111"
                   }
+                  sx={{ fontWeight: 600 }}
                 >
                   {dungeon.mainButtonText}
                 </Typography>

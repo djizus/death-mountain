@@ -136,11 +136,20 @@ export async function restockTicketsIfNeeded(params) {
     const provider = new RpcProvider({ nodeUrl: config.STARKNET_RPC_URL });
     const treasuryAddress = config.STARKNET_TREASURY_ADDRESS;
     // Check current ticket balance
-    const ticketBalance = await getErc20Balance({
-        rpcUrl: config.STARKNET_RPC_URL,
-        tokenAddress: MAINNET_TICKET_TOKEN_ADDRESS,
-        accountAddress: treasuryAddress
-    });
+    let ticketBalance;
+    try {
+        ticketBalance = await getErc20Balance({
+            rpcUrl: config.STARKNET_RPC_URL,
+            tokenAddress: MAINNET_TICKET_TOKEN_ADDRESS,
+            accountAddress: treasuryAddress
+        });
+    }
+    catch (error) {
+        // Log and skip restock check if we can't fetch balance (transient RPC error)
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(`[restock] Skipping restock check, failed to fetch ticket balance: ${message}`);
+        return null;
+    }
     const currentTickets = Number(ticketBalance / ONE_TICKET);
     const targetTickets = config.TICKET_RESERVE_TARGET;
     // If we're at or above target, no restock needed
@@ -206,6 +215,9 @@ export async function restockTicketsIfNeeded(params) {
             console.log(`[restock] ${sellToken.symbol} -> LORDS swap tx: ${sellToLordsResult.transactionHash}`);
             // Wait for the transaction to be confirmed
             await provider.waitForTransaction(sellToLordsResult.transactionHash);
+            // Add delay to avoid nonce errors
+            console.log(`[restock] Waiting 10s before next transaction to avoid nonce errors...`);
+            await new Promise((resolve) => setTimeout(resolve, 10_000));
         }
         // Step 4: Now swap LORDS -> TICKET
         // Re-fetch quote in case prices changed
