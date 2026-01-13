@@ -294,6 +294,10 @@ export async function restockTicketsIfNeeded(params: {
 
       // Wait for the transaction to be confirmed
       await provider.waitForTransaction(sellToLordsResult.transactionHash);
+
+      // Add delay to avoid nonce errors
+      console.log(`[restock] Waiting 10s before next transaction to avoid nonce errors...`);
+      await new Promise((resolve) => setTimeout(resolve, 10_000));
     }
 
     // Step 4: Now swap LORDS -> TICKET

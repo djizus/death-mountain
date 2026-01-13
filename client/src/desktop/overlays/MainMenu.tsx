@@ -2,8 +2,7 @@ import PaymentOptionsModal from "@/components/PaymentOptionsModal";
 import { useController } from "@/contexts/controller";
 import { useDynamicConnector } from "@/contexts/starknet";
 import discordIcon from "@/desktop/assets/images/discord.png";
-import AdventurersList from "@/desktop/components/AdventurersList";
-import ReplayGamesList from "@/desktop/components/ReplayGamesList";
+import GamesList from "@/desktop/components/GamesList";
 import Settings from "@/desktop/components/Settings";
 import { OPENING_TIME } from "@/contexts/Statistics";
 import { useDungeon } from "@/dojo/useDungeon";
@@ -13,7 +12,7 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-import VisibilityIcon from "@mui/icons-material/Visibility";
+
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import TokenIcon from "@mui/icons-material/Token";
 import XIcon from "@mui/icons-material/X";
@@ -40,10 +39,9 @@ export default function MainMenu() {
   const dungeon = useDungeon();
   const { currentNetworkConfig } = useDynamicConnector();
   const { scalePx, contentOffset } = useResponsiveScale();
-  const [showAdventurers, setShowAdventurers] = useState(false);
+  const [showGames, setShowGames] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [showReplays, setShowReplays] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [isDungeonOpen, setIsDungeonOpen] = useState(false);
   const [showBoost, setShowBoost] = useState(false);
@@ -96,7 +94,7 @@ export default function MainMenu() {
     setShowPaymentOptions(true);
   };
 
-  const handleShowAdventurers = () => {
+  const handleShowGames = () => {
     if (
       currentNetworkConfig.chainId === ChainId.SN_MAIN &&
       !account
@@ -105,18 +103,7 @@ export default function MainMenu() {
       return;
     }
 
-    setShowReplays(false);
-    setShowAdventurers(true);
-  };
-
-  const handleShowReplays = () => {
-    if (currentNetworkConfig.chainId === ChainId.SN_MAIN && !account) {
-      login();
-      return;
-    }
-
-    setShowAdventurers(false);
-    setShowReplays(true);
+    setShowGames(true);
   };
 
   const disableGameButtons =
@@ -183,18 +170,15 @@ export default function MainMenu() {
         minHeight: containerMinHeight,
       }}>
         <AnimatePresence mode="wait">
-          {showAdventurers && (
-            <AdventurersList onBack={() => setShowAdventurers(false)} />
-          )}
-          {showReplays && (
-            <ReplayGamesList onBack={() => setShowReplays(false)} />
+          {showGames && (
+            <GamesList onBack={() => setShowGames(false)} />
           )}
           {showLeaderboard && (
             <Leaderboard onBack={() => setShowLeaderboard(false)} />
           )}
           {showSettings && <Settings onBack={() => setShowSettings(false)} />}
 
-          {!showAdventurers && !showReplays && !showSettings && !showLeaderboard && (
+          {!showGames && !showSettings && !showLeaderboard && (
             <>
               <Box sx={styles.headerBox}>
                 <Typography sx={styles.gameTitle}>LOOT SURVIVOR 2</Typography>
@@ -209,36 +193,28 @@ export default function MainMenu() {
                 size="large"
                 onClick={handleMainButtonClick}
                 disabled={disableGameButtons}
-                sx={{
-                  px: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  height: "36px",
-                }}
+                sx={{ pl: 1, height: "36px" }}
               >
-                <Box sx={{ display: "flex", alignItems: "center" }}>
-                  <TokenIcon sx={{ fontSize: 20, mr: 1 }} />
-                  <Typography
-                    sx={{
-                      fontSize: "0.85rem",
-                      fontWeight: 500,
-                      letterSpacing: 0.5,
-                      color: disableGameButtons
-                        ? "rgba(208, 201, 141, 0.3)"
-                        : "#d0c98d",
-                    }}
-                  >
-                    {dungeon.mainButtonText}
-                  </Typography>
-                </Box>
+                <TokenIcon sx={{ fontSize: 20, mr: 1 }} />
+                <Typography
+                  sx={{
+                    fontSize: "0.85rem",
+                    fontWeight: 500,
+                    letterSpacing: 0.5,
+                    color: disableGameButtons
+                      ? "rgba(208, 201, 141, 0.3)"
+                      : "#d0c98d",
+                  }}
+                >
+                  {dungeon.mainButtonText}
+                </Typography>
               </Button>
 
               <Button
                 variant="outlined"
                 fullWidth
                 size="large"
-                onClick={handleShowAdventurers}
+                onClick={handleShowGames}
                 disabled={disableGameButtons}
                 sx={{ pl: 1, height: "36px" }}
               >
@@ -272,52 +248,30 @@ export default function MainMenu() {
               </Button>
 
               {dungeon.includePractice && (
-                <>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    size="large"
-                    onClick={handleShowReplays}
-                    sx={{ pl: 1, height: "36px" }}
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  size="large"
+                  onClick={() => navigate(`/${dungeon.id}/play?mode=practice`)}
+                  sx={{ pl: 1, height: "36px" }}
+                >
+                  <img
+                    src="/images/practice.png"
+                    alt="practice"
+                    style={{ width: 20, height: 20 }}
+                  />
+                  <Typography
+                    sx={{
+                      ml: 1,
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      letterSpacing: 0.5,
+                      color: "#d0c98d",
+                    }}
                   >
-                    <VisibilityIcon sx={{ fontSize: 20, mr: 1 }} />
-                    <Typography
-                      sx={{
-                        fontSize: "0.85rem",
-                        fontWeight: 500,
-                        letterSpacing: 0.5,
-                        color: "#d0c98d",
-                      }}
-                    >
-                      Replay Games
-                    </Typography>
-                  </Button>
-
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    size="large"
-                    onClick={() => navigate(`/${dungeon.id}/play?mode=practice`)}
-                    sx={{ pl: 1, height: "36px" }}
-                  >
-                    <img
-                      src="/images/practice.png"
-                      alt="practice"
-                      style={{ width: 20, height: 20 }}
-                    />
-                    <Typography
-                      sx={{
-                        ml: 1,
-                        fontSize: "0.85rem",
-                        fontWeight: 500,
-                        letterSpacing: 0.5,
-                        color: "#d0c98d",
-                      }}
-                    >
-                      Practice for Free
-                    </Typography>
-                  </Button>
-                </>
+                    Practice for Free
+                  </Typography>
+                </Button>
               )}
 
               <Divider sx={{ width: "100%", my: 0.5 }} />
@@ -488,6 +442,7 @@ const styles = {
     zIndex: 10,
     gap: 1,
   },
+
   rewardsContainer: {
     position: "absolute",
     // top, width set dynamically via useResponsiveScale
