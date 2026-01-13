@@ -616,7 +616,7 @@ export default function BeastScreen() {
                   FLEE
                 </Button>
                 <Typography sx={styles.probabilityText}>
-                  {adventurer!.stats.dexterity === 0 ? 'No Dexterity' : `${fleePercentage}% chance`}
+                  {adventurer!.stats.dexterity === 0 ? 'No Dex' : `${fleePercentage}% chance`}
                 </Typography>
               </Box>
 
@@ -629,7 +629,7 @@ export default function BeastScreen() {
                     sx={styles.fleeButton}
                     disabled={skipCombat}
                   >
-                    SKIP ▶▶
+                    SKIP
                   </Button>
                 </Box>
               )}

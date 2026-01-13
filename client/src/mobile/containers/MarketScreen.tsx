@@ -506,29 +506,18 @@ export default function MarketScreen() {
                 sx={styles.filterButtons}
               >
                 {Object.keys(typeIcons).filter(type => ['Cloth', 'Hide', 'Metal'].includes(type)).map((type) => renderTypeToggleButton(type as keyof typeof typeIcons))}
+              </ToggleButtonGroup>
+
+              <ToggleButtonGroup
+                value={tierFilter}
+                exclusive
+                onChange={handleTierFilter}
+                aria-label="item tier"
+                sx={styles.filterButtons}
+              >
                 {Object.values(Tier)
                   .filter(tier => typeof tier === 'number' && tier > 0)
-                  .map((tier) => (
-                    <ToggleButton
-                      key={tier}
-                      value={tier}
-                      aria-label={`Tier ${tier}`}
-                      onClick={(e) => { e.stopPropagation(); handleTierFilter(e, tierFilter === tier ? null : tier as Tier); }}
-                    >
-                      <Box
-                        sx={{
-                          color: ItemUtils.getTierColor(tier as Tier),
-                          fontWeight: 'bold',
-                          fontSize: '1rem',
-                          lineHeight: '1.5rem',
-                          width: '24px',
-                          height: '24px',
-                        }}
-                      >
-                        T{tier}
-                      </Box>
-                    </ToggleButton>
-                  ))}
+                  .map((tier) => renderTierToggleButton(tier as Tier))}
               </ToggleButtonGroup>
             </Box>
 

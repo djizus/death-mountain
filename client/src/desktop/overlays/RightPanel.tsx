@@ -2105,6 +2105,7 @@ const styles = {
     flex: 1,
   },
   statFilterLabel: {
+    fontFamily: 'Cinzel, Georgia, serif',
     fontSize: '1rem',
     lineHeight: '1.5rem',
     color: '#EDCF33',
