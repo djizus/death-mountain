@@ -192,16 +192,15 @@ export default function MainMenu() {
                 fullWidth
                 size="large"
                 onClick={handleMainButtonClick}
-                disabled={true}
-                sx={{ pl: 1, height: "36px" }}
+                disabled={disableGameButtons}
+                sx={disableGameButtons ? { pl: 1, height: "36px" } : styles.mainCTAButton}
               >
-                <TokenIcon sx={{ fontSize: 20, mr: 1 }} />
+                <TokenIcon sx={{ fontSize: 20, mr: 1, color: "inherit" }} />
                 <Typography
                   sx={{
                     fontSize: "0.85rem",
-                    fontWeight: 500,
+                    fontWeight: 600,
                     letterSpacing: 0.5,
-                    color: "rgba(208, 201, 141, 0.3)",
                   }}
                 >
                   {dungeon.mainButtonText}
@@ -441,6 +440,27 @@ const styles = {
     gap: 1,
   },
 
+  mainCTAButton: {
+    pl: 1,
+    height: "36px",
+    borderColor: "#80FF00",
+    animation: "pulseGlow 1.8s ease-in-out infinite",
+    "@keyframes pulseGlow": {
+      "0%, 100%": {
+        boxShadow: "0 0 2px rgba(128, 255, 0, 0.05)",
+        opacity: 0.85,
+      },
+      "50%": {
+        boxShadow: "0 0 8px rgba(128, 255, 0, 0.25)",
+        opacity: 1,
+      },
+    },
+    "&:hover": {
+      borderColor: "#a0ff40",
+      backgroundColor: "rgba(128, 255, 0, 0.05)",
+      boxShadow: "0 0 10px rgba(128, 255, 0, 0.3)",
+    },
+  },
   rewardsContainer: {
     position: "absolute",
     // top, width set dynamically via useResponsiveScale
