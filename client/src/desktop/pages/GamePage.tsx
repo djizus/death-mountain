@@ -136,19 +136,29 @@ export default function GamePage() {
     const poll = async () => {
       try {
         const order = await getOrder(orderId);
+        console.log("[GamePage] Order poll result:", {
+          orderId,
+          status: order.status,
+          gameId: order.gameId,
+          lastError: order.lastError,
+          paymentTxHash: order.paymentTxHash,
+          fulfillTxHash: order.fulfillTxHash,
+        });
         if (cancelled) return;
 
         if (order.status === "fulfilled" && order.gameId) {
+          console.log("[GamePage] Order fulfilled, navigating to game:", order.gameId);
           navigate(`/${dungeon.id}/play?id=${order.gameId}`, { replace: true });
           return;
         }
 
         if (order.status === "failed" || order.status === "expired") {
+          console.error("[GamePage] Order failed/expired:", order.status, order.lastError);
           navigate(`/${dungeon.id}`, { replace: true });
           return;
         }
       } catch (error) {
-        console.error("Error polling order:", error);
+        console.error("[GamePage] Error polling order:", error);
       }
 
       if (!cancelled) {

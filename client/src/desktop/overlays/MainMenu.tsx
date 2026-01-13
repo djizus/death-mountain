@@ -192,8 +192,8 @@ export default function MainMenu() {
                 fullWidth
                 size="large"
                 onClick={handleMainButtonClick}
-                disabled={disableGameButtons}
-                sx={disableGameButtons ? { pl: 1, height: "36px" } : styles.mainCTAButton}
+                disabled={true}
+                sx={{ pl: 1, height: "36px" }}
               >
                 <TokenIcon sx={{ fontSize: 20, mr: 1, color: "inherit" }} />
                 <Typography

@@ -4,20 +4,20 @@ import { useController } from "@/contexts/controller";
 import { useDynamicConnector } from "@/contexts/starknet";
 import { useDungeon } from "@/dojo/useDungeon";
 import { ChainId } from "@/utils/networkConfig";
+
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
-import VisibilityIcon from "@mui/icons-material/Visibility";
+
 import { Box, Button, Divider, Typography } from "@mui/material";
 import { useAccount } from "@starknet-react/core";
 import { useGameTokens } from "metagame-sdk/sql";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { addAddressPadding } from "starknet";
-import GameTokensList from "../components/GameTokensList";
+import GamesList from "../components/GamesList";
 import Leaderboard from "../components/Leaderboard";
-import ReplayGamesList from "../components/ReplayGamesList";
 
 export default function LandingPage() {
   const dungeon = useDungeon();
@@ -25,8 +25,7 @@ export default function LandingPage() {
   const { login } = useController();
   const { currentNetworkConfig } = useDynamicConnector();
   const navigate = useNavigate();
-  const [showAdventurers, setShowAdventurers] = useState(false);
-  const [showReplays, setShowReplays] = useState(false);
+  const [showGames, setShowGames] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showDungeonRewards, setShowDungeonRewards] = useState(false);
@@ -50,7 +49,7 @@ export default function LandingPage() {
     setShowPaymentOptions(true);
   };
 
-  const handleShowAdventurers = () => {
+  const handleShowGames = () => {
     if (
       currentNetworkConfig.chainId === ChainId.SN_MAIN &&
       !account
@@ -59,18 +58,7 @@ export default function LandingPage() {
       return;
     }
 
-    setShowReplays(false);
-    setShowAdventurers(true);
-  };
-
-  const handleShowReplays = () => {
-    if (currentNetworkConfig.chainId === ChainId.SN_MAIN && !account) {
-      login();
-      return;
-    }
-
-    setShowAdventurers(false);
-    setShowReplays(true);
+    setShowGames(true);
   };
 
   const disableGameButtons = dungeon.status !== "online";
@@ -123,8 +111,7 @@ export default function LandingPage() {
             alignItems: "stretch",
           }}
         >
-          {!showAdventurers &&
-            !showReplays &&
+          {!showGames &&
             !showLeaderboard &&
             !showDungeonRewards && (
             <>
@@ -140,13 +127,13 @@ export default function LandingPage() {
                 variant="contained"
                 size="large"
                 onClick={handleMainButtonClick}
-                disabled={disableGameButtons}
+                disabled={true}
                 startIcon={
                   <img
                     src={"/images/mobile/dice.png"}
                     alt="dice"
                     height="20px"
-                    style={{ opacity: disableGameButtons ? 0.3 : 1 }}
+                    style={{ opacity: 0.3 }}
                   />
                 }
                 sx={{
@@ -158,9 +145,7 @@ export default function LandingPage() {
               >
                 <Typography
                   variant="h5"
-                  color={
-                    disableGameButtons ? "rgba(208, 201, 141, 0.4)" : "#111111"
-                  }
+                  color="rgba(208, 201, 141, 0.4)"
                 >
                   {dungeon.mainButtonText}
                 </Typography>
@@ -171,7 +156,7 @@ export default function LandingPage() {
                 variant="contained"
                 size="large"
                 color="secondary"
-                onClick={handleShowAdventurers}
+                onClick={handleShowGames}
                 disabled={disableGameButtons}
                 sx={{
                   height: "36px",
@@ -223,45 +208,18 @@ export default function LandingPage() {
               </Button>
 
               {dungeon.includePractice && (
-                <>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    size="large"
-                    color="secondary"
-                    onClick={handleShowReplays}
-                    sx={{
-                      height: "36px",
-                      mt: 1,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "100%",
-                      }}
-                    >
-                      <VisibilityIcon sx={{ mr: 1 }} />
-                      <Typography variant="h5" color="#111111">
-                        Replay Games
-                      </Typography>
-                    </Box>
-                  </Button>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    size="large"
-                    color="secondary"
-                    onClick={() => navigate(`/${dungeon.id}/play?mode=practice`)}
-                    sx={{ height: "36px", mt: 1, mb: 1 }}
-                  >
-                    <Typography variant="h5" color="#111111">
-                      Practice for Free
-                    </Typography>
-                  </Button>
-                </>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  color="secondary"
+                  onClick={() => navigate(`/${dungeon.id}/play?mode=practice`)}
+                  sx={{ height: "36px", mt: 1, mb: 1 }}
+                >
+                  <Typography variant="h5" color="#111111">
+                    Practice for Free
+                  </Typography>
+                </Button>
               )}
 
               <Divider sx={{ width: "100%", my: 0.5 }} />
@@ -300,39 +258,8 @@ export default function LandingPage() {
             </>
           )}
 
-          {showAdventurers && (
-            <>
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1,
-                  justifyContent: "center",
-                }}
-              >
-                <Box sx={styles.adventurersHeader}>
-                  <Button
-                    variant="text"
-                    size="large"
-                    onClick={() => setShowAdventurers(false)}
-                    sx={styles.backButton}
-                    startIcon={
-                      <ArrowBackIcon fontSize="large" sx={{ mr: 1 }} />
-                    }
-                  >
-                    <Typography variant="h4" color="primary">
-                      My Games
-                    </Typography>
-                  </Button>
-                </Box>
-              </Box>
-
-              <GameTokensList />
-            </>
-          )}
-
-          {showReplays && (
-            <ReplayGamesList onBack={() => setShowReplays(false)} />
+          {showGames && (
+            <GamesList onBack={() => setShowGames(false)} />
           )}
 
           {showLeaderboard && (

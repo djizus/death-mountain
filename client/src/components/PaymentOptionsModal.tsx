@@ -546,10 +546,19 @@ export default function PaymentOptionsModal({
       return;
     }
 
+    console.log("[payWithCrypto] Address match confirmed, proceeding to payment");
     setIsPaying(true);
     try {
       const amount = BigInt(order.requiredAmountRaw);
       const u256 = cairo.uint256(amount);
+
+      console.log("[payWithCrypto] Executing transfer", {
+        contractAddress: order.payToken.address,
+        treasuryAddress: order.treasuryAddress,
+        amount: order.requiredAmountRaw,
+        u256Low: u256.low.toString(),
+        u256High: u256.high.toString(),
+      });
 
       // Use the order's token address to ensure amount and token match
       const tx = await account.execute([
@@ -560,19 +569,28 @@ export default function PaymentOptionsModal({
         },
       ]);
 
+      console.log("[payWithCrypto] Transfer executed", { tx });
+
       const txHash: string | undefined = tx?.transaction_hash;
       if (!txHash) {
+        console.error("[payWithCrypto] No transaction hash returned");
         throw new Error("missing_tx_hash");
       }
 
-      await submitOrderPayment({ orderId: order.id, txHash });
+      console.log("[payWithCrypto] Submitting order payment", {
+        orderId: order.id,
+        txHash,
+      });
+
+      const submitResult = await submitOrderPayment({ orderId: order.id, txHash });
+      console.log("[payWithCrypto] Order payment submitted", submitResult);
 
       onClose();
       navigate(`/${dungeon.id}/play?mode=entering&orderId=${order.id}`, {
         replace: true,
       });
     } catch (error) {
-      console.error("Error paying with crypto:", error);
+      console.error("[payWithCrypto] Error:", error);
       setTokenQuote((prev) => ({
         ...prev,
         loading: false,
