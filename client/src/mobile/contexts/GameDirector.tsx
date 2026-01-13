@@ -25,6 +25,7 @@ import { useAnalytics } from "@/utils/analytics";
 import { BEAST_SPECIAL_NAME_LEVEL_UNLOCK } from "@/constants/beast";
 import { useDungeon } from "@/dojo/useDungeon";
 import { optimisticGameEvents } from "@/utils/translation";
+import { useUIStore } from "@/stores/uiStore";
 
 export interface GameDirectorContext {
   executeGameAction: (action: GameAction) => void;
@@ -137,6 +138,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
   const [showSkipCombat, setShowSkipCombat] = useState(false);
   const [beastDefeated, setBeastDefeated] = useState(false);
   const [optimisticTxs, setOptimisticTxs] = useState<any[]>([]);
+  const [startingEvent, setStartingEvent] = useState<GameEvent[] | null>(null);
+  const { skipFirstBattle } = useUIStore();
 
   useEffect(() => {
     if (gameId && !metadata) {
@@ -328,6 +331,19 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
         );
       }
       txs.push(startGame(action.gameId!));
+
+      if (action.settings.adventurer.xp === 0) {
+        if (VRFEnabled) {
+          txs.push(requestRandom(generateBattleSalt(gameId!, 0, 1)));
+        }
+        txs.push(attack(gameId!, false));
+      }
+    }
+
+    if (action.type === "attack" && adventurer!.xp === 0 && startingEvent) {
+      setEventQueue((prev) => [...prev, ...startingEvent]);
+      setStartingEvent(null);
+      return;
     }
 
     if (VRFEnabled && action.type === "explore") {
@@ -411,6 +427,15 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       events.filter((event: any) => event.type === "beast_attack").length >= 2
     ) {
       setShowSkipCombat(true);
+    }
+
+    if (action.type === "start_game" && action.settings.adventurer.xp === 0) {
+      if (!skipFirstBattle) {
+        setStartingEvent(events.filter((event: any) => event.action_count === 2));
+        events = events.filter((event: any) => event.action_count === 1);
+      } else {
+        events = events.filter((event: any) => event.action_count === 2);
+      }
     }
 
     setEventQueue((prev) => [...prev, ...events]);

@@ -15,7 +15,7 @@ export default function SettingsScreen() {
   const dungeon = useDungeon();
   const { muted, setMuted, volume, setVolume } = useSound();
   const { account, address, playerName, login, openProfile } = useController();
-  const { skipCombatDelays, setSkipCombatDelays } = useUIStore();
+  const { skipCombatDelays, setSkipCombatDelays, skipFirstBattle, setSkipFirstBattle } = useUIStore();
 
   const handleExitGame = () => {
     navigate(`/${dungeon.id}`);
@@ -109,6 +109,24 @@ export default function SettingsScreen() {
       <Box sx={styles.section}>
         <Box sx={styles.sectionHeader}>
           <Typography sx={styles.sectionTitle}>Game</Typography>
+        </Box>
+
+        <Box sx={styles.settingItem}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={skipFirstBattle}
+                onChange={(e) => setSkipFirstBattle(e.target.checked)}
+                sx={{
+                  color: '#80FF00',
+                  '&.Mui-checked': {
+                    color: '#80FF00',
+                  },
+                }}
+              />
+            }
+            label={<Typography color="#ffffff">Skip first battle</Typography>}
+          />
         </Box>
 
         <Box sx={styles.settingItem}>

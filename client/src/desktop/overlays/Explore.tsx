@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import BeastCollectedPopup from '../../components/BeastCollectedPopup';
 import Adventurer from './Adventurer';
 import InventoryOverlay from './Inventory';
-import MarketOverlay from './Market';
+import RightPanel from './RightPanel';
 import { useUIStore } from '@/stores/uiStore';
 import { useSnackbar } from 'notistack';
 import { useExplorationWorker } from '@/hooks/useExplorationWorker';
@@ -220,7 +220,7 @@ export default function ExploreOverlay() {
       <InventoryOverlay disabledEquip={isExploring || isSelectingStats || inProgress} />
 
       {adventurer?.beast_health === 0 && (
-        <MarketOverlay
+        <RightPanel
           disabledPurchase={isExploring || isSelectingStats || (adventurer?.stat_upgrades_available ?? 0) > 0}
           disabledReason={isExploring ? 'exploring' : 'stats'}
         />

@@ -18,6 +18,8 @@ export default function Settings({ onBack }: SettingsProps) {
     setSkipAllAnimations,
     skipIntroOutro,
     setSkipIntroOutro,
+    skipFirstBattle,
+    setSkipFirstBattle,
     showUntilBeastToggle,
     setShowUntilBeastToggle,
   } = useUIStore();
@@ -149,6 +151,26 @@ export default function Settings({ onBack }: SettingsProps) {
                 />
               }
               label="Skip all animations"
+              sx={styles.checkboxLabel}
+            />
+          </Box>
+        </Box>
+
+        <Divider sx={{ my: 0.5, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+        {/* Game Section */}
+        <Box sx={styles.settingSection}>
+          <Typography sx={[styles.sectionTitle]}>Game</Typography>
+          <Box sx={styles.animationsControl}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={skipFirstBattle}
+                  onChange={(e) => setSkipFirstBattle(e.target.checked)}
+                  sx={styles.checkbox}
+                />
+              }
+              label="Skip first battle"
               sx={styles.checkboxLabel}
             />
           </Box>

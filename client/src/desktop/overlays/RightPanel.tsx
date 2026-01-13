@@ -111,12 +111,12 @@ const redPulse = keyframes`
   }
 `;
 
-interface MarketOverlayProps {
+interface RightPanelProps {
   disabledPurchase?: boolean;
   disabledReason?: 'exploring' | 'stats';
 }
 
-export default function MarketOverlay({ disabledPurchase = false, disabledReason }: MarketOverlayProps) {
+export default function RightPanel({ disabledPurchase = false, disabledReason }: RightPanelProps) {
   const { scalePx, contentOffset } = useResponsiveScale();
   const dungeon = useDungeon();
   const navigate = useNavigate();
@@ -140,6 +140,8 @@ export default function MarketOverlay({ disabledPurchase = false, disabledReason
     setSkipAllAnimations,
     skipCombatDelays,
     setSkipCombatDelays,
+    skipFirstBattle,
+    setSkipFirstBattle,
     showUntilBeastToggle,
     setShowUntilBeastToggle,
   } = useUIStore();
@@ -1265,6 +1267,26 @@ export default function MarketOverlay({ disabledPurchase = false, disabledReason
                   />
                 }
                 label="Skip combat delays"
+                sx={styles.checkboxLabel}
+              />
+            </Box>
+          </Box>
+
+          <Divider sx={{ my: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+          {/* Game Section */}
+          <Box sx={styles.settingsSection}>
+            <Typography sx={styles.settingsSectionTitle}>Game</Typography>
+            <Box sx={styles.animationsControl}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={skipFirstBattle}
+                    onChange={(e) => setSkipFirstBattle(e.target.checked)}
+                    sx={styles.checkbox}
+                  />
+                }
+                label="Skip first battle"
                 sx={styles.checkboxLabel}
               />
             </Box>
