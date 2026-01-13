@@ -460,21 +460,27 @@ export default function PaymentOptionsModal({
       return;
     }
 
-    // Validate that the selected token matches the order's token to prevent mismatches
-    if (selectedToken !== order.payToken.symbol && 
-        !(selectedToken === "USDC.e Bridged" && order.payToken.symbol === "USDC_E")) {
-      // Token changed since order was created, need to fetch new quote
-      setOrder(null);
-      fetchTokenQuote(selectedToken);
-      return;
-    }
-
+    // Get the currently selected token's address for validation
+    const selectedTokenData = userTokens.find((t: any) => t.symbol === selectedToken);
+    
     if (!order.payToken.address) {
       setTokenQuote({
         amount: "",
         loading: false,
         error: "Token not supported",
       });
+      return;
+    }
+
+    // Validate that the selected token's address matches the order's token address
+    // This prevents mismatches when user changes token selection after order creation
+    const selectedAddress = selectedTokenData?.address?.toLowerCase();
+    const orderAddress = order.payToken.address.toLowerCase();
+    
+    if (!selectedAddress || selectedAddress !== orderAddress) {
+      // Token changed since order was created, need to fetch new quote
+      setOrder(null);
+      fetchTokenQuote(selectedToken);
       return;
     }
 
