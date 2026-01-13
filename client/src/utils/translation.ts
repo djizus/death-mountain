@@ -3,9 +3,10 @@ import { getBeastName, getBeastTier, getBeastType } from "./beast";
 import { BEAST_NAME_PREFIXES, BEAST_NAME_SUFFIXES, BEAST_SPECIAL_NAME_LEVEL_UNLOCK } from "@/constants/beast";
 import { BEAST_NAMES } from "@/constants/beast";
 import { Dungeon } from "@/dojo/useDungeon";
-import { Adventurer, Item, ItemPurchase, Stats } from "@/types/game";
+import { Adventurer, GameAction, Item, ItemPurchase, Stats } from "@/types/game";
 import { GameEvent } from "./events";
 import { ItemUtils } from "./loot";
+import { STARTING_HEALTH } from "@/constants/game";
 
 const parseData = (values: string[], type: string): any => {
   const value = values.splice(0, 1)[0];
@@ -314,81 +315,12 @@ export const translateGameEvent = (event: any, manifest: any, gameId: number | n
   return result;
 }
 
-export const optimisticGameEvents = (adventurer: Adventurer, bag: Item[], call: any): GameEvent[] => {
+export const optimisticGameEvents = (adventurer: Adventurer, bag: Item[], action: GameAction): GameEvent[] => {
   let events: GameEvent[] = [];
-  let action_count = adventurer.action_count + 1;
+  let action_count = adventurer.action_count;
 
-  if (call.entrypoint === 'drop') {
-    let items = call.calldata[1];
-    let bagStatBoosts: Stats[] = bag.filter((item: Item) => items.includes(item.id) && item.xp >= 225)
-      .map((item: Item) => ItemUtils.fullItemBoost(item, adventurer.item_specials_seed, { dexterity: 0, strength: 0, vitality: 0, intelligence: 0, wisdom: 0, charisma: 0, luck: 0 }));
-
-    let totalBagStats: Stats = bagStatBoosts.reduce((acc: Stats, stat: Stats) => {
-      return {
-        dexterity: acc.dexterity + stat.dexterity,
-        strength: acc.strength + stat.strength,
-        vitality: acc.vitality + stat.vitality,
-        intelligence: acc.intelligence + stat.intelligence,
-        wisdom: acc.wisdom + stat.wisdom,
-        charisma: acc.charisma + stat.charisma,
-        luck: acc.luck + stat.luck,
-      }
-    }, { dexterity: 0, strength: 0, vitality: 0, intelligence: 0, wisdom: 0, charisma: 0, luck: 0 });
-
-    let equippedItemIds = items.filter((item_id: Number) => !bag.find((item: Item) => item.id === item_id))
-    let equippedItems = equippedItemIds.map((id: number) => Object.values(adventurer.equipment).find(item => item.id === id))
-    let equippedStatBoost = equippedItems.filter((item: Item) => item.xp >= 225)
-      .map((item: Item) => ItemUtils.fullItemBoost(item, adventurer.item_specials_seed, { dexterity: 0, strength: 0, vitality: 0, intelligence: 0, wisdom: 0, charisma: 0, luck: 0 }));
-    let totalEquippedStats: Stats = equippedStatBoost.reduce((acc: Stats, stat: Stats) => {
-      return {
-        dexterity: acc.dexterity + stat.dexterity,
-        strength: acc.strength + stat.strength,
-        vitality: acc.vitality + stat.vitality,
-        intelligence: acc.intelligence + stat.intelligence,
-        wisdom: acc.wisdom + stat.wisdom,
-        charisma: acc.charisma + stat.charisma,
-        luck: acc.luck + stat.luck,
-      }
-    }, { dexterity: 0, strength: 0, vitality: 0, intelligence: 0, wisdom: 0, charisma: 0, luck: 0 });
-
-    events = [{
-      type: 'drop',
-      action_count,
-      items,
-    }, {
-      type: 'bag',
-      action_count,
-      bag: bag.filter((item: Item) => !items.includes(item.id)),
-    }, {
-      type: 'adventurer',
-      action_count,
-      adventurer: {
-        ...adventurer,
-        action_count,
-        health: adventurer.health - ((totalBagStats.vitality + totalEquippedStats.vitality) * 15),
-        stats: {
-          dexterity: adventurer.stats.dexterity - totalEquippedStats.dexterity,
-          strength: adventurer.stats.strength - totalEquippedStats.strength,
-          intelligence: adventurer.stats.intelligence - totalEquippedStats.intelligence,
-          wisdom: adventurer.stats.wisdom - totalEquippedStats.wisdom,
-          charisma: adventurer.stats.charisma - totalBagStats.charisma - totalEquippedStats.charisma,
-          vitality: adventurer.stats.vitality - totalBagStats.vitality - totalEquippedStats.vitality,
-          luck: adventurer.stats.luck - totalBagStats.luck - totalEquippedStats.luck,
-        },
-        equipment: {
-          weapon: equippedItemIds.includes(adventurer.equipment.weapon.id) ? { id: 0, xp: 0 } : adventurer.equipment.weapon,
-          chest: equippedItemIds.includes(adventurer.equipment.chest.id) ? { id: 0, xp: 0 } : adventurer.equipment.chest,
-          head: equippedItemIds.includes(adventurer.equipment.head.id) ? { id: 0, xp: 0 } : adventurer.equipment.head,
-          waist: equippedItemIds.includes(adventurer.equipment.waist.id) ? { id: 0, xp: 0 } : adventurer.equipment.waist,
-          foot: equippedItemIds.includes(adventurer.equipment.foot.id) ? { id: 0, xp: 0 } : adventurer.equipment.foot,
-          hand: equippedItemIds.includes(adventurer.equipment.hand.id) ? { id: 0, xp: 0 } : adventurer.equipment.hand,
-          neck: equippedItemIds.includes(adventurer.equipment.neck.id) ? { id: 0, xp: 0 } : adventurer.equipment.neck,
-          ring: equippedItemIds.includes(adventurer.equipment.ring.id) ? { id: 0, xp: 0 } : adventurer.equipment.ring,
-        },
-      },
-    }]
-  } else if (call.entrypoint === "select_stat_upgrades") {
-    let stats: Stats = call.calldata[1];
+  if (action.type === "select_stat_upgrades") {
+    let stats: Stats = action.statUpgrades!;
     events = [{
       type: 'stat_upgrade',
       action_count,
@@ -412,9 +344,9 @@ export const optimisticGameEvents = (adventurer: Adventurer, bag: Item[], call: 
         action_count,
       },
     }]
-  } else if (call.entrypoint === "buy_items") {
-    let potions = call.calldata[1];
-    let items_purchased: ItemPurchase[] = call.calldata[2];
+  } else if (action.type === "buy_items") {
+    let potions = action.potions!;
+    let items_purchased: ItemPurchase[] = action.itemPurchases!;
 
     let equippedWeapon = items_purchased.find((item: ItemPurchase) => item.equip && ItemUtils.isWeapon(item.item_id));
     let equippedChest = items_purchased.find((item: ItemPurchase) => item.equip && ItemUtils.isChest(item.item_id));
@@ -425,12 +357,39 @@ export const optimisticGameEvents = (adventurer: Adventurer, bag: Item[], call: 
     let equippedNeck = items_purchased.find((item: ItemPurchase) => item.equip && ItemUtils.isNecklace(item.item_id));
     let equippedRing = items_purchased.find((item: ItemPurchase) => item.equip && ItemUtils.isRing(item.item_id));
 
+    let updatedBag = [...bag, ...items_purchased.filter((item: ItemPurchase) => !item.equip)
+      .map((item: ItemPurchase) => ({ id: item.item_id, xp: 0 }))];
+
+    if (equippedWeapon && adventurer.equipment.weapon.id !== 0) {
+      updatedBag.push(adventurer.equipment.weapon);
+    }
+    if (equippedChest && adventurer.equipment.chest.id !== 0) {
+      updatedBag.push(adventurer.equipment.chest);
+    }
+    if (equippedHead && adventurer.equipment.head.id !== 0) {
+      updatedBag.push(adventurer.equipment.head);
+    }
+    if (equippedWaist && adventurer.equipment.waist.id !== 0) {
+      updatedBag.push(adventurer.equipment.waist);
+    }
+    if (equippedFoot && adventurer.equipment.foot.id !== 0) {
+      updatedBag.push(adventurer.equipment.foot);
+    }
+    if (equippedHand && adventurer.equipment.hand.id !== 0) {
+      updatedBag.push(adventurer.equipment.hand);
+    }
+    if (equippedNeck && adventurer.equipment.neck.id !== 0) {
+      updatedBag.push(adventurer.equipment.neck);
+    }
+    if (equippedRing && adventurer.equipment.ring.id !== 0) {
+      updatedBag.push(adventurer.equipment.ring);
+    }
+
     events = [
       {
         type: 'bag',
         action_count,
-        bag: [...bag, ...items_purchased.filter((item: ItemPurchase) => !item.equip)
-          .map((item: ItemPurchase) => ({ id: item.item_id, xp: 0 }))],
+        bag: updatedBag,
       },
       {
         type: 'buy_items',
@@ -443,8 +402,8 @@ export const optimisticGameEvents = (adventurer: Adventurer, bag: Item[], call: 
         adventurer: {
           ...adventurer,
           action_count,
-          gold: call.remainingGold,
-          health: adventurer.health + (potions * 10),
+          gold: action.remainingGold!,
+          health: Math.min(adventurer.health + (potions * 10), STARTING_HEALTH + (adventurer.stats.vitality * 15)),
           equipment: {
             weapon: equippedWeapon ? { id: equippedWeapon.item_id, xp: 0 } : adventurer.equipment.weapon,
             chest: equippedChest ? { id: equippedChest.item_id, xp: 0 } : adventurer.equipment.chest,

@@ -11,21 +11,21 @@ import {
   Payment,
   Stats,
 } from "@/types/game";
-import { translateGameEvent } from "@/utils/translation";
-import { getContractByName } from "@dojoengine/core";
-import { delay, stringToFelt } from "@/utils/utils";
-import { CairoOption, CairoOptionVariant, CallData, byteArray } from "starknet";
 import { useAnalytics } from "@/utils/analytics";
+import { GameEvent } from "@/utils/events";
+import { translateGameEvent } from "@/utils/translation";
+import { delay, stringToFelt } from "@/utils/utils";
+import { getContractByName } from "@dojoengine/core";
 import { useSnackbar } from "notistack";
+import { CairoOption, CairoOptionVariant, CallData, byteArray, num } from "starknet";
 import { useGameTokens } from "./useGameTokens";
-import { num } from "starknet";
 
 const TICKET_PRICE_WEI = BigInt("1000000000000000000");
 
 export const useSystemCalls = () => {
   const { enqueueSnackbar } = useSnackbar();
   const { getBeastTokenURI, getAdventurerState } = useStarknetApi();
-  const { setCollectableTokenURI, gameId, adventurer } = useGameStore();
+  const { setCollectableTokenURI, gameId, adventurer, beast, bag, exploreLog } = useGameStore();
   const { getBeastTokenId } = useGameTokens();
   const { account } = useController();
   const { currentNetworkConfig } = useDynamicConnector();
@@ -66,14 +66,13 @@ export const useSystemCalls = () => {
    *   - drop: Function to drop items
    *   - levelUp: Function to level up and purchase items
    */
-  const executeAction = async (calls: any[], forceResetAction: () => void) => {
+
+  const executeAction = async (calls: any[], forceResetAction: () => void, successCallback: () => void) => {
     try {
-      if (adventurer) {
-        await waitForGlobalState(adventurer.action_count);
-      }
+      await waitForGlobalState(calls, 0);
 
       let tx = await account!.execute(calls);
-      let receipt: any = await waitForAcceptedTransaction(tx.transaction_hash, 0);
+      let receipt: any = await waitForPreConfirmedTransaction(tx.transaction_hash, 0);
 
       if (receipt.execution_status === "REVERTED") {
         forceResetAction();
@@ -82,6 +81,8 @@ export const useSystemCalls = () => {
         });
         enqueueSnackbar('Action failed', { variant: 'warning', anchorOrigin: { vertical: 'top', horizontal: 'center' } });
         return;
+      } else {
+        successCallback();
       }
 
       const translatedEvents = receipt.events.map((event: any) =>
@@ -94,7 +95,11 @@ export const useSystemCalls = () => {
         return;
       }
 
-      return translatedEvents.filter(Boolean);
+      const validEvents = translatedEvents.filter((event: GameEvent) => Boolean(event));
+      if (validEvents.length === 0) return false;
+
+      const maxActionCount = Math.max(...validEvents.map((e: GameEvent) => e.action_count));
+      return validEvents.filter((event: GameEvent) => event.action_count === 1 || event.action_count === maxActionCount);
     } catch (error) {
       console.error("Error executing action:", error);
       forceResetAction();
@@ -102,7 +107,7 @@ export const useSystemCalls = () => {
     }
   };
 
-  const waitForAcceptedTransaction = async (txHash: string, retries: number) => {
+  const waitForPreConfirmedTransaction = async (txHash: string, retries: number) => {
     if (retries > 5) {
       throw new Error("Transaction failed");
     }
@@ -110,14 +115,14 @@ export const useSystemCalls = () => {
     try {
       const receipt: any = await account!.waitForTransaction(
         txHash,
-        { retryInterval: 275, successStates: ["ACCEPTED_ON_L2", "ACCEPTED_ON_L1"] }
+        { retryInterval: 275, successStates: ["PRE_CONFIRMED", "ACCEPTED_ON_L2", "ACCEPTED_ON_L1"] }
       );
 
       return receipt;
     } catch (error) {
-      console.error("Error waiting for accepted transaction:", error);
+      console.error("Error waiting for pre confirmed transaction:", error);
       await delay(500);
-      return waitForAcceptedTransaction(txHash, retries + 1);
+      return waitForPreConfirmedTransaction(txHash, retries + 1);
     }
   }
 
@@ -140,19 +145,42 @@ export const useSystemCalls = () => {
     }
   }
 
-  const waitForGlobalState = async (expectedActionCount: number, retries: number = 0): Promise<void> => {
-    let adventurerState = await getAdventurerState(gameId!);
+  const waitForGlobalState = async (calls: any, retries: number): Promise<boolean> => {
+    if (!adventurer) return true;
 
-    if (adventurerState && adventurerState.action_count >= expectedActionCount) {
-      return;
+    if (beast && adventurer.beast_health > 0 && adventurer.beast_health < beast.health) {
+      return true;
     }
 
-    if (retries > 19) {
-      throw new Error("Timed out waiting for global state to catch up");
+    let lastEvent = exploreLog[exploreLog.length - 1];
+    if (lastEvent?.type === "discovery") {
+      if (lastEvent.discovery?.type === "Health") {
+        return true;
+      }
+      if (lastEvent.discovery?.type === "Gold" && !calls.find((call: any) => call.entrypoint === 'buy_items')) {
+        return true;
+      }
+      if (lastEvent.discovery?.type === "Loot" && !calls.find((call: any) => call.entrypoint === 'equip' || call.entrypoint === 'drop')) {
+        return true;
+      }
+    } else if (lastEvent?.type === "obstacle") {
+      if (!calls.find((call: any) => call.entrypoint === 'buy_items' && call.calldata[1] > 0)) {
+        return true;
+      }
+    } else if (lastEvent?.type === "buy_items") {
+      if (lastEvent.items_purchased?.length === 0 || !calls.find((call: any) => call.entrypoint === 'equip')) {
+        return true;
+      }
+    }
+
+    let adventurerState = await getAdventurerState(gameId!);
+
+    if (adventurerState?.action_count === adventurer!.action_count || retries > 9) {
+      return true;
     }
 
     await delay(500);
-    return waitForGlobalState(expectedActionCount, retries + 1);
+    return waitForGlobalState(calls, retries + 1);
   };
 
   /**
@@ -167,12 +195,14 @@ export const useSystemCalls = () => {
     name: string,
     preCalls: any[],
     amount: number,
-    callback: () => void
+    callback: () => void,
+    recipientAddress?: string
   ) => {
     let paymentData =
       payment.paymentType === "Ticket"
         ? [0]
         : [1, payment.goldenPass!.address, payment.goldenPass!.tokenId];
+    const recipient = recipientAddress || account!.address;
 
     if (payment.paymentType === "Ticket") {
       preCalls.push({
@@ -187,15 +217,15 @@ export const useSystemCalls = () => {
         [
           ...preCalls,
           ...Array.from({ length: amount }, () => ({
-            contractAddress: DUNGEON_ADDRESS,
-            entrypoint: "buy_game",
-            calldata: CallData.compile([
-              ...paymentData,
-              new CairoOption(CairoOptionVariant.Some, stringToFelt(name)),
-              account!.address, // send game to this address
-              false, // soulbound
-            ]),
-          })),
+              contractAddress: DUNGEON_ADDRESS,
+              entrypoint: "buy_game",
+              calldata: CallData.compile([
+                ...paymentData,
+                new CairoOption(CairoOptionVariant.Some, stringToFelt(name)),
+                recipient, // send game to this address
+                false, // soulbound
+              ]),
+            })),
         ]
       );
 
@@ -220,8 +250,9 @@ export const useSystemCalls = () => {
    * @param name The name of the game
    * @param settingsId The settings ID for the game
    */
-  const mintGame = async (name: string, settingsId = 0) => {
+  const mintGame = async (name: string, settingsId = 0, recipientAddress?: string) => {
     try {
+      const recipient = recipientAddress || account!.address;
       let tx = await account!.execute(
         [
           {
@@ -236,7 +267,7 @@ export const useSystemCalls = () => {
               1, // context
               1, // client_url
               1, // renderer_address
-              account!.address,
+              recipient,
               false, // soulbound
             ]),
           },
@@ -359,7 +390,7 @@ export const useSystemCalls = () => {
    * @param statUpgrades Object containing stat upgrades
    * @param items Array of items to purchase
    */
-  const buyItems = (gameId: number, potions: number, items: ItemPurchase[], _remainingGold?: number) => {
+  const buyItems = (gameId: number, potions: number, items: ItemPurchase[]) => {
     return {
       contractAddress: GAME_ADDRESS,
       entrypoint: "buy_items",
@@ -453,7 +484,7 @@ export const useSystemCalls = () => {
       contractAddress: DUNGEON_ADDRESS,
       entrypoint: "claim_reward_token",
       calldata: [gameId],
-    }], () => { });
+    }], () => { }, () => { });
   };
 
   const claimJackpot = async (tokenId: number) => {
@@ -461,7 +492,7 @@ export const useSystemCalls = () => {
       contractAddress: DUNGEON_ADDRESS,
       entrypoint: "claim_jackpot",
       calldata: [tokenId],
-    }], () => { });
+    }], () => { }, () => { });
   };
 
   const refreshDungeonStats = async (beast: Beast, waitTime: number) => {
@@ -473,7 +504,7 @@ export const useSystemCalls = () => {
       contractAddress: currentNetworkConfig.beasts,
       entrypoint: "refresh_dungeon_stats",
       calldata: [num.toHex(tokenId), "0x0"],
-    }], () => { });
+    }], () => { }, () => { });
   };
 
   const createSettings = async (settings: GameSettingsData) => {
@@ -546,6 +577,7 @@ export const useSystemCalls = () => {
           ],
         },
       ],
+      () => { },
       () => { }
     );
   };
