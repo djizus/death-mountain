@@ -740,10 +740,6 @@ export default function RightPanel({ disabledPurchase = false, disabledReason }:
     return null;
   }
 
-  if (!isOpen) {
-    return null;
-  }
-
   return (
     <Box sx={{
       ...styles.popup,

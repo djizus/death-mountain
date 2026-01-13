@@ -284,6 +284,11 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
         setShowInventory(true);
       }
 
+      // Show right panel when beast is defeated (beast_health goes to 0)
+      if (event.adventurer!.beast_health === 0) {
+        setIsOpen(true);
+      }
+
       if (
         event.adventurer!.stat_upgrades_available === 0 &&
         adventurer?.stat_upgrades_available! > 0
