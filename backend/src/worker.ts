@@ -48,12 +48,24 @@ export function startWorker(params: {
 
     if (!order) return;
 
+    console.log("[worker] Processing order:", {
+      id: order.id,
+      status: order.status,
+      paymentTxHash: order.payment_tx_hash,
+      fulfillTxHash: order.fulfill_tx_hash,
+      gameId: order.game_id,
+      lastError: order.last_error,
+    });
+
     busy = true;
     try {
       const now = Date.now();
 
       if (order.status === "awaiting_payment" && order.payment_tx_hash) {
+        console.log("[worker] Verifying payment for order:", order.id);
+        
         if (now > order.expires_at) {
+          console.log("[worker] Order expired:", order.id);
           params.db
             .prepare("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?")
             .run("expired", now, order.id);
@@ -61,6 +73,12 @@ export function startWorker(params: {
         }
 
         const required = BigInt(order.required_amount_raw);
+        console.log("[worker] Verifying payment tx:", {
+          txHash: order.payment_tx_hash,
+          tokenAddress: order.pay_token_address,
+          requiredAmount: required.toString(),
+        });
+
         const verification = await verifyPaymentTx({
           rpcUrl: params.config.STARKNET_RPC_URL,
           txHash: order.payment_tx_hash,
@@ -70,11 +88,15 @@ export function startWorker(params: {
           minimumAmountRaw: required
         });
 
+        console.log("[worker] Payment verification result:", verification);
+
         if (verification.status === "pending") {
+          console.log("[worker] Payment still pending for order:", order.id);
           return;
         }
 
         if (verification.status === "failed") {
+          console.error("[worker] Payment verification failed:", verification.error);
           params.db
             .prepare(
               "UPDATE orders SET status = ?, updated_at = ?, last_error = ? WHERE id = ?"
@@ -83,6 +105,7 @@ export function startWorker(params: {
           return;
         }
 
+        console.log("[worker] Payment verified, marking order as paid:", order.id);
         params.db
           .prepare(
             "UPDATE orders SET status = ?, updated_at = ?, paid_amount_raw = ?, last_error = NULL WHERE id = ?"
@@ -92,7 +115,7 @@ export function startWorker(params: {
       }
 
       if (!params.config.STARKNET_TREASURY_PRIVATE_KEY) {
-        // Can't fulfill without a signer.
+        console.error("[worker] Missing STARKNET_TREASURY_PRIVATE_KEY - cannot fulfill orders");
         params.db
           .prepare("UPDATE orders SET updated_at = ?, last_error = ? WHERE id = ?")
           .run(now, "Missing STARKNET_TREASURY_PRIVATE_KEY", order.id);
@@ -100,6 +123,7 @@ export function startWorker(params: {
       }
 
       if (order.status === "paid" && !order.fulfill_tx_hash) {
+        console.log("[worker] Starting fulfillment for order:", order.id);
         params.db
           .prepare("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?")
           .run("fulfilling", now, order.id);
@@ -109,6 +133,7 @@ export function startWorker(params: {
           "treasury"
         );
 
+        console.log("[worker] Checking ticket balance for treasury:", treasuryAddress);
         const ticketBalance = await getErc20Balance({
           rpcUrl: params.config.STARKNET_RPC_URL,
           tokenAddress: MAINNET_TICKET_TOKEN_ADDRESS,
@@ -116,10 +141,16 @@ export function startWorker(params: {
         });
 
         const currentTickets = Number(ticketBalance / ONE_TICKET);
+        console.log("[worker] Treasury ticket balance:", {
+          raw: ticketBalance.toString(),
+          tickets: currentTickets,
+          minimumReserve: params.config.TICKET_RESERVE_MINIMUM,
+          targetReserve: params.config.TICKET_RESERVE_TARGET,
+        });
 
         // Check if we can fulfill (must have MORE than minimum reserve)
         if (!canFulfillOrder(ticketBalance, params.config.TICKET_RESERVE_MINIMUM)) {
-          console.log(
+          console.error(
             `[worker] Cannot fulfill order: ${currentTickets} tickets <= ${params.config.TICKET_RESERVE_MINIMUM} minimum reserve`
           );
           params.db
@@ -146,6 +177,12 @@ export function startWorker(params: {
           });
         }
 
+        console.log("[worker] Submitting buy_game transaction:", {
+          treasuryAddress,
+          playerAddress: order.recipient_address,
+          playerName: order.player_name,
+        });
+
         const tx = await submitBuyGameTx({
           rpcUrl: params.config.STARKNET_RPC_URL,
           treasuryAddress,
@@ -154,6 +191,7 @@ export function startWorker(params: {
           playerName: order.player_name
         });
 
+        console.log("[worker] buy_game transaction submitted:", tx.txHash);
         params.db
           .prepare(
             "UPDATE orders SET updated_at = ?, fulfill_tx_hash = ?, last_error = NULL WHERE id = ?"
@@ -164,17 +202,31 @@ export function startWorker(params: {
       }
 
       if (order.status === "fulfilling" && order.fulfill_tx_hash && !order.game_id) {
+        console.log("[worker] Waiting for fulfillment tx:", order.fulfill_tx_hash);
         const result = await waitForFulfillment({
           rpcUrl: params.config.STARKNET_RPC_URL,
           txHash: order.fulfill_tx_hash,
           timeoutMs: params.config.FULFILLMENT_WAIT_TIMEOUT_MS
         });
 
+        console.log("[worker] Fulfillment result:", {
+          txHash: result.txHash,
+          gameId: result.gameId,
+          executionStatus: result.executionStatus,
+          finalityStatus: result.finalityStatus,
+          revertReason: result.revertReason,
+        });
+
         if (!result.receipt) {
+          console.log("[worker] No receipt yet, will retry...");
           return;
         }
 
         if (result.executionStatus === "SUCCEEDED" && result.gameId !== null) {
+          console.log("[worker] Order fulfilled successfully:", {
+            orderId: order.id,
+            gameId: result.gameId,
+          });
           params.db
             .prepare(
               "UPDATE orders SET status = ?, updated_at = ?, game_id = ?, last_error = NULL WHERE id = ?"
@@ -187,6 +239,10 @@ export function startWorker(params: {
           result.revertReason ??
           (result.executionStatus ? `execution_${result.executionStatus}` : "unknown_fulfillment_error");
 
+        console.error("[worker] Fulfillment failed:", {
+          orderId: order.id,
+          error,
+        });
         params.db
           .prepare(
             "UPDATE orders SET status = ?, updated_at = ?, last_error = ? WHERE id = ?"
@@ -195,6 +251,11 @@ export function startWorker(params: {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      console.error("[worker] Error processing order:", {
+        orderId: order.id,
+        error: message,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       params.db
         .prepare("UPDATE orders SET updated_at = ?, last_error = ? WHERE id = ?")
         .run(Date.now(), message, order.id);

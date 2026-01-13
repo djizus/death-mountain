@@ -158,18 +158,30 @@ export function buildOrdersRouter(params: {
 
   router.post("/orders/:id/payment", async (req, res) => {
     const id = req.params.id;
+    console.log("[orders] Payment submission received:", { orderId: id, body: req.body });
+
     const body = submitPaymentSchema.safeParse(req.body);
     if (!body.success) {
+      console.error("[orders] Invalid payment request:", body.error.flatten());
       return res.status(400).json({ error: "invalid_request", details: body.error.flatten() });
     }
 
     const row = params.db.prepare("SELECT * FROM orders WHERE id = ?").get(id) as OrderRow | undefined;
     if (!row) {
+      console.error("[orders] Order not found:", id);
       return res.status(404).json({ error: "not_found" });
     }
 
+    console.log("[orders] Found order:", {
+      id: row.id,
+      status: row.status,
+      expiresAt: row.expires_at,
+      paymentTxHash: row.payment_tx_hash,
+    });
+
     const now = Date.now();
     if (now > row.expires_at && row.status === "awaiting_payment") {
+      console.log("[orders] Order expired:", { orderId: id, expiresAt: row.expires_at, now });
       params.db
         .prepare("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?")
         .run("expired", now, id);
@@ -178,6 +190,7 @@ export function buildOrdersRouter(params: {
 
     // Idempotency: if already paid/fulfilled, just return.
     if (row.status !== "awaiting_payment") {
+      console.log("[orders] Order already processed, returning current state:", row.status);
       const current = params.db.prepare("SELECT * FROM orders WHERE id = ?").get(id) as OrderRow;
       const response = mapRow(current);
       response.treasuryAddress = params.config.STARKNET_TREASURY_ADDRESS;
@@ -185,16 +198,29 @@ export function buildOrdersRouter(params: {
     }
 
     if (row.payment_tx_hash && row.payment_tx_hash !== body.data.txHash) {
+      console.error("[orders] Payment tx hash mismatch:", {
+        existing: row.payment_tx_hash,
+        submitted: body.data.txHash,
+      });
       return res.status(409).json({ error: "payment_tx_hash_mismatch" });
     }
 
     if (!row.payment_tx_hash) {
+      console.log("[orders] Storing payment tx hash:", body.data.txHash);
       params.db
         .prepare("UPDATE orders SET payment_tx_hash = ?, updated_at = ? WHERE id = ?")
         .run(body.data.txHash, now, id);
     }
 
     const required = BigInt(row.required_amount_raw);
+
+    console.log("[orders] Verifying payment tx:", {
+      txHash: body.data.txHash,
+      tokenAddress: row.pay_token_address,
+      treasuryAddress: params.config.STARKNET_TREASURY_ADDRESS,
+      expectedSender: row.recipient_address,
+      requiredAmount: required.toString(),
+    });
 
     const verification = await verifyPaymentTx({
       rpcUrl: params.config.STARKNET_RPC_URL,
@@ -205,7 +231,10 @@ export function buildOrdersRouter(params: {
       minimumAmountRaw: required
     });
 
+    console.log("[orders] Payment verification result:", verification);
+
     if (verification.status === "pending") {
+      console.log("[orders] Payment still pending, returning 202");
       const current = params.db.prepare("SELECT * FROM orders WHERE id = ?").get(id) as OrderRow;
       const response = mapRow(current);
       response.treasuryAddress = params.config.STARKNET_TREASURY_ADDRESS;
@@ -213,6 +242,7 @@ export function buildOrdersRouter(params: {
     }
 
     if (verification.status === "failed") {
+      console.error("[orders] Payment verification failed:", verification);
       params.db
         .prepare("UPDATE orders SET status = ?, updated_at = ?, last_error = ? WHERE id = ?")
         .run("failed", Date.now(), verification.error, id);
@@ -220,6 +250,7 @@ export function buildOrdersRouter(params: {
       return res.status(400).json({ error: "payment_verification_failed", details: verification });
     }
 
+    console.log("[orders] Payment verified successfully, marking order as paid");
     params.db
       .prepare(
         "UPDATE orders SET status = ?, updated_at = ?, paid_amount_raw = ?, last_error = NULL WHERE id = ?"
@@ -229,6 +260,7 @@ export function buildOrdersRouter(params: {
     const updated = params.db.prepare("SELECT * FROM orders WHERE id = ?").get(id) as OrderRow;
     const response = mapRow(updated);
     response.treasuryAddress = params.config.STARKNET_TREASURY_ADDRESS;
+    console.log("[orders] Returning paid order:", { orderId: id, status: updated.status });
     return res.json(response);
   });
 

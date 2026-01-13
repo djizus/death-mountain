@@ -106,8 +106,10 @@ export default function MainMenu() {
     setShowGames(true);
   };
 
+  const isEnterDungeonEnabled = import.meta.env.VITE_ENABLE_ENTER_DUNGEON === 'true';
   const disableGameButtons =
     dungeon.status !== "online" || (dungeon.id === "survivor" && !isDungeonOpen);
+  const disableEnterDungeon = disableGameButtons || !isEnterDungeonEnabled;
   const DungeonRewards = dungeon.rewards;
 
   const { games: unfilteredGames, refetch } = useGameTokens({
@@ -192,8 +194,8 @@ export default function MainMenu() {
                 fullWidth
                 size="large"
                 onClick={handleMainButtonClick}
-                disabled={true}
-                sx={{ pl: 1, height: "36px" }}
+                disabled={disableEnterDungeon}
+                sx={disableEnterDungeon ? { pl: 1, height: "36px" } : styles.mainCTAButton}
               >
                 <TokenIcon sx={{ fontSize: 20, mr: 1, color: "inherit" }} />
                 <Typography

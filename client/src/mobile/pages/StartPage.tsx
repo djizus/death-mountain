@@ -61,7 +61,9 @@ export default function LandingPage() {
     setShowGames(true);
   };
 
+  const isEnterDungeonEnabled = import.meta.env.VITE_ENABLE_ENTER_DUNGEON === 'true';
   const disableGameButtons = dungeon.status !== "online";
+  const disableEnterDungeon = disableGameButtons || !isEnterDungeonEnabled;
   const DungeonRewards = dungeon.rewards;
 
   const { games: unfilteredGames, refetch } = useGameTokens({
@@ -127,13 +129,13 @@ export default function LandingPage() {
                 variant="contained"
                 size="large"
                 onClick={handleMainButtonClick}
-                disabled={true}
+                disabled={disableEnterDungeon}
                 startIcon={
                   <img
                     src={"/images/mobile/dice.png"}
                     alt="dice"
                     height="20px"
-                    style={{ opacity: 0.3 }}
+                    style={{ opacity: disableEnterDungeon ? 0.3 : 1 }}
                   />
                 }
                 sx={{
@@ -145,7 +147,9 @@ export default function LandingPage() {
               >
                 <Typography
                   variant="h5"
-                  color="rgba(208, 201, 141, 0.4)"
+                  color={
+                    disableEnterDungeon ? "rgba(208, 201, 141, 0.4)" : "#111111"
+                  }
                 >
                   {dungeon.mainButtonText}
                 </Typography>
