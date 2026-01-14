@@ -1,11 +1,11 @@
 import { MAX_BAG_SIZE, STARTING_HEALTH } from '@/constants/game';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
-import { useSound } from '@/desktop/contexts/Sound';
 import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useDungeon } from '@/dojo/useDungeon';
 import { useGameStore } from '@/stores/gameStore';
 import { useMarketStore } from '@/stores/marketStore';
-import { useUIStore } from '@/stores/uiStore';
+import Settings from '@/desktop/components/Settings';
+import WalletConnect from '@/desktop/components/WalletConnect';
 import { calculateLevel } from '@/utils/game';
 import { ItemUtils, ItemType, slotIcons, typeIcons, Tier } from '@/utils/loot';
 import { MarketItem, generateMarketItems, getTierOneArmorSetStats, potionPrice, STAT_FILTER_OPTIONS, type ArmorSetStatSummary, type StatDisplayName } from '@/utils/market';
@@ -15,17 +15,13 @@ import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
-import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
-import VolumeOffIcon from '@mui/icons-material/VolumeOff';
-import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import XIcon from '@mui/icons-material/X';
-import { Box, Button, Checkbox, Divider, FormControlLabel, IconButton, Modal, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Box, Button, Divider, IconButton, Modal, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { keyframes } from '@emotion/react';
 import { SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import JewelryTooltip from '@/components/JewelryTooltip';
 import discordIcon from '@/desktop/assets/images/discord.png';
-import WalletConnect from '@/desktop/components/WalletConnect';
 
 const renderSlotToggleButton = (slot: keyof typeof slotIcons) => (
   <ToggleButton key={slot} value={slot} aria-label={slot}>
@@ -133,18 +129,6 @@ export default function RightPanel({ disabledPurchase = false, disabledReason }:
     spectating,
   } = useGameStore();
   const { executeGameAction, actionFailed } = useGameDirector();
-  const { volume, setVolume, muted, setMuted, musicVolume, setMusicVolume, musicMuted, setMusicMuted } = useSound();
-  const {
-    setUseMobileClient,
-    skipAllAnimations,
-    setSkipAllAnimations,
-    skipCombatDelays,
-    setSkipCombatDelays,
-    skipFirstBattle,
-    setSkipFirstBattle,
-    showUntilBeastToggle,
-    setShowUntilBeastToggle,
-  } = useUIStore();
   const {
     isOpen,
     cart,
@@ -178,18 +162,6 @@ export default function RightPanel({ disabledPurchase = false, disabledReason }:
 
   const handleTabChange = (_: SyntheticEvent, newValue: 'market' | 'exploring' | 'events' | 'settings') => {
     setActiveTab(newValue);
-  };
-
-  const handleVolumeChange = (_: Event, newValue: number | number[]) => {
-    setVolume((newValue as number) / 100);
-  };
-
-  const handleMusicVolumeChange = (_: Event, newValue: number | number[]) => {
-    setMusicVolume((newValue as number) / 100);
-  };
-
-  const handleSwitchToMobile = () => {
-    setUseMobileClient(true);
   };
 
   const handleExitGame = () => {
@@ -1175,7 +1147,6 @@ export default function RightPanel({ disabledPurchase = false, disabledReason }:
 
       {activeTab === 'settings' && (
         <Box sx={styles.settingsContent}>
-          {/* Profile Section */}
           {!dungeon.hideController && (
             <>
               <Box sx={styles.settingsSection}>
@@ -1185,157 +1156,7 @@ export default function RightPanel({ disabledPurchase = false, disabledReason }:
               <Divider sx={{ my: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
             </>
           )}
-
-          {/* Sound Control */}
-          <Box sx={styles.settingsSection}>
-            <Typography sx={styles.settingsSectionTitle}>Sound</Typography>
-            <Box sx={styles.soundControl}>
-              <Typography width="45px">Sfx</Typography>
-              <IconButton
-                size="small"
-                onClick={() => setMuted(!muted)}
-                sx={{ color: !muted ? '#d0c98d' : '#666', padding: '4px' }}
-              >
-                {muted ? <VolumeOffIcon sx={{ fontSize: 22 }} /> : <VolumeUpIcon sx={{ fontSize: 22 }} />}
-              </IconButton>
-              <Slider
-                value={Math.round(volume * 100)}
-                onChange={handleVolumeChange}
-                disabled={muted}
-                valueLabelDisplay="auto"
-                step={1}
-                min={0}
-                max={100}
-                sx={styles.volumeSlider}
-              />
-              <Typography sx={{ color: '#d0c98d', fontSize: '12px', minWidth: '35px', textAlign: 'right' }}>
-                {Math.round(volume * 100)}%
-              </Typography>
-            </Box>
-            <Box sx={styles.soundControl}>
-              <Typography width="45px">Music</Typography>
-              <IconButton
-                size="small"
-                onClick={() => setMusicMuted(!musicMuted)}
-                sx={{ color: !musicMuted ? '#d0c98d' : '#666', padding: '4px' }}
-              >
-                {musicMuted ? <VolumeOffIcon sx={{ fontSize: 22 }} /> : <VolumeUpIcon sx={{ fontSize: 22 }} />}
-              </IconButton>
-              <Slider
-                value={Math.round(musicVolume * 100)}
-                onChange={handleMusicVolumeChange}
-                disabled={musicMuted}
-                valueLabelDisplay="auto"
-                step={1}
-                min={0}
-                max={100}
-                sx={styles.volumeSlider}
-              />
-              <Typography sx={{ color: '#d0c98d', fontSize: '12px', minWidth: '35px', textAlign: 'right' }}>
-                {Math.round(musicVolume * 100)}%
-              </Typography>
-            </Box>
-          </Box>
-
-          <Divider sx={{ my: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
-
-          {/* Animations Section */}
-          <Box sx={styles.settingsSection}>
-            <Typography sx={styles.settingsSectionTitle}>Animations</Typography>
-            <Box sx={styles.animationsControl}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={skipAllAnimations}
-                    onChange={(e) => setSkipAllAnimations(e.target.checked)}
-                    sx={styles.checkbox}
-                  />
-                }
-                label="Skip all animations"
-                sx={styles.checkboxLabel}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={skipCombatDelays}
-                    onChange={(e) => setSkipCombatDelays(e.target.checked)}
-                    sx={styles.checkbox}
-                  />
-                }
-                label="Skip combat delays"
-                sx={styles.checkboxLabel}
-              />
-            </Box>
-          </Box>
-
-          <Divider sx={{ my: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
-
-          {/* Game Section */}
-          <Box sx={styles.settingsSection}>
-            <Typography sx={styles.settingsSectionTitle}>Game</Typography>
-            <Box sx={styles.animationsControl}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={skipFirstBattle}
-                    onChange={(e) => setSkipFirstBattle(e.target.checked)}
-                    sx={styles.checkbox}
-                  />
-                }
-                label="Skip first battle"
-                sx={styles.checkboxLabel}
-              />
-            </Box>
-          </Box>
-
-          <Divider sx={{ my: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
-
-          {/* Exploration Section */}
-          <Box sx={styles.settingsSection}>
-            <Typography sx={styles.settingsSectionTitle}>Exploration</Typography>
-            <Box sx={styles.animationsControl}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={showUntilBeastToggle}
-                    onChange={(e) => setShowUntilBeastToggle(e.target.checked)}
-                    sx={styles.checkbox}
-                  />
-                }
-                label='Show "until beast" toggle'
-                sx={styles.checkboxLabel}
-              />
-            </Box>
-          </Box>
-
-          <Divider sx={{ my: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
-
-          {/* Client Section */}
-          <Box sx={styles.settingsSection}>
-            <Button
-              variant="outlined"
-              fullWidth
-              onClick={handleSwitchToMobile}
-              startIcon={<PhoneAndroidIcon sx={{ fontSize: 20 }} />}
-              sx={styles.switchClientButton}
-            >
-              Switch to Mobile
-            </Button>
-          </Box>
-
-          {/* Game Section */}
-          <Box sx={styles.settingsSection}>
-            <Button
-              variant="contained"
-              fullWidth
-              onClick={handleExitGame}
-              sx={styles.exitGameButton}
-            >
-              Exit Game
-            </Button>
-          </Box>
-
-          {/* Social Links */}
+          <Settings showExitGame onExitGame={handleExitGame} showHeader={false} />
           <Box sx={styles.settingsSection}>
             <Box sx={styles.socialButtons}>
               <IconButton

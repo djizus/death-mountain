@@ -139,7 +139,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
   const [beastDefeated, setBeastDefeated] = useState(false);
   const [optimisticTxs, setOptimisticTxs] = useState<any[]>([]);
   const [startingEvent, setStartingEvent] = useState<GameEvent[] | null>(null);
-  const { skipFirstBattle } = useUIStore();
+  const { skipFirstBattle, fastBattle } = useUIStore();
 
   useEffect(() => {
     if (gameId && !metadata) {
@@ -307,7 +307,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
 
     if (
       !skipDelay &&
-      (delayTimes[event.type] || replayDelayTimes[event.type])
+      (delayTimes[event.type] || replayDelayTimes[event.type]) &&
+      (!fastBattle || !BattleEvents.includes(event.type))
     ) {
       await delay(
         spectating ? replayDelayTimes[event.type] : delayTimes[event.type]

@@ -19,11 +19,11 @@ interface UIState {
   // Animations
   setSkipIntroOutro: (skip: boolean) => void
   setSkipAllAnimations: (skip: boolean) => void
-  setSkipCombatDelays: (skip: boolean) => void
+  setFastBattle: (fast: boolean) => void
   setSkipFirstBattle: (skip: boolean) => void
   skipIntroOutro: boolean
   skipAllAnimations: boolean
-  skipCombatDelays: boolean
+  fastBattle: boolean
   skipFirstBattle: boolean
 
   // Exploration controls
@@ -51,11 +51,11 @@ export const useUIStore = create<UIState>()(
       // Animations
       setSkipIntroOutro: (skip) => set({ skipIntroOutro: skip }),
       setSkipAllAnimations: (skip) => set({ skipAllAnimations: skip }),
-      setSkipCombatDelays: (skip) => set({ skipCombatDelays: skip }),
+      setFastBattle: (fast) => set({ fastBattle: fast }),
       setSkipFirstBattle: (skip) => set({ skipFirstBattle: skip }),
       skipIntroOutro: false,
       skipAllAnimations: false,
-      skipCombatDelays: false,
+      fastBattle: false,
       skipFirstBattle: false,
 
       // Exploration controls
@@ -76,11 +76,19 @@ export const useUIStore = create<UIState>()(
         useMobileClient: state.useMobileClient,
         skipIntroOutro: state.skipIntroOutro,
         skipAllAnimations: state.skipAllAnimations,
-        skipCombatDelays: state.skipCombatDelays,
+        fastBattle: state.fastBattle,
         skipFirstBattle: state.skipFirstBattle,
         showUntilBeastToggle: state.showUntilBeastToggle,
         referralClicked: state.referralClicked,
       }),
+      merge: (persistedState, currentState) => {
+        const state = persistedState as Partial<UIState> & { skipCombatDelays?: boolean };
+        return {
+          ...currentState,
+          ...state,
+          fastBattle: state.fastBattle ?? state.skipCombatDelays ?? currentState.fastBattle,
+        };
+      },
     }
   )
 )

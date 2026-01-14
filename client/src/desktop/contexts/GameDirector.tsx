@@ -119,7 +119,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     spectating,
   } = useGameStore();
   const { setIsOpen } = useMarketStore();
-  const { skipAllAnimations, skipIntroOutro, skipFirstBattle, skipCombatDelays } = useUIStore();
+  const { skipAllAnimations, skipIntroOutro, skipFirstBattle, fastBattle } = useUIStore();
 
   const [VRFEnabled, setVRFEnabled] = useState(VRF_ENABLED);
   const [actionFailed, setActionFailed] = useReducer((x) => x + 1, 0);
@@ -354,10 +354,8 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       ]);
     }
 
-    if (delayTimes[event.type] && !skipDelay) {
-      if (event.type === "flee" || !skipCombatDelays) {
-        await delay(delayTimes[event.type]);
-      }
+    if (delayTimes[event.type] && !skipDelay && !fastBattle) {
+      await delay(delayTimes[event.type]);
     }
   };
 

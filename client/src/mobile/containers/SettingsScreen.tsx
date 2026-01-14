@@ -15,7 +15,7 @@ export default function SettingsScreen() {
   const dungeon = useDungeon();
   const { muted, setMuted, volume, setVolume } = useSound();
   const { account, address, playerName, login, openProfile } = useController();
-  const { skipCombatDelays, setSkipCombatDelays, skipFirstBattle, setSkipFirstBattle } = useUIStore();
+  const { fastBattle, setFastBattle, skipFirstBattle, setSkipFirstBattle } = useUIStore();
 
   const handleExitGame = () => {
     navigate(`/${dungeon.id}`);
@@ -133,8 +133,8 @@ export default function SettingsScreen() {
           <FormControlLabel
             control={
               <Checkbox
-                checked={skipCombatDelays}
-                onChange={(e) => setSkipCombatDelays(e.target.checked)}
+                checked={fastBattle}
+                onChange={(e) => setFastBattle(e.target.checked)}
                 sx={{
                   color: '#80FF00',
                   '&.Mui-checked': {

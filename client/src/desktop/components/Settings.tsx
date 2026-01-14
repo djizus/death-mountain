@@ -8,16 +8,21 @@ import { Box, Button, Checkbox, Divider, FormControlLabel, IconButton, Slider, T
 import { motion } from 'framer-motion';
 
 interface SettingsProps {
-  onBack: () => void;
+  onBack?: () => void;
+  showExitGame?: boolean;
+  onExitGame?: () => void;
+  showHeader?: boolean;
 }
 
-export default function Settings({ onBack }: SettingsProps) {
+export default function Settings({ onBack, showExitGame = false, onExitGame, showHeader = true }: SettingsProps) {
   const {
     setUseMobileClient,
     skipAllAnimations,
     setSkipAllAnimations,
     skipIntroOutro,
     setSkipIntroOutro,
+    fastBattle,
+    setFastBattle,
     skipFirstBattle,
     setSkipFirstBattle,
     showUntilBeastToggle,
@@ -46,16 +51,22 @@ export default function Settings({ onBack }: SettingsProps) {
       transition={{ duration: 0.2 }}
       style={{ width: '100%' }}
     >
-      <Box sx={styles.settingsHeader}>
-        <Button
-          variant="text"
-          onClick={onBack}
-          sx={styles.backButton}
-          startIcon={<ArrowBackIcon />}
-        >
-          Settings
-        </Button>
-      </Box>
+      {showHeader && (
+        <Box sx={styles.settingsHeader}>
+          {onBack ? (
+            <Button
+              variant="text"
+              onClick={onBack}
+              sx={styles.backButton}
+              startIcon={<ArrowBackIcon />}
+            >
+              Settings
+            </Button>
+          ) : (
+            <Typography sx={styles.headerTitle}>Settings</Typography>
+          )}
+        </Box>
+      )}
 
       <Box sx={styles.settingsContainer}>
         {/* Sound Settings */}
@@ -153,6 +164,18 @@ export default function Settings({ onBack }: SettingsProps) {
               label="Skip all animations"
               sx={styles.checkboxLabel}
             />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={fastBattle}
+                  onChange={(e) => setFastBattle(e.target.checked)}
+                  sx={styles.checkbox}
+                />
+              }
+              label="Skip combat delay"
+              sx={styles.checkboxLabel}
+            />
           </Box>
         </Box>
 
@@ -191,7 +214,7 @@ export default function Settings({ onBack }: SettingsProps) {
                   sx={styles.checkbox}
                 />
               }
-              label='Display "until beast" checkbox'
+              label='Show "until beast" toggle'
               sx={styles.checkboxLabel}
             />
           </Box>
@@ -216,6 +239,22 @@ export default function Settings({ onBack }: SettingsProps) {
             Switch to Mobile Client
           </Button>
         </Box>
+
+        {showExitGame && onExitGame && (
+          <>
+            <Divider sx={{ my: 0.5, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+            <Box sx={styles.settingSection}>
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={onExitGame}
+                sx={styles.exitGameButton}
+              >
+                Exit Game
+              </Button>
+            </Box>
+          </>
+        )}
       </Box>
     </motion.div >
   );
@@ -231,6 +270,10 @@ const styles = {
   backButton: {
     minWidth: 'auto',
     px: 1,
+  },
+  headerTitle: {
+    fontSize: '1rem',
+    fontWeight: 600,
   },
   settingsContainer: {
     width: '100%',
@@ -320,6 +363,20 @@ const styles = {
     '&:hover': {
       borderColor: '#d0c98d',
       backgroundColor: 'rgba(208, 201, 141, 0.1)',
+    },
+  },
+  exitGameButton: {
+    background: 'rgba(255, 0, 0, 0.15)',
+    border: '2px solid rgba(255, 0, 0, 0.3)',
+    color: '#FF6B6B',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontWeight: 500,
+    fontSize: '0.8rem',
+    letterSpacing: '0.5px',
+    transition: 'all 0.2s',
+    '&:hover': {
+      background: 'rgba(255, 0, 0, 0.25)',
+      border: '2px solid rgba(255, 0, 0, 0.4)',
     },
   },
   icon: {
