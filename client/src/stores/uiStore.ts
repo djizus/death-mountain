@@ -29,6 +29,10 @@ interface UIState {
   // Exploration controls
   setShowUntilBeastToggle: (show: boolean) => void
   showUntilBeastToggle: boolean
+
+  // Referral tracking
+  referralClicked: boolean
+  setReferralClicked: (clicked: boolean) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -61,6 +65,10 @@ export const useUIStore = create<UIState>()(
       // Client preferences
       setUseMobileClient: (useMobile) => set({ useMobileClient: useMobile }),
       useMobileClient: false,
+
+      // Referral tracking
+      referralClicked: false,
+      setReferralClicked: (clicked) => set({ referralClicked: clicked }),
     }),
     {
       name: 'death-mountain-ui-settings',
@@ -71,6 +79,7 @@ export const useUIStore = create<UIState>()(
         skipCombatDelays: state.skipCombatDelays,
         skipFirstBattle: state.skipFirstBattle,
         showUntilBeastToggle: state.showUntilBeastToggle,
+        referralClicked: state.referralClicked,
       }),
     }
   )

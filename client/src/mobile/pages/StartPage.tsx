@@ -7,8 +7,10 @@ import { ChainId } from "@/utils/networkConfig";
 
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import FavoriteIcon from "@mui/icons-material/Favorite";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
+import { useUIStore } from "@/stores/uiStore";
 
 import { Box, Button, Divider, Typography } from "@mui/material";
 import { useAccount } from "@starknet-react/core";
@@ -29,6 +31,14 @@ export default function LandingPage() {
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showDungeonRewards, setShowDungeonRewards] = useState(false);
+  const { referralClicked, setReferralClicked } = useUIStore();
+
+  const REFERRAL_URL = "https://loot-referral.io/play?ref=0x04364d8e9f994453f5d0c8dc838293226d8ae0aec78030e5ee5fb91614b00eb5";
+
+  const handleReferralClick = () => {
+    window.open(REFERRAL_URL, "_blank");
+    setReferralClicked(true);
+  };
 
   const handleMainButtonClick = () => {
     if (dungeon.externalLink) {
@@ -279,6 +289,28 @@ export default function LandingPage() {
               )}
 
               {dungeon.ticketAddress && <PriceIndicator />}
+
+              {!referralClicked && (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  onClick={handleReferralClick}
+                  startIcon={<FavoriteIcon />}
+                  sx={{
+                    height: "36px",
+                    mt: 2,
+                    backgroundColor: "coral",
+                    "&:hover": {
+                      backgroundColor: "#ff8c66",
+                    },
+                  }}
+                >
+                  <Typography variant="h5" color="#111" sx={{ textAlign: "center" }}>
+                    Use our referral
+                  </Typography>
+                </Button>
+              )}
             </>
           )}
 

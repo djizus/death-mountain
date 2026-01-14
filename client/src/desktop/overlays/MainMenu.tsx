@@ -6,6 +6,7 @@ import GamesList from "@/desktop/components/GamesList";
 import Settings from "@/desktop/components/Settings";
 import { OPENING_TIME } from "@/contexts/Statistics";
 import { useDungeon } from "@/dojo/useDungeon";
+import { useUIStore } from "@/stores/uiStore";
 import { ChainId } from "@/utils/networkConfig";
 import { useResponsiveScale } from "@/desktop/hooks/useResponsiveScale";
 import GitHubIcon from "@mui/icons-material/GitHub";
@@ -13,6 +14,7 @@ import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 
+import FavoriteIcon from "@mui/icons-material/Favorite";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import TokenIcon from "@mui/icons-material/Token";
 import XIcon from "@mui/icons-material/X";
@@ -20,7 +22,6 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
-import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { useAccount } from "@starknet-react/core";
 import { AnimatePresence } from "framer-motion";
@@ -46,6 +47,14 @@ export default function MainMenu() {
   const [isDungeonOpen, setIsDungeonOpen] = useState(false);
   const [showBoost, setShowBoost] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const { referralClicked, setReferralClicked } = useUIStore();
+
+  const REFERRAL_URL = "https://loot-referral.io/play?ref=0x04364d8e9f994453f5d0c8dc838293226d8ae0aec78030e5ee5fb91614b00eb5";
+
+  const handleReferralClick = () => {
+    window.open(REFERRAL_URL, "_blank");
+    setReferralClicked(true);
+  };
 
   useEffect(() => {
     if (dungeon.id !== "survivor") {
@@ -190,19 +199,20 @@ export default function MainMenu() {
               </Box>
 
               <Button
-                variant="outlined"
+                variant="contained"
                 fullWidth
                 size="large"
                 onClick={handleMainButtonClick}
                 disabled={disableEnterDungeon}
-                sx={disableEnterDungeon ? { pl: 1, height: "36px" } : styles.mainCTAButton}
+                sx={disableEnterDungeon ? styles.mainCTAButtonDisabled : styles.mainCTAButton}
               >
-                <TokenIcon sx={{ fontSize: 20, mr: 1, color: "inherit" }} />
+                <TokenIcon sx={{ fontSize: 20, mr: 1, color: disableEnterDungeon ? "rgba(0,0,0,0.3)" : "#111" }} />
                 <Typography
                   sx={{
                     fontSize: "0.85rem",
                     fontWeight: 600,
                     letterSpacing: 0.5,
+                    color: disableEnterDungeon ? "rgba(0,0,0,0.3)" : "#111",
                   }}
                 >
                   {dungeon.mainButtonText}
@@ -315,25 +325,7 @@ export default function MainMenu() {
                 </Typography>
               </Button>
 
-              {dungeon.ticketAddress && (
-                <>
-                  <PriceIndicator />
-
-                  <Link
-                    href="#"
-                    sx={styles.learnMoreLink}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      window.open(
-                        "https://docs.provable.games/lootsurvivor/dungeon-tickets",
-                        "_blank"
-                      );
-                    }}
-                  >
-                    Learn more about Dungeon Tickets
-                  </Link>
-                </>
-              )}
+              {dungeon.ticketAddress && <PriceIndicator />}
 
               <Box sx={styles.bottom}>
                 {showBoost && dungeon.id === "survivor" && (
@@ -346,6 +338,36 @@ export default function MainMenu() {
                     </Typography>
                   </Box>
                 )}
+
+                {!referralClicked && (
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    size="large"
+                    onClick={handleReferralClick}
+                    startIcon={<FavoriteIcon sx={{ color: "#111" }} />}
+                    sx={{
+                      height: "36px",
+                      justifyContent: "center",
+                      backgroundColor: "coral",
+                      "&:hover": {
+                        backgroundColor: "#ff8c66",
+                      },
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: "0.85rem",
+                        fontWeight: 500,
+                        letterSpacing: 0.5,
+                        color: "#111",
+                      }}
+                    >
+                      Use our referral
+                    </Typography>
+                  </Button>
+                )}
+
                 {!dungeon.hideController ? <WalletConnect /> : null}
 
                 <Box sx={styles.bottomRow}>
@@ -445,22 +467,25 @@ const styles = {
   mainCTAButton: {
     pl: 1,
     height: "36px",
-    borderColor: "#80FF00",
-    background: "linear-gradient(135deg, rgba(128, 255, 0, 0.08) 0%, rgba(100, 200, 0, 0.04) 100%)",
+    backgroundColor: "#80FF00",
     animation: "greenGlow 2s ease-in-out infinite",
     "@keyframes greenGlow": {
       "0%, 100%": {
-        boxShadow: "0 0 4px rgba(128, 255, 0, 0.2)",
+        boxShadow: "0 0 4px rgba(128, 255, 0, 0.3)",
       },
       "50%": {
-        boxShadow: "0 0 10px rgba(128, 255, 0, 0.35)",
+        boxShadow: "0 0 12px rgba(128, 255, 0, 0.5)",
       },
     },
     "&:hover": {
-      borderColor: "#a0ff40",
-      background: "linear-gradient(135deg, rgba(128, 255, 0, 0.15) 0%, rgba(100, 200, 0, 0.08) 100%)",
-      boxShadow: "0 0 12px rgba(128, 255, 0, 0.4)",
+      backgroundColor: "#90FF20",
+      boxShadow: "0 0 14px rgba(128, 255, 0, 0.5)",
     },
+  },
+  mainCTAButtonDisabled: {
+    pl: 1,
+    height: "36px",
+    backgroundColor: "rgba(208, 201, 141, 0.12)",
   },
   rewardsContainer: {
     position: "absolute",
@@ -595,15 +620,6 @@ const styles = {
       color: "#d0ffd0",
     },
   },
-  learnMoreLink: {
-    fontSize: "0.9rem",
-    color: "rgba(208, 201, 141, 0.6)",
-    textDecoration: "underline !important",
-    cursor: "pointer",
-    "&:hover": {
-      color: "rgba(208, 201, 141, 0.8)",
-    },
-  },
   boostIndicator: {
     background:
       "linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(139, 195, 74, 0.2))",
@@ -628,5 +644,17 @@ const styles = {
     color: "#8bc34a",
     textShadow: "0 0 3px rgba(139, 195, 74, 0.4)",
     letterSpacing: "0.2px",
+  },
+  referralLink: {
+    display: "flex",
+    alignItems: "center",
+    fontSize: "0.75rem",
+    color: "rgba(208, 201, 141, 0.7)",
+    textDecoration: "none !important",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    "&:hover": {
+      color: "#d0c98d",
+    },
   },
 };

@@ -1,6 +1,7 @@
 import { useStatistics } from '@/contexts/Statistics';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
+import Link from '@mui/material/Link';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -83,6 +84,15 @@ export default function PriceIndicator({ sxOverride }: PriceIndicatorProps = {})
                     <Typography sx={styles.feeHighlightText}>
                       - 20% to veLords
                     </Typography>
+
+                    <Link
+                      href="https://docs.provable.games/lootsurvivor/dungeon-tickets"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={styles.learnMoreLink}
+                    >
+                      Learn more about Dungeon Tickets
+                    </Link>
                   </Box>
                 </Box>
               }
@@ -232,6 +242,15 @@ export default function PriceIndicator({ sxOverride }: PriceIndicatorProps = {})
                   <Typography sx={styles.feeHighlightText}>
                     - 20% to veLords
                   </Typography>
+
+                  <Link
+                    href="https://docs.provable.games/lootsurvivor/dungeon-tickets"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={styles.learnMoreLink}
+                  >
+                    Learn more about Dungeon Tickets
+                  </Link>
                 </Box>
               </Box>
             }
@@ -420,5 +439,15 @@ const styles = {
     padding: '6px 8px',
     minWidth: 'auto',
     boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+  },
+  learnMoreLink: {
+    fontSize: '0.75rem',
+    color: 'rgba(208, 201, 141, 0.8)',
+    textDecoration: 'underline',
+    cursor: 'pointer',
+    mt: 1,
+    '&:hover': {
+      color: '#d0c98d',
+    },
   },
 }; 
