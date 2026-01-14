@@ -327,6 +327,35 @@ export default function MainMenu() {
 
               {dungeon.ticketAddress && <PriceIndicator />}
 
+              {!referralClicked && (
+                <Button
+                  variant="contained"
+                  fullWidth
+                  size="large"
+                  onClick={handleReferralClick}
+                  startIcon={<FavoriteIcon sx={{ color: "#111" }} />}
+                  sx={{
+                    height: "36px",
+                    justifyContent: "center",
+                    backgroundColor: "coral",
+                    "&:hover": {
+                      backgroundColor: "#ff8c66",
+                    },
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      letterSpacing: 0.5,
+                      color: "#111",
+                    }}
+                  >
+                    Use our referral
+                  </Typography>
+                </Button>
+              )}
+
               <Box sx={styles.bottom}>
                 {showBoost && dungeon.id === "survivor" && (
                   <Box sx={styles.boostIndicator}>
@@ -337,35 +366,6 @@ export default function MainMenu() {
                       {formatTimeRemaining(timeRemaining)} remaining
                     </Typography>
                   </Box>
-                )}
-
-                {!referralClicked && (
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    size="large"
-                    onClick={handleReferralClick}
-                    startIcon={<FavoriteIcon sx={{ color: "#111" }} />}
-                    sx={{
-                      height: "36px",
-                      justifyContent: "center",
-                      backgroundColor: "coral",
-                      "&:hover": {
-                        backgroundColor: "#ff8c66",
-                      },
-                    }}
-                  >
-                    <Typography
-                      sx={{
-                        fontSize: "0.85rem",
-                        fontWeight: 500,
-                        letterSpacing: 0.5,
-                        color: "#111",
-                      }}
-                    >
-                      Use our referral
-                    </Typography>
-                  </Button>
                 )}
 
                 {!dungeon.hideController ? <WalletConnect /> : null}
@@ -541,7 +541,6 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    mt: "auto",
     gap: 0.5,
     width: "100%",
   },
