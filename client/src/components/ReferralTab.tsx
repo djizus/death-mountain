@@ -46,7 +46,7 @@ export default function ReferralTab() {
       {/* Prize Banner */}
       <Box sx={styles.prizeBanner}>
         <Typography sx={styles.prizeLabel}>Prizepool</Typography>
-        <Typography sx={styles.prizeAmount}>70,000 $STRK</Typography>
+        <Typography sx={styles.prizeAmount}>70,000 STRK</Typography>
         <Typography sx={styles.prizeSubtitle}>Distributed to the top 10</Typography>
       </Box>
 
