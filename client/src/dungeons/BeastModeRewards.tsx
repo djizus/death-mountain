@@ -1,7 +1,8 @@
 import {
   JACKPOT_AMOUNT,
   totalCollectableBeasts,
-  useStatistics
+  useStatistics,
+  TierData,
 } from "@/contexts/Statistics";
 import { useUIStore } from "@/stores/uiStore";
 import { formatRewardNumber } from "@/utils/utils";
@@ -11,246 +12,286 @@ import {
   LinearProgress,
   Link,
   Skeleton,
+  Tab,
+  Tabs,
+  Tooltip,
   Typography,
 } from "@mui/material";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { isMobile } from "react-device-detect";
+import { useState } from "react";
+import ReferralTab from "@/components/ReferralTab";
 
 export default function BeastModeRewards() {
-  const { strkPrice } = useStatistics();
+  const { strkPrice, beastTierData, survivorTokenPrice } = useStatistics();
   const { useMobileClient } = useUIStore();
   const { remainingSurvivorTokens, collectedBeasts } = useStatistics();
   const beastsRemaining = totalCollectableBeasts - collectedBeasts;
   const BEAST_ENTITLEMENTS_ORIGINAL = 931500;
+  
+  const [activeTab, setActiveTab] = useState(0);
+
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
+
+  // Mobile doesn't show tabs, just rewards
+  if (isMobile || useMobileClient) {
+    return <RewardsContent 
+      remainingSurvivorTokens={remainingSurvivorTokens}
+      BEAST_ENTITLEMENTS_ORIGINAL={BEAST_ENTITLEMENTS_ORIGINAL}
+      beastsRemaining={beastsRemaining}
+      strkPrice={strkPrice}
+      beastTierData={beastTierData}
+      survivorTokenPrice={survivorTokenPrice}
+    />;
+  }
 
   return (
     <>
-      {!(isMobile || useMobileClient) && (
-        <Box sx={styles.header}>
-          <Typography sx={styles.title}>DUNGEON REWARDS</Typography>
-          <Box sx={styles.divider} />
-        </Box>
+      <Box sx={styles.tabsContainer}>
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          sx={styles.tabs}
+          TabIndicatorProps={{ sx: { bgcolor: "#d7c529" } }}
+        >
+          <Tab label="Dungeon Rewards" sx={styles.tab} />
+          <Tab label="Refer & Earn" sx={styles.tab} />
+        </Tabs>
+      </Box>
+
+      {activeTab === 0 && (
+        <RewardsContent 
+          remainingSurvivorTokens={remainingSurvivorTokens}
+          BEAST_ENTITLEMENTS_ORIGINAL={BEAST_ENTITLEMENTS_ORIGINAL}
+          beastsRemaining={beastsRemaining}
+          strkPrice={strkPrice}
+          beastTierData={beastTierData}
+          survivorTokenPrice={survivorTokenPrice}
+        />
       )}
 
-      <Box sx={styles.rewardSection}>
-        <Box sx={styles.headerRow}>
-          <img src="/images/survivor_token.png" alt="beast" height={52} />
-          <Typography sx={styles.rewardTitle}>Survivor Tokens</Typography>
-        </Box>
+      {activeTab === 1 && <ReferralTab />}
+    </>
+  );
+}
 
-        {/* Beast Entitlements Section */}
-        <Box sx={styles.subsection}>
-          <Typography sx={styles.subsectionTitle}>Beast Entitlements</Typography>
+interface RewardsContentProps {
+  remainingSurvivorTokens: number | null;
+  BEAST_ENTITLEMENTS_ORIGINAL: number;
+  beastsRemaining: number;
+  strkPrice: string | null;
+  beastTierData: TierData[];
+  survivorTokenPrice: string | null;
+}
+
+// Wanted beasts data
+const WANTED_BEASTS = [
+  {
+    name: '"Torment Bane" Balrog',
+    image: "/images/jackpot_balrog.png",
+    type: "Brute",
+    tier: "T1",
+    collected: false,
+  },
+  {
+    name: '"Pain Whisper" Warlock',
+    image: "/images/jackpot_warlock.png",
+    type: "Magical",
+    tier: "T1",
+    collected: false,
+  },
+  {
+    name: '"Demon Grasp" Dragon',
+    image: "/images/jackpot_dragon.png",
+    type: "Hunter",
+    tier: "T1",
+    collected: true,
+  },
+];
+
+function RewardsContent({ 
+  remainingSurvivorTokens, 
+  BEAST_ENTITLEMENTS_ORIGINAL, 
+  beastsRemaining, 
+  strkPrice,
+  beastTierData,
+  survivorTokenPrice,
+}: RewardsContentProps) {
+  const bountyValue = Math.round(Number(strkPrice || 0) * JACKPOT_AMOUNT);
+  const tokenPriceUsd = survivorTokenPrice ? `$${survivorTokenPrice}` : "...";
+
+  return (
+    <>
+      {/* SURVIVOR TOKENS & COLLECTABLE BEASTS - SIDE BY SIDE */}
+      <Box sx={styles.sideBySideContainer}>
+        {/* SURVIVOR TOKENS */}
+        <Box sx={styles.rewardColumn}>
+          <Box sx={styles.headerRow}>
+            <img src="/images/survivor_token.png" alt="token" height={28} />
+            <Typography sx={styles.rewardTitle}>Survivor Tokens</Typography>
+            <Tooltip title="Learn more about Survivor Tokens" arrow>
+              <Link
+                href="https://docs.provable.games/lootsurvivor/overview/tokens"
+                target="_blank"
+                rel="noopener"
+                sx={styles.infoIcon}
+              >
+                <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+              </Link>
+            </Tooltip>
+          </Box>
+
           {remainingSurvivorTokens !== null ? (
             <>
-              <Box sx={[styles.progressContainer, { mt: 0 }]}>
+              <Box sx={styles.progressContainer}>
                 <Box sx={styles.progressBar}>
                   <LinearProgress
                     variant="determinate"
                     value={(remainingSurvivorTokens / BEAST_ENTITLEMENTS_ORIGINAL) * 100}
-                    sx={{
-                      width: "100%",
-                      height: "100%",
-                      background: "transparent",
-                      "& .MuiLinearProgress-bar": {
-                        background: "#656217",
-                        borderRadius: 4,
-                      },
-                    }}
+                    sx={styles.progressStyle}
                   />
                 </Box>
                 <Box sx={styles.progressOverlay}>
                   <Typography sx={styles.progressText}>
-                    {formatRewardNumber(remainingSurvivorTokens)} /{" "}
-                    {formatRewardNumber(BEAST_ENTITLEMENTS_ORIGINAL)}
+                    {formatRewardNumber(remainingSurvivorTokens)} / {formatRewardNumber(BEAST_ENTITLEMENTS_ORIGINAL)}
                   </Typography>
                 </Box>
               </Box>
-
-              {remainingSurvivorTokens !== null && (
-                <Typography sx={styles.remainingText}>
-                  {remainingSurvivorTokens.toLocaleString()} tokens remaining
-                </Typography>
-              )}
+              <Typography sx={styles.remainingText}>
+                {remainingSurvivorTokens.toLocaleString()} remaining
+              </Typography>
             </>
           ) : (
-            <Skeleton
-              variant="rectangular"
-              sx={{ height: 18, borderRadius: 4 }}
-            />
+            <Skeleton variant="rectangular" sx={{ height: 14, borderRadius: 4, my: 0.5, width: "100%" }} />
           )}
         </Box>
 
-        {/* Death Rewards Section */}
-        <Box sx={[styles.subsection, { opacity: 0.8 }]} mt={1}>
-          <Typography sx={styles.subsectionTitle}>Death Rewards</Typography>
-          <Box sx={[styles.progressContainer, { mt: 0 }]}>
-            <Box sx={styles.progressBar}>
-              <LinearProgress
-                variant="determinate"
-                value={100}
-                sx={{
-                  width: "100%",
-                  height: "100%",
-                  background: "transparent",
-                  "& .MuiLinearProgress-bar": {
-                    background: "#656217",
-                    borderRadius: 4,
-                  },
-                }}
-              />
-            </Box>
-            <Box sx={styles.progressOverlay}>
-              <Typography sx={styles.progressText}>100% Claimed</Typography>
-            </Box>
+        {/* COLLECTABLE BEASTS */}
+        <Box sx={styles.rewardColumn}>
+          <Box sx={styles.headerRow}>
+            <img src="/images/beast.png" alt="beast" height={28} />
+            <Typography sx={styles.rewardTitle}>Collectable Beasts</Typography>
+            <Tooltip title="Learn more about Collectable Beasts" arrow>
+              <Link
+                href="https://docs.provable.games/lootsurvivor/overview/beasts"
+                target="_blank"
+                rel="noopener"
+                sx={styles.infoIcon}
+              >
+                <InfoOutlinedIcon sx={{ fontSize: 14 }} />
+              </Link>
+            </Tooltip>
           </Box>
-        </Box>
 
-        <Link
-          href="#"
-          sx={styles.learnMoreLink}
-          onClick={(e) => {
-            e.preventDefault();
-            window.open(
-              "https://docs.provable.games/lootsurvivor/token",
-              "_blank"
-            );
-          }}
-        >
-          Learn more about Survivor Tokens
-        </Link>
+          {beastsRemaining > 0 ? (
+            <>
+              <Box sx={styles.progressContainer}>
+                <Box sx={styles.progressBar}>
+                  <LinearProgress
+                    variant="determinate"
+                    value={(beastsRemaining / totalCollectableBeasts) * 100}
+                    sx={styles.progressStyle}
+                  />
+                </Box>
+                <Box sx={styles.progressOverlay}>
+                  <Typography sx={styles.progressText}>
+                    {formatRewardNumber(beastsRemaining)} / {totalCollectableBeasts.toLocaleString()}
+                  </Typography>
+                </Box>
+              </Box>
+              <Typography sx={styles.remainingText}>
+                {beastsRemaining.toLocaleString()} remaining
+              </Typography>
+            </>
+          ) : (
+            <Skeleton variant="rectangular" sx={{ height: 14, borderRadius: 4, my: 0.5, width: "100%" }} />
+          )}
+        </Box>
+      </Box>
+
+      {/* TIER CARDS */}
+      <Box sx={styles.tierCardsContainer}>
+        <Typography sx={styles.tierCardsTitle}>Rewards by Beast Tier</Typography>
+        <Box sx={styles.tierCardsGrid}>
+          {beastTierData.length > 0 ? (
+            beastTierData.map((tier) => (
+              <Box key={tier.tier} sx={[styles.tierCard, { borderColor: tier.color }]}>
+                <Typography sx={[styles.tierCardBadge, { bgcolor: tier.color }]}>
+                  T{tier.tier}
+                </Typography>
+                <Typography sx={styles.tierCardBeasts}>
+                  {tier.remaining.toLocaleString()}
+                </Typography>
+                <Typography sx={styles.tierCardBeastsLabel}>left</Typography>
+                <Box sx={styles.tierCardDivider} />
+                <Box sx={styles.tierCardTokensRow}>
+                  <Typography sx={[styles.tierCardTokens, { color: tier.color }]}>
+                    {tier.tokensPerBeast}
+                  </Typography>
+                  <img src="/images/survivor_token.png" alt="token" style={{ height: 18 }} />
+                </Box>
+              </Box>
+            ))
+          ) : (
+            [1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} variant="rectangular" sx={{ height: 90, borderRadius: 2 }} />
+            ))
+          )}
+        </Box>
+        <Typography sx={styles.infoText}>
+          1 Survivor Token = {tokenPriceUsd}
+        </Typography>
       </Box>
 
       <Divider sx={{ width: "100%", my: 1.5 }} />
 
+      {/* WANTED BEASTS */}
       <Box sx={styles.rewardSection}>
-        <Box sx={styles.headerRow}>
-          <img src="/images/beast.png" alt="beast" height={54} />
-          <Typography sx={styles.rewardTitle}>Collectable Beast</Typography>
-        </Box>
-        <Typography sx={styles.rewardSubtitle}>
-          Defeat beasts to collect NFTs & Survivor Tokens
+        <Typography sx={styles.wantedTitle}>Wanted Beasts</Typography>
+        <Typography sx={styles.wantedSubtitle}>
+          Bounty: ~${bountyValue.toLocaleString()} each
         </Typography>
 
-        {beastsRemaining > 0 ? (
-          <Box sx={styles.progressContainer}>
-            <Box sx={styles.progressBar}>
-              <LinearProgress
-                variant="determinate"
-                value={(beastsRemaining / totalCollectableBeasts) * 100}
-                sx={{
-                  width: "100%",
-                  height: "100%",
-                  background: "transparent",
-                  "& .MuiLinearProgress-bar": {
-                    background: "#656217",
-                    borderRadius: 4,
-                  },
-                }}
-              />
-            </Box>
-            <Box sx={styles.progressOverlay}>
-              <Typography sx={styles.progressText}>
-                {formatRewardNumber(beastsRemaining)} /{" "}
-                {totalCollectableBeasts.toLocaleString()}
+        <Box sx={styles.wantedCardsContainer}>
+          {WANTED_BEASTS.map((beast) => (
+            <Box 
+              key={beast.name} 
+              sx={[
+                styles.wantedCard, 
+                beast.collected && styles.wantedCardCollected
+              ]}
+            >
+              <Box sx={styles.wantedCardImageContainer}>
+                <img 
+                  src={beast.image} 
+                  alt={beast.name} 
+                  style={{ 
+                    height: 80, 
+                    filter: beast.collected ? "grayscale(100%)" : "none",
+                    opacity: beast.collected ? 0.5 : 1,
+                  }} 
+                />
+                {beast.collected && (
+                  <Box sx={styles.collectedBadge}>SLAIN</Box>
+                )}
+              </Box>
+              <Typography sx={[
+                styles.wantedCardName,
+                !beast.collected && styles.wantedCardNameGlow
+              ]}>
+                {beast.name}
+              </Typography>
+              <Box sx={styles.wantedCardInfo}>
+                <Typography sx={styles.wantedCardTier}>{beast.tier}</Typography>
+                <Typography sx={styles.wantedCardType}>{beast.type}</Typography>
+              </Box>
+              <Typography sx={styles.wantedCardBounty}>
+                {JACKPOT_AMOUNT.toLocaleString()} STRK
               </Typography>
             </Box>
-          </Box>
-        ) : (
-          <Skeleton
-            variant="rectangular"
-            sx={{ height: 18, borderRadius: 4 }}
-          />
-        )}
-
-        {beastsRemaining > 0 && (
-          <Typography sx={styles.remainingText}>
-            {beastsRemaining.toLocaleString()} beast remaining
-          </Typography>
-        )}
-
-        <Link
-          href="#"
-          sx={styles.learnMoreLink}
-          onClick={(e) => {
-            e.preventDefault();
-            window.open(
-              "https://docs.provable.games/lootsurvivor/beasts/collectibles",
-              "_blank"
-            );
-          }}
-        >
-          Learn more about Collectable Beasts
-        </Link>
-      </Box>
-
-      <Divider sx={{ width: "100%", my: 1.5 }} />
-
-      <Box sx={styles.rewardSection}>
-        <Typography sx={[styles.rewardTitle, { color: "#d7c529" }]} mb={1}>
-          Wanted Beasts
-        </Typography>
-
-        <Box mb={0.5} display="flex" justifyContent="space-between">
-          <Box>
-            <img src="/images/jackpot_balrog.png" alt="beast" height={80} />
-            <Typography fontWeight={500} fontSize={13}>
-              "Torment Bane" Balrog
-            </Typography>
-          </Box>
-          <Box>
-            <img src="/images/jackpot_warlock.png" alt="beast" height={80} />
-            <Typography fontWeight={500} fontSize={13}>
-              "Pain Whisper" Warlock
-            </Typography>
-          </Box>
-          <Box sx={{ position: "relative" }}>
-            <img src="/images/jackpot_dragon.png" alt="beast" height={80} />
-            <Box
-              sx={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 16,
-                "&::before, &::after": {
-                  content: '""',
-                  position: "absolute",
-                  backgroundColor: "red",
-                  transformOrigin: "center",
-                },
-                "&::before": {
-                  top: "40%",
-                  left: 0,
-                  right: 0,
-                  height: 2,
-                  transform: "rotate(45deg)",
-                },
-                "&::after": {
-                  top: "40%",
-                  left: 0,
-                  right: 0,
-                  height: 2,
-                  transform: "rotate(-45deg)",
-                },
-              }}
-            />
-            <Typography fontWeight={500} fontSize={13} sx={{ opacity: 0.5 }}>
-              "Demon Grasp" Dragon
-            </Typography>
-          </Box>
-        </Box>
-
-        <Box sx={styles.rewardHeader}>
-          <Box sx={{ flex: 1 }}>
-            <Typography
-              fontWeight={500}
-              color="secondary"
-              mt={0.5}
-              letterSpacing={0.2}
-            >
-              Each beast holds a bounty valued at ~${Math.round(Number(strkPrice || 0) * JACKPOT_AMOUNT).toLocaleString()}!
-            </Typography>
-          </Box>
+          ))}
         </Box>
       </Box>
     </>
@@ -258,42 +299,56 @@ export default function BeastModeRewards() {
 }
 
 const styles = {
-  progressBar: {
-    width: "95%",
-    maxWidth: "80dvw",
-    height: 18,
-    borderRadius: 4,
-    border: "1px solid #656217",
-    background: "#16281a",
-    display: "flex",
-    alignItems: "center",
-    overflow: "hidden",
-    "& .MuiLinearProgress-bar": {
-      background: "#ffe082",
-      borderRadius: 4,
+  tabsContainer: {
+    width: "calc(100% + 40px)",
+    mx: -2.5,
+    mt: -2.5,
+    mb: 1.5,
+    borderBottom: "1px solid rgba(208, 201, 141, 0.2)",
+  },
+  tabs: {
+    minHeight: "36px",
+    width: "100%",
+    "& .MuiTabs-flexContainer": {
+      width: "100%",
+    },
+    "& .MuiTabs-indicator": {
+      bottom: 0,
+      height: 2,
     },
   },
-  header: {
-    textAlign: "center",
-    mb: 1.5,
+  tab: {
+    minHeight: "36px",
+    width: "50%",
+    maxWidth: "none",
+    fontSize: "0.85rem",
+    fontWeight: 500,
+    color: "rgba(208, 201, 141, 0.6)",
+    letterSpacing: 0.3,
+    textTransform: "none",
+    px: 0,
+    py: 1,
+    "&.Mui-selected": {
+      color: "#d7c529",
+    },
   },
-  title: {
-    fontSize: "1.2rem",
-    fontWeight: 700,
-    letterSpacing: 0.5,
-    color: "#d7c529",
+  sideBySideContainer: {
+    display: "flex",
+    gap: 1.5,
+    width: "100%",
     mb: 1,
   },
-  divider: {
-    width: "80%",
-    height: 2,
-    background: "linear-gradient(90deg, transparent, #d7c529, transparent)",
-    margin: "0 auto",
+  rewardColumn: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    textAlign: "center",
   },
   rewardSection: {
     display: "flex",
     flexDirection: "column",
-    justifyContent: "center",
+    alignItems: "center",
     textAlign: "center",
     width: "100%",
   },
@@ -301,33 +356,55 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: 1,
+    gap: 0.5,
     mb: 0.5,
-  },
-  rewardHeader: {
-    display: "flex",
-    justifyContent: "center",
-    gap: 1,
+    flexWrap: "nowrap",
   },
   rewardTitle: {
-    fontSize: "1rem",
-    fontWeight: 500,
+    fontSize: "0.85rem",
+    fontWeight: 600,
     color: "text.primary",
     letterSpacing: 0.3,
+    whiteSpace: "nowrap",
   },
-  rewardSubtitle: {
-    fontSize: "0.8rem",
-    color: "#d7c529",
-    letterSpacing: 0.3,
-    lineHeight: 1.2,
-    opacity: 0.95,
-    mb: '2px',
+  remainingText: {
+    fontSize: "0.75rem",
+    color: "rgba(208, 201, 141, 0.6)",
+    mt: 0.5,
+  },
+  infoIcon: {
+    display: "flex",
+    alignItems: "center",
+    color: "rgba(208, 201, 141, 0.4)",
+    cursor: "pointer",
+    "&:hover": {
+      color: "rgba(208, 201, 141, 0.8)",
+    },
   },
   progressContainer: {
     position: "relative",
     display: "flex",
     justifyContent: "center",
-    mb: 0.5,
+    width: "100%",
+  },
+  progressBar: {
+    width: "100%",
+    height: 20,
+    borderRadius: 4,
+    border: "1px solid #656217",
+    background: "#16281a",
+    display: "flex",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  progressStyle: {
+    width: "100%",
+    height: "100%",
+    background: "transparent",
+    "& .MuiLinearProgress-bar": {
+      background: "#656217",
+      borderRadius: 4,
+    },
   },
   progressOverlay: {
     position: "absolute",
@@ -342,44 +419,188 @@ const styles = {
     color: "#ffffff",
     letterSpacing: 0.3,
   },
-  remainingText: {
-    fontSize: "0.75rem",
+  // Tier cards styles
+  tierCardsContainer: {
+    width: "100%",
+    mt: 0.5,
+  },
+  tierCardsTitle: {
+    fontSize: "0.9rem",
     fontWeight: 600,
-    color: "text.primary",
-    opacity: 0.8,
+    color: "rgba(208, 201, 141, 0.9)",
+    mb: 1,
     textAlign: "center",
   },
-  learnMoreLink: {
-    mt: 0.5,
-    fontSize: "0.8rem",
-    color: "rgba(208, 201, 141, 0.6)",
-    textAlign: "center",
-    textDecoration: "underline !important",
-    fontStyle: "italic",
-    cursor: "pointer",
+  tierCardsGrid: {
+    display: "flex",
+    gap: 0.75,
+    justifyContent: "center",
+  },
+  tierCard: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    py: 1,
+    px: 0.75,
+    borderRadius: "8px",
+    bgcolor: "rgba(0, 0, 0, 0.25)",
+    border: "1px solid",
+    borderColor: "rgba(208, 201, 141, 0.2)",
+    transition: "all 0.2s",
     "&:hover": {
-      color: "rgba(208, 201, 141, 0.8)",
+      bgcolor: "rgba(0, 0, 0, 0.35)",
+      transform: "translateY(-2px)",
     },
   },
-  footer: {
-    textAlign: "center",
-    mt: 2,
-    pt: 2,
-    borderTop: "1px solid rgba(208, 201, 141, 0.2)",
-  },
-  footerText: {
+  tierCardBadge: {
     fontSize: "0.75rem",
-    color: "rgba(208, 201, 141, 0.6)",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
+    fontWeight: 700,
+    color: "#111",
+    px: 0.75,
+    py: 0.2,
+    borderRadius: "4px",
+    mb: 0.5,
   },
-  subsection: {
-  },
-  subsectionTitle: {
-    fontSize: "0.85rem",
-    fontWeight: 500,
+  tierCardBeasts: {
+    fontSize: "1rem",
+    fontWeight: 700,
     color: "text.primary",
+    lineHeight: 1,
+  },
+  tierCardBeastsLabel: {
+    fontSize: "0.65rem",
+    color: "rgba(208, 201, 141, 0.6)",
+    textTransform: "uppercase",
     letterSpacing: 0.3,
-    opacity: 0.9,
+  },
+  tierCardDivider: {
+    width: "60%",
+    height: 1,
+    bgcolor: "rgba(208, 201, 141, 0.15)",
+    my: 0.75,
+  },
+  tierCardTokensRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 0.5,
+  },
+  tierCardTokens: {
+    fontSize: "1.1rem",
+    fontWeight: 700,
+    lineHeight: 1,
+  },
+  infoText: {
+    fontSize: "0.8rem",
+    color: "rgba(208, 201, 141, 0.6)",
+    mt: 1,
+    lineHeight: 1.3,
+    fontStyle: "italic",
+    textAlign: "center",
+  },
+  // Wanted beasts styles
+  wantedTitle: {
+    fontSize: "1rem",
+    fontWeight: 600,
+    color: "#d7c529",
+    letterSpacing: 0.5,
+  },
+  wantedSubtitle: {
+    fontSize: "0.75rem",
+    color: "rgba(208, 201, 141, 0.8)",
+    mb: 1,
+  },
+  wantedCardsContainer: {
+    display: "flex",
+    gap: 1,
+    width: "100%",
+    justifyContent: "center",
+  },
+  wantedCard: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    py: 1,
+    px: 0.5,
+    borderRadius: "10px",
+    bgcolor: "rgba(0, 0, 0, 0.3)",
+    border: "1px solid rgba(215, 197, 41, 0.25)",
+    transition: "all 0.2s",
+    "&:hover": {
+      bgcolor: "rgba(0, 0, 0, 0.4)",
+      borderColor: "rgba(215, 197, 41, 0.4)",
+    },
+  },
+  wantedCardCollected: {
+    opacity: 0.6,
+    borderColor: "rgba(100, 100, 100, 0.3)",
+    "&:hover": {
+      bgcolor: "rgba(0, 0, 0, 0.3)",
+      borderColor: "rgba(100, 100, 100, 0.3)",
+    },
+  },
+  wantedCardImageContainer: {
+    position: "relative",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    mb: 0.5,
+  },
+  collectedBadge: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%) rotate(-15deg)",
+    bgcolor: "rgba(180, 0, 0, 0.9)",
+    color: "#fff",
+    fontSize: "0.6rem",
+    fontWeight: 700,
+    px: 0.75,
+    py: 0.25,
+    borderRadius: "3px",
+    letterSpacing: 1,
+  },
+  wantedCardName: {
+    fontSize: "0.9rem",
+    fontWeight: 700,
+    color: "#d7c529",
+    lineHeight: 1.3,
+    textAlign: "center",
+    mb: 0.5,
+  },
+  wantedCardNameGlow: {
+    textShadow: "0 0 8px rgba(215, 197, 41, 0.6), 0 0 16px rgba(215, 197, 41, 0.4)",
+  },
+  wantedCardInfo: {
+    display: "flex",
+    gap: 0.5,
+    mb: 0.5,
+  },
+  wantedCardType: {
+    fontSize: "0.6rem",
+    color: "rgba(208, 201, 141, 0.7)",
+    bgcolor: "rgba(0, 0, 0, 0.3)",
+    px: 0.5,
+    py: 0.15,
+    borderRadius: "3px",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  wantedCardTier: {
+    fontSize: "0.6rem",
+    color: "#FFD700",
+    bgcolor: "rgba(255, 215, 0, 0.15)",
+    px: 0.5,
+    py: 0.15,
+    borderRadius: "3px",
+    fontWeight: 600,
+  },
+  wantedCardBounty: {
+    fontSize: "0.8rem",
+    fontWeight: 700,
+    color: "#4caf50",
+    letterSpacing: 0.3,
   },
 };

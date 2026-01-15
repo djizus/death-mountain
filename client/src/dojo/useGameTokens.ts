@@ -143,6 +143,57 @@ export const useGameTokens = () => {
     }
   }
 
+  // Helper to determine tier from beast ID
+  const getTierFromBeastId = (id: number): number => {
+    // T1: IDs 1-5, 26-30, 51-55
+    if ((id >= 1 && id <= 5) || (id >= 26 && id <= 30) || (id >= 51 && id <= 55)) return 1;
+    // T2: IDs 6-10, 31-35, 56-60
+    if ((id >= 6 && id <= 10) || (id >= 31 && id <= 35) || (id >= 56 && id <= 60)) return 2;
+    // T3: IDs 11-15, 36-40, 61-65
+    if ((id >= 11 && id <= 15) || (id >= 36 && id <= 40) || (id >= 61 && id <= 65)) return 3;
+    // T4: IDs 16-20, 41-45, 66-70
+    if ((id >= 16 && id <= 20) || (id >= 41 && id <= 45) || (id >= 66 && id <= 70)) return 4;
+    // T5: IDs 21-25, 46-50, 71-75
+    return 5;
+  };
+
+  const countBeastsByTier = async (): Promise<{ [tier: number]: number }> => {
+    let beast_address = NETWORKS.SN_MAIN.beasts;
+    // Query to get Beast ID for all minted beasts
+    let url = `${SQL_ENDPOINT}/sql?query=
+      SELECT ta.trait_value as beast_id, COUNT(*) as count
+      FROM token_attributes ta
+      JOIN tokens t ON ta.token_id = t.id
+      WHERE t.contract_address = "${addAddressPadding(beast_address)}"
+        AND ta.trait_name = 'Beast ID'
+      GROUP BY ta.trait_value`
+
+    try {
+      const sql = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      })
+
+      let data = await sql.json()
+      
+      // Aggregate counts by tier
+      const tierCounts: { [tier: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      
+      for (const row of data) {
+        const beastId = parseInt(row.beast_id);
+        const tier = getTierFromBeastId(beastId);
+        tierCounts[tier] += parseInt(row.count);
+      }
+      
+      return tierCounts;
+    } catch (error) {
+      console.error("Error counting beasts by tier:", error);
+      return { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    }
+  }
+
   const getBeastTokenId = async (beast: Beast) => {
     let url = `${SQL_ENDPOINT}/sql?query=
       SELECT token_id
@@ -232,6 +283,7 @@ export const useGameTokens = () => {
     fetchAdventurerData,
     getGameTokens,
     countBeasts,
+    countBeastsByTier,
     getBeastTokenId,
     getBeastOwner
   };
