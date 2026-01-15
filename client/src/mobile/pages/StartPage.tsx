@@ -7,10 +7,10 @@ import { ChainId } from "@/utils/networkConfig";
 
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
-import FavoriteIcon from "@mui/icons-material/Favorite";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
+import ShareIcon from "@mui/icons-material/Share";
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
-import { useUIStore } from "@/stores/uiStore";
+import ReferralTab from "@/components/ReferralTab";
 
 import { Box, Button, Divider, Typography } from "@mui/material";
 import { useAccount } from "@starknet-react/core";
@@ -31,14 +31,7 @@ export default function LandingPage() {
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showDungeonRewards, setShowDungeonRewards] = useState(false);
-  const { referralClicked, setReferralClicked } = useUIStore();
-
-  const REFERRAL_URL = "https://loot-referral.io/play?ref=0x04364d8e9f994453f5d0c8dc838293226d8ae0aec78030e5ee5fb91614b00eb5";
-
-  const handleReferralClick = () => {
-    window.open(REFERRAL_URL, "_blank");
-    setReferralClicked(true);
-  };
+  const [showReferral, setShowReferral] = useState(false);
 
   const handleMainButtonClick = () => {
     if (dungeon.externalLink) {
@@ -125,7 +118,8 @@ export default function LandingPage() {
         >
           {!showGames &&
             !showLeaderboard &&
-            !showDungeonRewards && (
+            !showDungeonRewards &&
+            !showReferral && (
             <>
               <Box sx={styles.headerBox}>
                 <Typography sx={styles.gameTitle}>LOOT SURVIVOR 2</Typography>
@@ -273,44 +267,35 @@ export default function LandingPage() {
               </Button>
 
               {dungeon.ticketAddress && (
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  color="secondary"
-                  onClick={() => setShowDungeonRewards(true)}
-                  startIcon={<EmojiEventsIcon />}
-                  sx={{ height: "36px", mt: 1, mb: 2 }}
-                >
-                  <Typography variant="h5" color="#111111">
-                    Dungeon Rewards
-                  </Typography>
-                </Button>
+                <Box sx={{ display: "flex", gap: 1, width: "100%", mt: 1, mb: 2 }}>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    color="secondary"
+                    onClick={() => setShowDungeonRewards(true)}
+                    startIcon={<EmojiEventsIcon />}
+                    sx={{ height: "36px", flex: 1 }}
+                  >
+                    <Typography variant="h5" color="#111111">
+                      Dungeon Rewards
+                    </Typography>
+                  </Button>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    color="secondary"
+                    onClick={() => setShowReferral(true)}
+                    startIcon={<ShareIcon />}
+                    sx={{ height: "36px", flex: 1 }}
+                  >
+                    <Typography variant="h5" color="#111111">
+                      Refer & Earn
+                    </Typography>
+                  </Button>
+                </Box>
               )}
 
               {dungeon.ticketAddress && <PriceIndicator />}
-
-              {!referralClicked && (
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  onClick={handleReferralClick}
-                  startIcon={<FavoriteIcon />}
-                  sx={{
-                    height: "36px",
-                    mt: 2,
-                    backgroundColor: "coral",
-                    "&:hover": {
-                      backgroundColor: "#ff8c66",
-                    },
-                  }}
-                >
-                  <Typography variant="h5" color="#111" sx={{ textAlign: "center" }}>
-                    Use our referral
-                  </Typography>
-                </Button>
-              )}
             </>
           )}
 
@@ -350,10 +335,45 @@ export default function LandingPage() {
               </Box>
 
               {DungeonRewards ? <Box
-                sx={{ width: "100%", maxHeight: "365px", overflowY: "auto" }}
+                sx={{ width: "100%", maxHeight: "400px", overflowY: "auto" }}
               >
                 <DungeonRewards />
               </Box> : null}
+            </>
+          )}
+
+          {showReferral && (
+            <>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  justifyContent: "center",
+                }}
+              >
+                <Box sx={styles.adventurersHeader}>
+                  <Button
+                    variant="text"
+                    size="large"
+                    onClick={() => setShowReferral(false)}
+                    sx={styles.backButton}
+                    startIcon={
+                      <ArrowBackIcon fontSize="large" sx={{ mr: 1 }} />
+                    }
+                  >
+                    <Typography variant="h4" color="primary">
+                      Refer & Earn
+                    </Typography>
+                  </Button>
+                </Box>
+              </Box>
+
+              <Box
+                sx={{ width: "100%", maxHeight: "450px", overflowY: "auto" }}
+              >
+                <ReferralTab />
+              </Box>
             </>
           )}
         </Box>

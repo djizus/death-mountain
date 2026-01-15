@@ -35,16 +35,18 @@ export default function BeastModeRewards() {
     setActiveTab(newValue);
   };
 
-  // Mobile doesn't show tabs, just rewards
+  // Mobile shows just rewards content (Refer & Earn is separate button)
   if (isMobile || useMobileClient) {
-    return <RewardsContent 
-      remainingSurvivorTokens={remainingSurvivorTokens}
-      BEAST_ENTITLEMENTS_ORIGINAL={BEAST_ENTITLEMENTS_ORIGINAL}
-      beastsRemaining={beastsRemaining}
-      strkPrice={strkPrice}
-      beastTierData={beastTierData}
-      survivorTokenPrice={survivorTokenPrice}
-    />;
+    return (
+      <RewardsContent 
+        remainingSurvivorTokens={remainingSurvivorTokens}
+        BEAST_ENTITLEMENTS_ORIGINAL={BEAST_ENTITLEMENTS_ORIGINAL}
+        beastsRemaining={beastsRemaining}
+        strkPrice={strkPrice}
+        beastTierData={beastTierData}
+        survivorTokenPrice={survivorTokenPrice}
+      />
+    );
   }
 
   return (
@@ -305,6 +307,11 @@ const styles = {
     mt: -2.5,
     mb: 1.5,
     borderBottom: "1px solid rgba(208, 201, 141, 0.2)",
+  },
+  tabsContainerMobile: {
+    width: "100%",
+    mx: 0,
+    mt: 0,
   },
   tabs: {
     minHeight: "36px",

@@ -167,6 +167,7 @@ const styles = {
     flexDirection: "column",
     alignItems: "center",
     width: "100%",
+    overflow: "hidden",
   },
   prizeBanner: {
     display: "flex",
@@ -216,17 +217,21 @@ const styles = {
   },
   linkBox: {
     width: "100%",
+    maxWidth: "100%",
     py: 0.75,
     px: 1.5,
     bgcolor: "rgba(0, 0, 0, 0.3)",
     borderRadius: "6px",
     border: "1px solid rgba(208, 201, 141, 0.2)",
     overflow: "hidden",
+    boxSizing: "border-box",
   },
   linkText: {
     fontSize: "0.7rem",
     color: "rgba(208, 201, 141, 0.8)",
     fontFamily: "monospace",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   buttonRow: {
     display: "flex",
