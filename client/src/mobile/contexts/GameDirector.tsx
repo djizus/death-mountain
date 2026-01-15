@@ -376,6 +376,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       adventurerState?.equipment!
     );
     if (action.type !== "equip" && newItemsEquipped.length > 0) {
+      setOptimisticTxs((prev) => [...prev, equip(gameId!, newItemsEquipped.map((item) => item.id))]);
       txs.push(
         equip(
           gameId!,
@@ -391,7 +392,6 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     } else if (action.type === "flee") {
       txs.push(flee(gameId!, action.untilDeath!));
     } else if (action.type === "equip") {
-      setOptimisticTxs((prev) => [...prev, equip(gameId!, newItemsEquipped.map((item) => item.id))]);
       txs.push(
         equip(
           gameId!,
