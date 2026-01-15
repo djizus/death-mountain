@@ -8,6 +8,7 @@ import { ChainId } from "@/utils/networkConfig";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
+import SchoolIcon from "@mui/icons-material/School";
 import ShareIcon from "@mui/icons-material/Share";
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import ReferralTab from "@/components/ReferralTab";
@@ -242,15 +243,14 @@ export default function LandingPage() {
                   size="large"
                   color="secondary"
                   onClick={() => navigate(`/${dungeon.id}/play?mode=practice`)}
-                  sx={{ height: "36px", mt: 1, mb: 1 }}
+                  startIcon={<SchoolIcon />}
+                  sx={{ height: "36px", mt: 1 }}
                 >
                   <Typography variant="h5" color="#111111">
                     Practice for Free
                   </Typography>
                 </Button>
               )}
-
-              <Divider sx={{ width: "100%", my: 0.5 }} />
 
               <Button
                 fullWidth
@@ -267,32 +267,34 @@ export default function LandingPage() {
               </Button>
 
               {dungeon.ticketAddress && (
-                <Box sx={{ display: "flex", gap: 1, width: "100%", mt: 1, mb: 2 }}>
+                <>
                   <Button
+                    fullWidth
                     variant="contained"
                     size="large"
                     color="secondary"
                     onClick={() => setShowDungeonRewards(true)}
                     startIcon={<EmojiEventsIcon />}
-                    sx={{ height: "36px", flex: 1 }}
+                    sx={{ height: "36px", mt: 1 }}
                   >
                     <Typography variant="h5" color="#111111">
                       Dungeon Rewards
                     </Typography>
                   </Button>
                   <Button
+                    fullWidth
                     variant="contained"
                     size="large"
                     color="secondary"
                     onClick={() => setShowReferral(true)}
                     startIcon={<ShareIcon />}
-                    sx={{ height: "36px", flex: 1 }}
+                    sx={{ height: "36px", mt: 1, mb: 2 }}
                   >
                     <Typography variant="h5" color="#111111">
                       Refer & Earn
                     </Typography>
                   </Button>
-                </Box>
+                </>
               )}
 
               {dungeon.ticketAddress && <PriceIndicator />}

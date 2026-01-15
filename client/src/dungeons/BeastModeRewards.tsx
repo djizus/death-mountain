@@ -135,7 +135,7 @@ function RewardsContent({
             <Typography sx={styles.rewardTitle}>Survivor Tokens</Typography>
             <Tooltip title="Learn more about Survivor Tokens" arrow>
               <Link
-                href="https://docs.provable.games/lootsurvivor/overview/tokens"
+                href="https://docs.provable.games/lootsurvivor/token"
                 target="_blank"
                 rel="noopener"
                 sx={styles.infoIcon}
@@ -177,7 +177,7 @@ function RewardsContent({
             <Typography sx={styles.rewardTitle}>Collectable Beasts</Typography>
             <Tooltip title="Learn more about Collectable Beasts" arrow>
               <Link
-                href="https://docs.provable.games/lootsurvivor/overview/beasts"
+                href="https://docs.provable.games/lootsurvivor/beasts/collectibles"
                 target="_blank"
                 rel="noopener"
                 sx={styles.infoIcon}
