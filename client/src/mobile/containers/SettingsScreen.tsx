@@ -6,7 +6,8 @@ import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import MusicOffIcon from '@mui/icons-material/MusicOff';
 import SportsEsportsIcon from '@mui/icons-material/SportsEsports';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { Box, Button, Checkbox, FormControlLabel, Slider, Switch, Typography } from '@mui/material';
+import { Box, Button, Checkbox, FormControlLabel, MenuItem, Select, Slider, Switch, Typography } from '@mui/material';
+import { NETWORKS } from '@/utils/networkConfig';
 import { useNavigate } from 'react-router-dom';
 import { useDungeon } from '@/dojo/useDungeon';
 
@@ -21,7 +22,14 @@ export default function SettingsScreen() {
     fastBattle,
     setFastBattle,
     advancedMode,
+    defaultPaymentToken,
+    setDefaultPaymentToken,
   } = useUIStore();
+
+  // Filter payment tokens to exclude special tokens (TICKET)
+  const paymentTokenOptions = NETWORKS.SN_MAIN.paymentTokens.filter(
+    (token: any) => token.name !== 'TICKET'
+  );
 
   const handleExitGame = () => {
     navigate(`/${dungeon.id}`);
@@ -113,12 +121,7 @@ export default function SettingsScreen() {
       {/* Advanced Mode Section - Always enabled, toggle disabled */}
       <Box sx={styles.section}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box>
-            <Typography sx={styles.sectionTitle}>Enable Advanced Mode</Typography>
-            <Typography sx={{ fontSize: '12px', color: 'rgba(128, 255, 0, 0.7)' }}>
-              Advanced features (always enabled)
-            </Typography>
-          </Box>
+          <Typography sx={styles.sectionTitle}>Advanced Mode</Typography>
           <Switch
             checked={advancedMode}
             disabled={true}
@@ -155,6 +158,28 @@ export default function SettingsScreen() {
             label="Skip Combat Delay"
             sx={styles.checkboxLabel}
           />
+        </Box>
+      </Box>
+
+      {/* Payment Section */}
+      <Box sx={styles.section}>
+        <Box sx={styles.sectionHeader}>
+          <Typography sx={styles.sectionTitle}>Payment</Typography>
+        </Box>
+        <Box sx={styles.paymentControl}>
+          <Typography sx={{ fontSize: '14px', color: '#80FF00' }}>Default Token</Typography>
+          <Select
+            value={defaultPaymentToken}
+            onChange={(e) => setDefaultPaymentToken(e.target.value)}
+            size="small"
+            sx={styles.tokenSelect}
+          >
+            {paymentTokenOptions.map((token: any) => (
+              <MenuItem key={token.name} value={token.name}>
+                {token.name}
+              </MenuItem>
+            ))}
+          </Select>
         </Box>
       </Box>
 
@@ -323,6 +348,28 @@ const styles = {
     color: '#80FF00',
     '& .MuiFormControlLabel-label': {
       fontFamily: 'VT323, monospace',
+    },
+  },
+  paymentControl: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  tokenSelect: {
+    minWidth: 120,
+    color: '#80FF00',
+    fontFamily: 'VT323, monospace',
+    '& .MuiOutlinedInput-notchedOutline': {
+      borderColor: 'rgba(128, 255, 0, 0.3)',
+    },
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: 'rgba(128, 255, 0, 0.5)',
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: '#80FF00',
+    },
+    '& .MuiSelect-icon': {
+      color: '#80FF00',
     },
   },
 };

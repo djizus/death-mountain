@@ -4,7 +4,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
-import { Box, Button, Checkbox, Divider, FormControlLabel, IconButton, Slider, Switch, Typography } from '@mui/material';
+import { Box, Button, Checkbox, Divider, FormControlLabel, IconButton, MenuItem, Select, Slider, Switch, Typography } from '@mui/material';
+import { NETWORKS } from '@/utils/networkConfig';
 import { motion } from 'framer-motion';
 
 interface SettingsProps {
@@ -28,7 +29,14 @@ export default function Settings({ onBack, showExitGame = false, onExitGame, sho
     showUntilBeastToggle,
     setShowUntilBeastToggle,
     advancedMode,
+    defaultPaymentToken,
+    setDefaultPaymentToken,
   } = useUIStore();
+
+  // Filter payment tokens to exclude special tokens (TICKET)
+  const paymentTokenOptions = NETWORKS.SN_MAIN.paymentTokens.filter(
+    (token: any) => token.name !== 'TICKET'
+  );
   const { volume, setVolume, muted, setMuted, musicVolume, setMusicVolume, musicMuted, setMusicMuted } = useSound();
 
   const handleSwitchToMobile = () => {
@@ -141,16 +149,13 @@ export default function Settings({ onBack, showExitGame = false, onExitGame, sho
         {/* Advanced Section - Always enabled, toggle disabled */}
         <Box sx={styles.settingSection}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography sx={[styles.sectionTitle]}>Enable Advanced Mode</Typography>
+            <Typography sx={[styles.sectionTitle]}>Advanced Mode</Typography>
             <Switch
               checked={advancedMode}
               disabled={true}
               sx={styles.switch}
             />
           </Box>
-          <Typography sx={{ fontSize: '12px', color: 'rgba(208, 201, 141, 0.7)', mt: -0.5 }}>
-            Advanced features (always enabled)
-          </Typography>
         </Box>
 
         <Divider sx={{ my: 0.5, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
@@ -214,6 +219,28 @@ export default function Settings({ onBack, showExitGame = false, onExitGame, sho
               label="Skip first battle"
               sx={styles.checkboxLabel}
             />
+          </Box>
+        </Box>
+
+        <Divider sx={{ my: 0.5, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+        {/* Payment Section */}
+        <Box sx={styles.settingSection}>
+          <Typography sx={styles.sectionTitle}>Payment</Typography>
+          <Box sx={styles.paymentControl}>
+            <Typography sx={{ fontSize: '14px', color: '#d0c98d' }}>Default Token</Typography>
+            <Select
+              value={defaultPaymentToken}
+              onChange={(e) => setDefaultPaymentToken(e.target.value)}
+              size="small"
+              sx={styles.tokenSelect}
+            >
+              {paymentTokenOptions.map((token: any) => (
+                <MenuItem key={token.name} value={token.name}>
+                  {token.name}
+                </MenuItem>
+              ))}
+            </Select>
           </Box>
         </Box>
 
@@ -424,6 +451,32 @@ const styles = {
     mb: -1.5,
     '& .MuiFormControlLabel-label': {
       fontWeight: 500,
+    },
+  },
+  paymentControl: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '6px 10px',
+    background: 'rgba(24, 40, 24, 0.3)',
+    border: '1px solid rgba(8, 62, 34, 0.5)',
+    borderRadius: '6px',
+  },
+  tokenSelect: {
+    minWidth: 120,
+    color: '#d0c98d',
+    fontSize: '14px',
+    '& .MuiOutlinedInput-notchedOutline': {
+      borderColor: 'rgba(208, 201, 141, 0.3)',
+    },
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: 'rgba(208, 201, 141, 0.5)',
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: '#d0c98d',
+    },
+    '& .MuiSelect-icon': {
+      color: '#d0c98d',
     },
   },
 };

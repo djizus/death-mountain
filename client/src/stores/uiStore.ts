@@ -37,6 +37,10 @@ interface UIState {
   // Advanced mode (always enabled, toggle is no-op)
   setAdvancedMode: (advanced: boolean) => void
   advancedMode: boolean
+
+  // Payment preferences
+  defaultPaymentToken: string
+  setDefaultPaymentToken: (token: string) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -77,6 +81,10 @@ export const useUIStore = create<UIState>()(
       // Referral tracking
       referralClicked: false,
       setReferralClicked: (clicked) => set({ referralClicked: clicked }),
+
+      // Payment preferences
+      defaultPaymentToken: 'LORDS',
+      setDefaultPaymentToken: (token) => set({ defaultPaymentToken: token }),
     }),
     {
       name: 'death-mountain-ui-settings',
@@ -89,6 +97,7 @@ export const useUIStore = create<UIState>()(
         showUntilBeastToggle: state.showUntilBeastToggle,
         referralClicked: state.referralClicked,
         advancedMode: state.advancedMode,
+        defaultPaymentToken: state.defaultPaymentToken,
       }),
       merge: (persistedState, currentState) => {
         const state = persistedState as Partial<UIState> & { skipCombatDelays?: boolean };
@@ -97,6 +106,7 @@ export const useUIStore = create<UIState>()(
           ...state,
           fastBattle: state.fastBattle ?? state.skipCombatDelays ?? currentState.fastBattle,
           advancedMode: true, // Always force advancedMode to true regardless of persisted state
+          defaultPaymentToken: state.defaultPaymentToken ?? currentState.defaultPaymentToken,
         };
       },
     }

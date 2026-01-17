@@ -1,6 +1,7 @@
 import { createOrder, getTreasuryStatus, submitOrderPayment, type OrderResponse, type PayToken, type TreasuryStatus } from "@/api/orders";
 import { useController } from "@/contexts/controller";
 import { useDungeon } from "@/dojo/useDungeon";
+import { useUIStore } from "@/stores/uiStore";
 import { NETWORKS } from "@/utils/networkConfig";
 import { stringToFelt } from "@/utils/utils";
 import CloseIcon from "@mui/icons-material/Close";
@@ -329,6 +330,7 @@ export default function PaymentOptionsModal({
 
   const navigate = useNavigate();
   const dungeon = useDungeon();
+  const { defaultPaymentToken } = useUIStore();
 
   // Tab state: 0 = Crypto, 1 = Fiat
   const [activeTab, setActiveTab] = useState(0);
@@ -391,9 +393,15 @@ export default function PaymentOptionsModal({
 
   useEffect(() => {
     if (userTokens.length > 0 && !selectedToken) {
-      setSelectedToken(userTokens[0].symbol);
+      // Try to use the user's default payment token if they have a balance
+      const hasDefaultToken = userTokens.some((t: any) => t.symbol === defaultPaymentToken);
+      if (hasDefaultToken) {
+        setSelectedToken(defaultPaymentToken);
+      } else {
+        setSelectedToken(userTokens[0].symbol);
+      }
     }
-  }, [userTokens]);
+  }, [userTokens, defaultPaymentToken]);
 
   const fetchTokenQuote = useCallback(
     async (tokenSymbol: string) => {
