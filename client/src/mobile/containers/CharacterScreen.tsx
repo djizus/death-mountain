@@ -2,14 +2,15 @@ import { useGameDirector } from '@/mobile/contexts/GameDirector';
 import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
 import { calculateLevel } from '@/utils/game';
+import { getExplorationInsights } from '@/utils/exploration';
 import { ItemUtils, typeIcons } from '@/utils/loot';
+import { getCartItemPlacements } from '@/utils/market';
 import { Box, Button, Tooltip, Typography } from '@mui/material';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { isMobile } from 'react-device-detect';
 import AdventurerInfo from '../components/AdventurerInfo';
 import ItemTooltip from '../components/ItemTooltip';
 import { useMarketStore } from '@/stores/marketStore';
-import { getExplorationInsights } from '@/utils/exploration';
 
 type EquipmentSlot = 'weapon' | 'chest' | 'head' | 'waist' | 'foot' | 'hand' | 'neck' | 'ring';
 
@@ -22,6 +23,7 @@ const ItemSlot = memo(({
   isSelected,
   isNew,
   highlight,
+  isPreview,
   onItemClick,
   onItemHover
 }: {
@@ -32,6 +34,7 @@ const ItemSlot = memo(({
   isSelected: boolean,
   isNew: boolean,
   highlight: boolean,
+  isPreview?: boolean,
   onItemClick: (item: Item) => void,
   onItemHover: (id: number) => void
 }) => {
@@ -69,9 +72,15 @@ const ItemSlot = memo(({
       }}
     >
       <Box
-        sx={[styles.item, isSelected && styles.selectedItem, isNew && styles.newItem, highlight && styles.highlight]}
-        onClick={() => item?.id && onItemClick(item)}
-        onMouseEnter={() => item?.id && onItemHover(item.id)}
+        sx={[
+          styles.item,
+          ...(isSelected ? [styles.selectedItem] : []),
+          ...(isNew ? [styles.newItem] : []),
+          ...(highlight ? [styles.highlight] : []),
+          ...(isPreview ? [styles.previewItem] : [])
+        ]}
+        onClick={() => item?.id && !isPreview && onItemClick(item)}
+        onMouseEnter={() => item?.id && !isPreview && onItemHover(item.id)}
       >
         {item?.id && metadata ? (
           <>
@@ -144,7 +153,12 @@ export default function CharacterScreen() {
     equipGearPreset,
     gameSettings,
   } = useGameStore();
-  const { inProgress } = useMarketStore();
+  const { inProgress, cart } = useMarketStore();
+
+  // Calculate preview items from cart (which items would be equipped vs go to bag)
+  const cartPreview = useMemo(() => {
+    return getCartItemPlacements(cart.items, adventurer ?? null);
+  }, [cart.items, adventurer?.equipment]);
 
   const [dropInProgress, setDropInProgress] = useState(false);
   const [isDropMode, setIsDropMode] = useState(false);
@@ -241,10 +255,14 @@ export default function CharacterScreen() {
 
             <Box sx={styles.itemGrid}>
               {equipmentOrder.map((slot, index) => {
-                const item = adventurer?.equipment[slot];
-                const isSelected = item?.id ? itemsToDrop.includes(item.id) : false;
-                const isNew = item?.id ? newItems.includes(item.id) : false;
-                const highlight = item?.id ? (isDropMode && itemsToDrop.length === 0) : false;
+                // Check for preview item first, then actual equipped item
+                const previewItem = cartPreview.previewEquipped[slot];
+                const actualItem = adventurer?.equipment[slot];
+                const item = previewItem || actualItem;
+                const isPreview = !!previewItem;
+                const isSelected = !isPreview && item?.id ? itemsToDrop.includes(item.id) : false;
+                const isNew = !isPreview && item?.id ? newItems.includes(item.id) : false;
+                const highlight = !isPreview && item?.id ? (isDropMode && itemsToDrop.length === 0) : false;
 
                 return (
                   <ItemSlot
@@ -254,6 +272,7 @@ export default function CharacterScreen() {
                     item={item || null}
                     slot={slot}
                     isSelected={isSelected}
+                    isPreview={isPreview}
                     isNew={isNew}
                     highlight={highlight}
                     onItemClick={handleItemClick}
@@ -267,9 +286,10 @@ export default function CharacterScreen() {
           {/* Bag Section */}
           <Box sx={styles.section}>
             <Box sx={styles.sectionHeader}>
-              <Typography variant="h6" sx={styles.sectionTitle}>Bag ({bag?.length || 0}/15)</Typography>
+              <Typography variant="h6" sx={styles.sectionTitle}>Bag ({(bag?.length || 0) + cartPreview.previewBag.length}/15)</Typography>
             </Box>
             <Box sx={styles.itemGrid}>
+              {/* Actual bag items */}
               {bag?.map((item, index) => {
                 const isNew = newItems.includes(item.id);
                 const isSelected = itemsToDrop.includes(item.id);
@@ -277,7 +297,7 @@ export default function CharacterScreen() {
 
                 return (
                   <ItemSlot
-                    key={item.id}
+                    key={`${item.id}-${index}`}
                     offset={(index % 5) * 45}
                     item={item}
                     itemSpecialsSeed={adventurer?.item_specials_seed || 0}
@@ -290,7 +310,24 @@ export default function CharacterScreen() {
                   />
                 );
               })}
-              {Array(15 - (bag?.length || 0)).fill(null).map((_, index) => (
+              {/* Preview bag items from cart */}
+              {cartPreview.previewBag.map((item, index) => (
+                <ItemSlot
+                  key={`preview-${item.id}-${index}`}
+                  offset={((bag?.length || 0) + index) % 5 * 45}
+                  item={item}
+                  itemSpecialsSeed={adventurer?.item_specials_seed || 0}
+                  slot="bag"
+                  isSelected={false}
+                  isNew={false}
+                  highlight={false}
+                  isPreview={true}
+                  onItemClick={() => {}}
+                  onItemHover={() => {}}
+                />
+              ))}
+              {/* Empty slots */}
+              {Array(Math.max(0, 15 - (bag?.length || 0) - cartPreview.previewBag.length)).fill(null).map((_, index) => (
                 <Box key={`empty-${index}`} sx={[styles.item, { opacity: 0.5 }]}>
                   <Box sx={styles.itemImageContainer}>
                     <img src={'/images/mobile/empty_slot.png'} alt="Empty slot" style={styles.itemImage} />
@@ -755,6 +792,11 @@ const styles = {
     '&:hover': {
       backgroundColor: 'rgba(128, 255, 0, 0.15)',
     },
+  },
+  previewItem: {
+    border: '2px solid #EDCF33',
+    backgroundColor: 'rgba(237, 207, 51, 0.15)',
+    opacity: 0.85,
   },
   xpBarContainer: {
     padding: '0 4px',

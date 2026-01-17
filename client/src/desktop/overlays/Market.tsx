@@ -7,10 +7,11 @@ import { useUIStore } from '@/stores/uiStore';
 import { getEventIcon, getEventTitle } from '@/utils/events';
 import { getExplorationInsights, type DamageBucket, type SlotDamageSummary } from '@/utils/exploration';
 import { calculateLevel } from '@/utils/game';
-import { ItemUtils, Tier, slotIcons, typeIcons } from '@/utils/loot';
-import { MarketItem, generateMarketItems, getCartItemPlacements, potionPrice } from '@/utils/market';
+import { ItemType, ItemUtils, Tier, slotIcons, typeIcons } from '@/utils/loot';
+import { MarketItem, generateMarketItems, getCartItemPlacements, getTierOneArmorSetStats, potionPrice, STAT_FILTER_OPTIONS, type ArmorSetStatSummary, type StatDisplayName } from '@/utils/market';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
-import { Box, Button, IconButton, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
+import { Box, Button, IconButton, Modal, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { keyframes } from '@emotion/react';
 import { SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -78,6 +79,41 @@ const renderTierToggleButton = (tier: Tier) => (
   </ToggleButton>
 );
 
+const renderStatToggleButton = (stat: StatDisplayName, abbreviation: string) => (
+  <ToggleButton key={stat} value={stat} aria-label={stat}>
+    <Box
+      sx={{
+        color: '#d7c529',
+        fontWeight: 'bold',
+        fontSize: '0.75rem',
+        lineHeight: '1.5rem',
+        minWidth: '28px',
+        height: '24px',
+      }}
+    >
+      {abbreviation}
+    </Box>
+  </ToggleButton>
+);
+
+const STAT_ABBREVIATIONS: Record<StatDisplayName, string> = {
+  Strength: 'STR',
+  Vitality: 'VIT',
+  Dexterity: 'DEX',
+  Intelligence: 'INT',
+  Wisdom: 'WIS',
+  Charisma: 'CHA',
+};
+
+const SET_STATS_TABS = [ItemType.Cloth, ItemType.Hide, ItemType.Metal, 'Weapons', 'Rings'] as const;
+type SetStatsTab = typeof SET_STATS_TABS[number];
+type ArmorTab = Extract<SetStatsTab, ItemType.Cloth | ItemType.Hide | ItemType.Metal>;
+const isArmorTab = (tab: SetStatsTab): tab is ArmorTab =>
+  tab === ItemType.Cloth || tab === ItemType.Hide || tab === ItemType.Metal;
+type GearTab = Extract<SetStatsTab, 'Weapons' | 'Rings'>;
+const isGearTab = (tab: SetStatsTab): tab is GearTab =>
+  tab === 'Weapons' || tab === 'Rings';
+
 export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: boolean }) {
   const { adventurer, bag, marketItemIds, setShowInventory, newMarket, setNewMarket, exploreLog, gameSettings } = useGameStore();
   const { executeGameAction } = useGameDirector();
@@ -88,9 +124,11 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
     slotFilter,
     typeFilter,
     tierFilter,
+    statFilter,
     setSlotFilter,
     setTypeFilter,
     setTierFilter,
+    setStatFilter,
     addToCart,
     removeFromCart,
     setPotions,
@@ -105,8 +143,57 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
   const [ambushSlot, setAmbushSlot] = useState<SlotDamageSummary['slot']>('hand');
   const [trapSlot, setTrapSlot] = useState<SlotDamageSummary['slot']>('hand');
   const [showSetStats, setShowSetStats] = useState(false);
+  const [activeSetStatsTab, setActiveSetStatsTab] = useState<SetStatsTab>(ItemType.Cloth);
 
   const specialsUnlocked = Boolean(adventurer?.item_specials_seed);
+
+  // Set stats summaries for the loadout popup
+  const setStatsSummaries = useMemo<ArmorSetStatSummary[]>(() => {
+    if (!specialsUnlocked) {
+      return [];
+    }
+    return getTierOneArmorSetStats(adventurer?.item_specials_seed || 0);
+  }, [specialsUnlocked, adventurer?.item_specials_seed]);
+
+  const armorSummaries = useMemo(
+    () => setStatsSummaries.filter((summary) => summary.category === 'Armor'),
+    [setStatsSummaries]
+  );
+  const armorSummariesByType = useMemo(
+    () => armorSummaries.reduce((acc, summary) => {
+      acc[summary.type as ArmorTab] = summary;
+      return acc;
+    }, {} as Partial<Record<ArmorTab, ArmorSetStatSummary>>),
+    [armorSummaries]
+  );
+  const weaponSummary = useMemo(
+    () => setStatsSummaries.find((summary) => summary.type === 'Weapons') ?? null,
+    [setStatsSummaries]
+  );
+  const ringSummary = useMemo(
+    () => setStatsSummaries.find((summary) => summary.type === 'Rings') ?? null,
+    [setStatsSummaries]
+  );
+
+  const availableSetStatsTabs = useMemo(() => {
+    const tabAvailability: Record<SetStatsTab, boolean> = {
+      [ItemType.Cloth]: Boolean(armorSummariesByType[ItemType.Cloth]?.items.length),
+      [ItemType.Hide]: Boolean(armorSummariesByType[ItemType.Hide]?.items.length),
+      [ItemType.Metal]: Boolean(armorSummariesByType[ItemType.Metal]?.items.length),
+      Weapons: Boolean(weaponSummary && weaponSummary.items.length > 0),
+      Rings: Boolean(ringSummary && ringSummary.items.length > 0),
+    };
+    return SET_STATS_TABS.filter((tab) => tabAvailability[tab]);
+  }, [armorSummariesByType, weaponSummary, ringSummary]);
+
+  const activeArmorSummary = isArmorTab(activeSetStatsTab)
+    ? armorSummariesByType[activeSetStatsTab] ?? null
+    : null;
+  const activeGearSummary = isGearTab(activeSetStatsTab)
+    ? activeSetStatsTab === 'Weapons'
+      ? (weaponSummary ?? null)
+      : (ringSummary ?? null)
+    : null;
 
   const handleTabChange = (_: SyntheticEvent, newValue: 'market' | 'exploring' | 'events') => {
     setActiveTab(newValue);
@@ -172,6 +259,18 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
       setShowSetStats(false);
     }
   }, [specialsUnlocked, showSetStats]);
+
+  useEffect(() => {
+    if (!availableSetStatsTabs.length) {
+      if (activeSetStatsTab !== SET_STATS_TABS[0]) {
+        setActiveSetStatsTab(SET_STATS_TABS[0]);
+      }
+      return;
+    }
+    if (!availableSetStatsTabs.includes(activeSetStatsTab)) {
+      setActiveSetStatsTab(availableSetStatsTabs[0]);
+    }
+  }, [availableSetStatsTabs, activeSetStatsTab]);
 
   // Clear cart when market items change (new market), or when purchase completes (gold/charisma changes)
   useEffect(() => {
@@ -556,6 +655,45 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
     setTierFilter(newTier);
   };
 
+  const handleStatFilter = (_: React.MouseEvent<HTMLElement>, newStat: string | null) => {
+    setStatFilter(newStat);
+  };
+
+  const renderSetStatsItem = (item: ArmorSetStatSummary['items'][number]) => {
+    const hasItem = item.id > 0;
+    const imageUrl = hasItem ? ItemUtils.getItemImage(item.id) : null;
+    const tierColor = hasItem ? ItemUtils.getTierColor(ItemUtils.getItemTier(item.id)) : undefined;
+    const statText = item.statBonus
+      ? item.statBonus.replace(/\s+/g, ' ').toUpperCase()
+      : '—';
+
+    return (
+      <Box key={`${item.slot}-${item.id}`} sx={styles.setStatsItemRow}>
+        {hasItem && imageUrl ? (
+          <Box sx={[styles.setStatsItemImageContainer]}>
+            <Box
+              sx={[styles.setStatsItemGlow, tierColor ? { backgroundColor: tierColor } : {}]}
+            />
+            <Box
+              component="img"
+              src={imageUrl}
+              alt={item.slot}
+              sx={styles.setStatsItemImage}
+            />
+          </Box>
+        ) : (
+          <Typography sx={styles.setStatsItemSlot}>{item.slot}</Typography>
+        )}
+        <Typography sx={styles.setStatsItemBonus}>{statText}</Typography>
+      </Box>
+    );
+  };
+
+  const formatStatTotal = (stat: StatDisplayName, value: number) => {
+    const prefix = value >= 0 ? `+${value}` : `${value}`;
+    return `${prefix} ${STAT_ABBREVIATIONS[stat]}`;
+  };
+
   const potionCost = potionPrice(calculateLevel(adventurer?.xp || 0), adventurer?.stats?.charisma || 0);
   const totalCost = cart.items.reduce((sum, item) => sum + item.price, 0) + (cart.potions * potionCost);
   const remainingGold = (adventurer?.gold || 0) - totalCost;
@@ -570,6 +708,7 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
     if (slotFilter && item.slot !== slotFilter) return false;
     if (typeFilter && item.type !== typeFilter) return false;
     if (tierFilter && item.tier !== tierFilter) return false;
+    if (statFilter && (!item.futureStatTags.length || !item.futureStatTags.includes(statFilter))) return false;
     return true;
   });
 
@@ -578,7 +717,7 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'absolute', bottom: 24, right: 24, zIndex: 100 }}>
         <Box sx={styles.buttonWrapper} onClick={handleOpen}>
           <img src={'/images/market.png'} alt="Market" style={{ width: '90%', height: '90%', objectFit: 'contain', display: 'block', filter: 'hue-rotate(50deg) brightness(0.93) saturate(1.05)' }} />
-          {newMarket && marketAvailable && (
+          {newMarket && !marketAvailable && (
             <Box sx={styles.newIndicator}>!</Box>
           )}
         </Box>
@@ -706,6 +845,27 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
                             .map((tier) => renderTierToggleButton(tier as Tier))}
                         </ToggleButtonGroup>
                       </Box>
+
+                      <Box sx={styles.filterGroup}>
+                        <ToggleButtonGroup
+                          value={statFilter}
+                          exclusive
+                          onChange={handleStatFilter}
+                          aria-label="stat bonus"
+                          sx={[styles.filterButtons, { fontSize: '0.75rem' }]}
+                        >
+                          <ToggleButton
+                            value=""
+                            onClick={(e) => { e.preventDefault(); setShowSetStats(true); }}
+                            disabled={!specialsUnlocked}
+                            aria-label="View loadout stats"
+                            title={specialsUnlocked ? "View loadout stats" : "Unlock item specials first"}
+                          >
+                            <KeyboardDoubleArrowUpIcon sx={{ fontSize: 20, color: '#d7c529' }} />
+                          </ToggleButton>
+                          {STAT_FILTER_OPTIONS.map((stat) => renderStatToggleButton(stat, STAT_ABBREVIATIONS[stat]))}
+                        </ToggleButtonGroup>
+                      </Box>
                     </Box>
                   )}
 
@@ -764,16 +924,18 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
                                   {item.type}
                                 </Typography>
                               </Box>
-                              {adventurer?.item_specials_seed !== 0 && (() => {
-                                const specials = ItemUtils.getSpecials(item.id, 15, adventurer!.item_specials_seed);
-                                const statBonus = specials.special1 ? ItemUtils.getStatBonus(specials.special1) : null;
-                                return statBonus ? (
+                            </Box>
+                            {adventurer?.item_specials_seed !== 0 && (() => {
+                              const specials = ItemUtils.getSpecials(item.id, 15, adventurer!.item_specials_seed);
+                              const statBonus = specials.special1 ? ItemUtils.getStatBonus(specials.special1) : null;
+                              return statBonus ? (
+                                <Box sx={styles.statBonusBox}>
                                   <Typography sx={styles.itemStatBonus}>
                                     {statBonus}
                                   </Typography>
-                                ) : null;
-                              })()}
-                            </Box>
+                                </Box>
+                              ) : null;
+                            })()}
 
                             <Box sx={styles.itemFooter}>
                               <Typography sx={styles.itemPrice}>
@@ -819,6 +981,110 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
           </Box>
         </>
       )}
+
+      {/* Set Stats Modal */}
+      <Modal
+        open={showSetStats}
+        onClose={() => setShowSetStats(false)}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Box sx={styles.setStatsModal}>
+          <Box sx={styles.setStatsHeader}>
+            <Typography sx={styles.setStatsTitle}>Level 15+ Bonus Stats</Typography>
+            <IconButton
+              onClick={() => setShowSetStats(false)}
+              sx={styles.setStatsCloseButton}
+            >
+              &times;
+            </IconButton>
+          </Box>
+
+          {setStatsSummaries.length === 0 ? (
+            <Typography sx={styles.setStatsEmpty}>
+              No item data available
+            </Typography>
+          ) : (
+            <Box sx={styles.setStatsColumnsContainer}>
+              {/* Weapons & Rings Column */}
+              {(weaponSummary?.items.length || ringSummary?.items.length) && (
+                <Box sx={styles.setStatsColumn}>
+                  {weaponSummary && weaponSummary.items.length > 0 && (
+                    <>
+                      <Typography sx={styles.setStatsColumnHeader}>WEAPONS</Typography>
+                      <Box sx={styles.setStatsColumnItems}>
+                        {weaponSummary.items.map(renderSetStatsItem)}
+                      </Box>
+                    </>
+                  )}
+                  {ringSummary && ringSummary.items.length > 0 && (
+                    <>
+                      <Typography sx={[styles.setStatsColumnHeader, weaponSummary?.items.length ? { marginTop: '12px' } : {}]}>RINGS</Typography>
+                      <Box sx={styles.setStatsColumnItems}>
+                        {ringSummary.items.map(renderSetStatsItem)}
+                      </Box>
+                    </>
+                  )}
+                </Box>
+              )}
+
+              {/* Cloth Column */}
+              {armorSummariesByType[ItemType.Cloth] && (
+                <Box sx={styles.setStatsColumn}>
+                  <Typography sx={styles.setStatsColumnHeader}>CLOTH</Typography>
+                  <Box sx={styles.setStatsColumnItems}>
+                    {armorSummariesByType[ItemType.Cloth]!.items.map(renderSetStatsItem)}
+                  </Box>
+                  <Box sx={styles.setStatsColumnTotals}>
+                    {STAT_FILTER_OPTIONS.map((stat) => (
+                      <Typography key={stat} sx={styles.setStatsTotalValue}>
+                        {formatStatTotal(stat, armorSummariesByType[ItemType.Cloth]!.totals[stat])}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Hide Column */}
+              {armorSummariesByType[ItemType.Hide] && (
+                <Box sx={styles.setStatsColumn}>
+                  <Typography sx={styles.setStatsColumnHeader}>HIDE</Typography>
+                  <Box sx={styles.setStatsColumnItems}>
+                    {armorSummariesByType[ItemType.Hide]!.items.map(renderSetStatsItem)}
+                  </Box>
+                  <Box sx={styles.setStatsColumnTotals}>
+                    {STAT_FILTER_OPTIONS.map((stat) => (
+                      <Typography key={stat} sx={styles.setStatsTotalValue}>
+                        {formatStatTotal(stat, armorSummariesByType[ItemType.Hide]!.totals[stat])}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Metal Column */}
+              {armorSummariesByType[ItemType.Metal] && (
+                <Box sx={styles.setStatsColumn}>
+                  <Typography sx={styles.setStatsColumnHeader}>METAL</Typography>
+                  <Box sx={styles.setStatsColumnItems}>
+                    {armorSummariesByType[ItemType.Metal]!.items.map(renderSetStatsItem)}
+                  </Box>
+                  <Box sx={styles.setStatsColumnTotals}>
+                    {STAT_FILTER_OPTIONS.map((stat) => (
+                      <Typography key={stat} sx={styles.setStatsTotalValue}>
+                        {formatStatTotal(stat, armorSummariesByType[ItemType.Metal]!.totals[stat])}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          )}
+        </Box>
+      </Modal>
     </>
   );
 }
@@ -1273,6 +1539,22 @@ const styles = {
       background: 'rgba(215, 197, 41, 0.2)',
     },
   },
+  chevronButton: {
+    minWidth: '32px',
+    height: '40px',
+    padding: '8px',
+    background: 'rgba(24, 40, 24, 0.95)',
+    border: '2px solid rgba(215, 197, 41, 0.2)',
+    borderRadius: '4px',
+    color: '#d7c529',
+    '&:hover': {
+      background: 'rgba(215, 197, 41, 0.1)',
+      borderColor: 'rgba(215, 197, 41, 0.4)',
+    },
+    '&.Mui-disabled': {
+      color: 'rgba(215, 197, 41, 0.3)',
+    },
+  },
   newIndicator: {
     position: 'absolute',
     top: 6,
@@ -1294,12 +1576,18 @@ const styles = {
   itemUnaffordable: {
     opacity: 0.5,
   },
+  statBonusBox: {
+    background: 'rgba(215, 197, 41, 0.1)',
+    border: '1px solid rgba(215, 197, 41, 0.3)',
+    borderRadius: '4px',
+    padding: '4px 8px',
+    marginTop: '4px',
+  },
   itemStatBonus: {
-    color: '#808080',
-    fontSize: '0.75rem',
-    fontWeight: '500',
-    marginTop: '2px',
-    opacity: 0.8,
+    color: '#d7c529',
+    fontSize: '0.8rem',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   // Tab bar styles
   tabBar: {
@@ -1599,5 +1887,222 @@ const styles = {
     color: '#80ff00',
     fontSize: '0.72rem',
     fontWeight: 600,
+  },
+  // Set Stats Modal styles
+  setStatsModal: {
+    background: 'rgba(24, 40, 24, 0.98)',
+    borderRadius: '10px',
+    padding: '20px 24px',
+    width: 'min(95vw, 950px)',
+    maxHeight: '85dvh',
+    border: '2px solid rgba(215, 198, 41, 0.3)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+    overflow: 'auto',
+  },
+  setStatsHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  setStatsTitle: {
+    color: '#d7c529',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '1.2rem',
+    fontWeight: 'bold',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+  },
+  setStatsCloseButton: {
+    minWidth: '32px',
+    height: '32px',
+    padding: 0,
+    fontSize: '24px',
+    color: 'rgba(255, 255, 255, 0.9)',
+    '&:hover': {
+      color: '#d7c529',
+    },
+  },
+  setStatsEmpty: {
+    color: 'rgba(215, 198, 41, 0.8)',
+    fontFamily: 'Cinzel, Georgia, serif',
+    textAlign: 'center',
+  },
+  setStatsColumnsContainer: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: '16px',
+    flexWrap: 'nowrap',
+    justifyContent: 'center',
+    overflowX: 'auto',
+  },
+  setStatsColumn: {
+    flex: '1 1 auto',
+    minWidth: '200px',
+    maxWidth: '280px',
+    border: '1px solid rgba(215, 198, 41, 0.25)',
+    borderRadius: '6px',
+    padding: '0',
+    background: 'rgba(0, 0, 0, 0.35)',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  setStatsColumnHeader: {
+    color: '#d7c529',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.9rem',
+    fontWeight: 'bold',
+    letterSpacing: '0.12em',
+    textAlign: 'center',
+    padding: '10px 12px',
+    background: 'rgba(215, 198, 41, 0.08)',
+    borderBottom: '1px solid rgba(215, 198, 41, 0.25)',
+  },
+  setStatsColumnItems: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    padding: '10px 12px',
+    flex: 1,
+  },
+  setStatsColumnTotals: {
+    borderTop: '1px solid rgba(215, 198, 41, 0.25)',
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1px',
+    alignItems: 'flex-end',
+    textAlign: 'right',
+    background: 'rgba(215, 198, 41, 0.05)',
+  },
+  setStatsTotalValue: {
+    color: '#d7c529',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.85rem',
+    fontWeight: 'bold',
+  },
+  setStatsTabs: {
+    borderBottom: '1px solid rgba(215, 198, 41, 0.2)',
+    minHeight: '40px',
+    '& .MuiTabs-indicator': {
+      backgroundColor: '#d7c529',
+      height: '3px',
+    },
+  },
+  setStatsTab: {
+    minHeight: '40px',
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontFamily: 'Cinzel, Georgia, serif',
+    letterSpacing: '0.08em',
+    fontSize: '0.85rem',
+    padding: '0 12px',
+    '&.Mui-selected': {
+      color: '#d7c529',
+    },
+    '&.Mui-disabled': {
+      color: 'rgba(255, 255, 255, 0.3)',
+    },
+  },
+  setStatsContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    marginTop: '8px',
+    minHeight: '320px',
+    overflowY: 'auto',
+  },
+  armorColumns: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+  armorColumn: {
+    border: '1px solid rgba(215, 198, 41, 0.25)',
+    borderRadius: '6px',
+    padding: '12px',
+    background: 'rgba(0, 0, 0, 0.35)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  armorItems: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    flex: 1,
+  },
+  armorTotals: {
+    borderTop: '1px solid rgba(215, 198, 41, 0.2)',
+    paddingTop: '8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    marginTop: 'auto',
+    alignItems: 'flex-end',
+    textAlign: 'right',
+  },
+  armorTotalValue: {
+    color: '#d7c529',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.9rem',
+    fontWeight: 'bold',
+  },
+  setStatsItemRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  setStatsItemImageContainer: {
+    width: '40px',
+    height: '40px',
+    minWidth: '40px',
+    position: 'relative',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  setStatsItemGlow: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: '100%',
+    height: '100%',
+    filter: 'blur(6px)',
+    opacity: 0.25,
+    zIndex: 1,
+  },
+  setStatsItemImage: {
+    width: '36px',
+    height: '36px',
+    objectFit: 'contain',
+    position: 'relative',
+    zIndex: 2,
+  },
+  setStatsItemSlot: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.9rem',
+    flex: 1,
+  },
+  setStatsItemBonus: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    minWidth: '68px',
+    color: '#d7c529',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.85rem',
+    fontWeight: 'bold',
+    textAlign: 'right',
+    whiteSpace: 'nowrap',
+  },
+  statFilterLabel: {
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontSize: '0.85rem',
+    lineHeight: '1.5rem',
+    color: '#d7c529',
   },
 };

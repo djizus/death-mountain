@@ -952,7 +952,7 @@ const styles = {
   starOverlay: {
     position: 'absolute',
     top: -2,
-    right: -2,
+    left: -2,
     zIndex: 10,
     background: 'rgba(0, 0, 0, 0.8)',
     borderRadius: '50%',

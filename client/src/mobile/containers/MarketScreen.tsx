@@ -5,7 +5,7 @@ import { useMarketStore } from '@/stores/marketStore';
 import { calculateLevel } from '@/utils/game';
 
 import { ItemUtils, ItemType, slotIcons, typeIcons, Tier } from '@/utils/loot';
-import { MarketItem, generateMarketItems, getTierOneArmorSetStats, potionPrice, STAT_FILTER_OPTIONS, type ArmorSetStatSummary, type StatDisplayName } from '@/utils/market';
+import { MarketItem, generateMarketItems, getCartItemPlacements, getTierOneArmorSetStats, potionPrice, STAT_FILTER_OPTIONS, type ArmorSetStatSummary, type StatDisplayName } from '@/utils/market';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
 import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
 import { Box, Button, IconButton, Modal, Paper, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
@@ -162,26 +162,12 @@ export default function MarketScreen() {
   };
 
   const handleCheckout = () => {
-    const slotsToEquip = new Set<string>();
-    let itemPurchases = cart.items.map(item => {
-      const slot = ItemUtils.getItemSlot(item.id).toLowerCase();
-      const slotEmpty = adventurer?.equipment[slot as keyof typeof adventurer.equipment]?.id === 0;
-      const shouldEquip = (slotEmpty && !slotsToEquip.has(slot))
-        || slot === 'weapon' && [Tier.T1, Tier.T2].includes(ItemUtils.getItemTier(item.id)) && ItemUtils.getItemTier(adventurer?.equipment.weapon.id!) === Tier.T5;
-
-      if (shouldEquip) {
-        slotsToEquip.add(slot);
-      }
-      return {
-        item_id: item.id,
-        equip: shouldEquip,
-      };
-    });
+    const { itemPlacements } = getCartItemPlacements(cart.items, adventurer ?? null);
 
     executeGameAction({
       type: 'buy_items',
       potions: cart.potions,
-      itemPurchases,
+      itemPurchases: itemPlacements,
       remainingGold,
     });
   };
@@ -609,15 +595,6 @@ export default function MarketScreen() {
                         {item.type}
                       </Typography>
                     </Box>
-                    {adventurer?.item_specials_seed !== 0 && (() => {
-                      const specials = ItemUtils.getSpecials(item.id, 15, adventurer!.item_specials_seed);
-                      const statBonus = specials.special1 ? ItemUtils.getStatBonus(specials.special1) : null;
-                      return statBonus ? (
-                        <Typography sx={styles.itemStatBonus}>
-                          {statBonus}
-                        </Typography>
-                      ) : null;
-                    })()}
                   </Box>
 
                   {item.futureStatBonus && (
@@ -1341,10 +1318,14 @@ const styles = {
     opacity: 0.5,
   },
   itemStatBonus: {
-    color: 'rgba(128, 255, 0, 0.6)',
+    color: '#d7c529',
     fontSize: '0.75rem',
     fontFamily: 'VT323, monospace',
-    fontWeight: '500',
+    fontWeight: '600',
     marginTop: '2px',
+    background: 'rgba(215, 197, 41, 0.1)',
+    border: '1px solid rgba(215, 197, 41, 0.3)',
+    borderRadius: '4px',
+    padding: '2px 6px',
   },
 };
