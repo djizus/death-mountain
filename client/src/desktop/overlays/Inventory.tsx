@@ -1023,7 +1023,6 @@ const styles = {
   damageIndicatorText: {
     fontSize: '0.65rem',
     fontWeight: 'bold',
-    fontFamily: 'VT323, monospace',
     textShadow: '0 1px 2px rgba(0, 0, 0, 0.9)',
     lineHeight: 1,
     letterSpacing: '0.5px',
@@ -1044,7 +1043,6 @@ const styles = {
     color: '#FFFFFF',
     fontSize: '0.65rem',
     fontWeight: 'bold',
-    fontFamily: 'VT323, monospace',
     padding: '1px 3px',
     borderRadius: '2px',
     lineHeight: 1,
