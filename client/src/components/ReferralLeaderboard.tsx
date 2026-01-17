@@ -95,6 +95,7 @@ export default function ReferralLeaderboard({
         </Typography>
       </Box>
 
+      <Box sx={styles.scrollableList}>
       {leaderboard.map((entry) => (
         <Box
           key={entry.referrer_address}
@@ -121,6 +122,7 @@ export default function ReferralLeaderboard({
           </Box>
         </Box>
       ))}
+      </Box>
     </Box>
   );
 }
@@ -128,6 +130,24 @@ export default function ReferralLeaderboard({
 const styles = {
   container: {
     width: "100%",
+  },
+  scrollableList: {
+    maxHeight: "200px",
+    overflowY: "auto",
+    "&::-webkit-scrollbar": {
+      width: "4px",
+    },
+    "&::-webkit-scrollbar-track": {
+      bgcolor: "rgba(0, 0, 0, 0.2)",
+      borderRadius: "2px",
+    },
+    "&::-webkit-scrollbar-thumb": {
+      bgcolor: "rgba(208, 201, 141, 0.3)",
+      borderRadius: "2px",
+      "&:hover": {
+        bgcolor: "rgba(208, 201, 141, 0.5)",
+      },
+    },
   },
   title: {
     fontSize: "0.85rem",

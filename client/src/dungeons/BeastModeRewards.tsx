@@ -58,13 +58,15 @@ export default function BeastModeRewards() {
           sx={styles.tabs}
           TabIndicatorProps={{ sx: { bgcolor: "#d7c529" } }}
         >
-          <Tab label="Dungeon Rewards" sx={styles.tab} />
           <Tab label="Refer & Earn" sx={styles.tab} />
+          <Tab label="Dungeon Rewards" sx={styles.tab} />
         </Tabs>
       </Box>
 
-      {activeTab === 0 && (
-        <RewardsContent 
+      {activeTab === 0 && <ReferralTab />}
+
+      {activeTab === 1 && (
+        <RewardsContent
           remainingSurvivorTokens={remainingSurvivorTokens}
           BEAST_ENTITLEMENTS_ORIGINAL={BEAST_ENTITLEMENTS_ORIGINAL}
           beastsRemaining={beastsRemaining}
@@ -73,8 +75,6 @@ export default function BeastModeRewards() {
           survivorTokenPrice={survivorTokenPrice}
         />
       )}
-
-      {activeTab === 1 && <ReferralTab />}
     </>
   );
 }
@@ -126,10 +126,10 @@ function RewardsContent({
 
   return (
     <>
-      {/* SURVIVOR TOKENS & COLLECTABLE BEASTS - SIDE BY SIDE */}
-      <Box sx={styles.sideBySideContainer}>
+      {/* SURVIVOR TOKENS & COLLECTABLE BEASTS - STACKED */}
+      <Box sx={styles.stackedContainer}>
         {/* SURVIVOR TOKENS */}
-        <Box sx={styles.rewardColumn}>
+        <Box sx={styles.rewardRow}>
           <Box sx={styles.headerRow}>
             <img src="/images/survivor_token.png" alt="token" height={28} />
             <Typography sx={styles.rewardTitle}>Survivor Tokens</Typography>
@@ -171,7 +171,7 @@ function RewardsContent({
         </Box>
 
         {/* COLLECTABLE BEASTS */}
-        <Box sx={styles.rewardColumn}>
+        <Box sx={styles.rewardRow}>
           <Box sx={styles.headerRow}>
             <img src="/images/beast.png" alt="beast" height={28} />
             <Typography sx={styles.rewardTitle}>Collectable Beasts</Typography>
@@ -339,18 +339,19 @@ const styles = {
       color: "#d7c529",
     },
   },
-  sideBySideContainer: {
+  stackedContainer: {
     display: "flex",
+    flexDirection: "column",
     gap: 1.5,
     width: "100%",
     mb: 1,
   },
-  rewardColumn: {
-    flex: 1,
+  rewardRow: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     textAlign: "center",
+    width: "100%",
   },
   rewardSection: {
     display: "flex",
