@@ -1,16 +1,15 @@
 import { BEAST_NAMES, BEAST_SPECIAL_NAME_LEVEL_UNLOCK, MAX_SPECIAL2, MAX_SPECIAL3 } from "@/constants/beast";
-import { OBSTACLE_NAMES } from "@/constants/obstacle";
+import type { Settings } from "@/dojo/useGameSettings";
+import type { Adventurer, Beast, Equipment, Item } from "@/types/game";
+import { getAttackType, getBeastTier } from "@/utils/beast";
 import {
   ability_based_damage_reduction,
   ability_based_percentage,
-  calculateBeastDamageDetails,
+  calculateBeastDamage,
   calculateLevel,
   elementalAdjustedDamage,
 } from "@/utils/game";
-import { getAttackType, getBeastTier } from "@/utils/beast";
-import { ItemUtils, ItemType, Tier as ItemTier } from "@/utils/loot";
-import type { Adventurer, Beast, Equipment, Item } from "@/types/game";
-import type { Settings } from "@/dojo/useGameSettings";
+import { Tier as ItemTier, ItemUtils } from "@/utils/loot";
 
 const BEAST_IDS = Array.from({ length: 75 }, (_, index) => index + 1);
 const OBSTACLE_IDS = Array.from({ length: 75 }, (_, index) => index + 1);
@@ -506,7 +505,7 @@ const computeBeastSlotSummary = (
           isCollectable: false,
         };
 
-        const damageDetails = calculateBeastDamageDetails(beast, adventurer, armor);
+        const damageDetails = calculateBeastDamage(beast, adventurer, armor);
         const baseDamage = applyAmbushMitigation(finaliseBeastDamage(damageDetails.baseDamage));
         const critDamage = applyAmbushMitigation(finaliseBeastDamage(damageDetails.criticalDamage));
 
@@ -703,7 +702,7 @@ const computeBeastSlotSummaryMonteCarlo = (
       isCollectable: false,
     };
 
-    const damageDetails = calculateBeastDamageDetails(beast, adventurer, armor);
+    const damageDetails = calculateBeastDamage(beast, adventurer, armor);
     const baseDamage = applyAmbushMitigation(finaliseBeastDamage(damageDetails.baseDamage));
     const critDamage = applyAmbushMitigation(finaliseBeastDamage(damageDetails.criticalDamage));
 

@@ -7,9 +7,11 @@ import { useEffect } from 'react';
 interface BottomNavProps {
   activeNavItem: 'GAME' | 'CHARACTER' | 'MARKET' | 'SETTINGS';
   setActiveNavItem: (item: 'GAME' | 'CHARACTER' | 'MARKET' | 'SETTINGS') => void;
+  isExploring?: boolean;
+  isBattling?: boolean;
 }
 
-export default function BottomNav({ activeNavItem, setActiveNavItem }: BottomNavProps) {
+export default function BottomNav({ activeNavItem, setActiveNavItem, isExploring = false, isBattling = false }: BottomNavProps) {
   const { adventurer, marketItemIds, newMarket, setNewMarket, setNewInventoryItems, spectating } = useGameStore();
   const { cart, clearCart } = useMarketStore();
 
@@ -20,24 +22,27 @@ export default function BottomNav({ activeNavItem, setActiveNavItem }: BottomNav
     clearCart();
   }, [marketItemIds, adventurer?.gold, adventurer?.stats?.charisma]);
 
-  const isMarketAvailable = adventurer?.beast_health === 0;
-
-  const marketTooltipText = adventurer?.beast_health! > 0
-    ? 'Not available during battle'
-    : '';
+  const isActionInProgress = isExploring || isBattling;
+  const isMarketAvailable = adventurer?.beast_health === 0 && !isActionInProgress;
+  const actionInProgressTooltipText = isBattling ? 'Not available during battle action' : 'Not available while exploring';
+  const marketTooltipText = isActionInProgress ? actionInProgressTooltipText : (adventurer?.beast_health! > 0 ? 'Not available during battle' : '');
 
   const navItems = [
     {
       key: 'GAME',
       icon: <img src={'/images/mobile/adventurer.png?v=2'} alt="Game" style={{ height: 32 }} />,
       onClick: () => setActiveNavItem('GAME'),
-      active: activeNavItem === 'GAME'
+      active: activeNavItem === 'GAME',
+      disabled: isActionInProgress,
+      tooltip: isActionInProgress ? actionInProgressTooltipText : ''
     },
     {
       key: 'CHARACTER',
       icon: <img src={'/images/inventory.png'} alt="Inventory" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', filter: 'hue-rotate(40deg) saturate(1.5) brightness(1.15) contrast(1.2)' }} />,
       onClick: () => setActiveNavItem('CHARACTER'),
-      active: activeNavItem === 'CHARACTER'
+      active: activeNavItem === 'CHARACTER',
+      disabled: isActionInProgress,
+      tooltip: isActionInProgress ? actionInProgressTooltipText : ''
     },
     {
       key: 'MARKET',
@@ -58,7 +63,8 @@ export default function BottomNav({ activeNavItem, setActiveNavItem }: BottomNav
       }} />,
       onClick: () => setActiveNavItem('SETTINGS'),
       active: activeNavItem === 'SETTINGS',
-      tooltip: 'Settings'
+      disabled: isActionInProgress,
+      tooltip: isActionInProgress ? actionInProgressTooltipText : 'Settings'
     }
   ];
 
@@ -114,10 +120,15 @@ export default function BottomNav({ activeNavItem, setActiveNavItem }: BottomNav
                 key={item.key}
                 sx={{
                   ...styles.navItem,
-                  opacity: item.active ? 1 : 0.7,
-                  cursor: 'pointer'
+                  opacity: item.disabled ? 0.3 : item.active ? 1 : 0.7,
+                  cursor: item.disabled ? 'default' : 'pointer',
+                  pointerEvents: 'auto',
+                  '&:hover': item.disabled ? {} : {
+                    opacity: 1,
+                    transform: 'translateY(-2px)'
+                  }
                 }}
-                onClick={item.onClick}
+                onClick={item.disabled ? undefined : item.onClick}
               >
                 <Box
                   sx={{
@@ -126,6 +137,11 @@ export default function BottomNav({ activeNavItem, setActiveNavItem }: BottomNav
                     border: `1px solid ${item.active ? 'rgba(128, 255, 0, 0.2)' : 'rgba(128, 255, 0, 0.1)'}`,
                     boxShadow: item.active ? '0 0 10px rgba(128, 255, 0, 0.2)' : 'none',
                     ...(item.key === 'MARKET' && item.hasNew ? styles.marketPulse : {}),
+                    '&:hover': item.disabled ? {} : {
+                      backgroundColor: 'rgba(128, 255, 0, 0.15)',
+                      border: '1px solid rgba(128, 255, 0, 0.3)',
+                      boxShadow: '0 0 15px rgba(128, 255, 0, 0.3)'
+                    }
                   }}
                 >
                   {item.icon}
@@ -138,20 +154,22 @@ export default function BottomNav({ activeNavItem, setActiveNavItem }: BottomNav
           })}
         </Box>
         <Box sx={styles.settingsContainer}>
-          <Box
-            sx={{
-              ml: 1,
-              ...styles.navItem,
-              opacity: navItems[3].active ? 1 : 0.5,
-              cursor: 'pointer',
-              '&:hover': {
-                opacity: 1
-              }
-            }}
-            onClick={navItems[3].onClick}
-          >
-            {navItems[3].icon}
-          </Box>
+          <Tooltip title={navItems[3].disabled ? navItems[3].tooltip : ''}>
+            <Box
+              sx={{
+                ml: 1,
+                ...styles.navItem,
+                opacity: navItems[3].disabled ? 0.3 : navItems[3].active ? 1 : 0.5,
+                cursor: navItems[3].disabled ? 'default' : 'pointer',
+                '&:hover': navItems[3].disabled ? {} : {
+                  opacity: 1
+                }
+              }}
+              onClick={navItems[3].disabled ? undefined : navItems[3].onClick}
+            >
+              {navItems[3].icon}
+            </Box>
+          </Tooltip>
         </Box>
       </Box>
     </>

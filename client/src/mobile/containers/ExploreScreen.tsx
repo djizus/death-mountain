@@ -8,13 +8,17 @@ import BeastCollectedPopup from '@/components/BeastCollectedPopup';
 import { useMarketStore } from '@/stores/marketStore';
 import { useExplorationWorker } from '@/hooks/useExplorationWorker';
 
-export default function ExploreScreen() {
+interface ExploreScreenProps {
+  isExploring: boolean;
+  setIsExploring: (value: boolean) => void;
+}
+
+export default function ExploreScreen({ isExploring, setIsExploring }: ExploreScreenProps) {
   const { executeGameAction, actionFailed } = useGameDirector();
   const { adventurer, exploreLog, collectable, collectableTokenURI, setCollectable, gameSettings } = useGameStore();
   const { inProgress, setInProgress } = useMarketStore();
 
   const [untilBeast, setUntilBeast] = useState(false);
-  const [isExploring, setIsExploring] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Use Web Worker for lethal chance calculations (Monte Carlo, 100k samples)
@@ -253,12 +257,6 @@ const styles = {
     flexDirection: 'column',
     gap: 1,
   },
-  xpSection: {
-    background: 'rgba(128, 255, 0, 0.05)',
-    borderRadius: '12px',
-    border: '1px solid rgba(128, 255, 0, 0.1)',
-    padding: '16px',
-  },
   lethalInfoContainer: {
     marginTop: '8px',
     display: 'flex',
@@ -297,6 +295,12 @@ const styles = {
     fontFamily: 'VT323, monospace',
     fontSize: '1.2rem',
     letterSpacing: '0.5px',
+  },
+  xpSection: {
+    background: 'rgba(128, 255, 0, 0.05)',
+    borderRadius: '12px',
+    border: '1px solid rgba(128, 255, 0, 0.1)',
+    padding: '16px',
   },
   levelInfo: {
     display: 'flex',
@@ -363,7 +367,7 @@ const styles = {
     flexDirection: 'column',
     gap: '8px',
     pr: 1,
-    maxHeight: '300px',
+    maxHeight: 'calc(100dvh - 460px)',
     overflowY: 'auto',
     '&::-webkit-scrollbar': {
       width: '6px',

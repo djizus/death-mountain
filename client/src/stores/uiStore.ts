@@ -11,7 +11,7 @@ interface UIState {
   isGameSettingsDialogOpen: boolean
   gameSettingsEdit: boolean
   selectedSettingsId: number | null
-  
+
   // Client preferences
   setUseMobileClient: (useMobile: boolean) => void
   useMobileClient: boolean
@@ -33,6 +33,10 @@ interface UIState {
   // Referral tracking
   referralClicked: boolean
   setReferralClicked: (clicked: boolean) => void
+
+  // Advanced mode (always enabled, toggle is no-op)
+  setAdvancedMode: (advanced: boolean) => void
+  advancedMode: boolean
 }
 
 export const useUIStore = create<UIState>()(
@@ -62,6 +66,10 @@ export const useUIStore = create<UIState>()(
       setShowUntilBeastToggle: (show) => set({ showUntilBeastToggle: show }),
       showUntilBeastToggle: true,
 
+      // Advanced mode (always enabled - no-op setter)
+      setAdvancedMode: () => {},
+      advancedMode: true,
+
       // Client preferences
       setUseMobileClient: (useMobile) => set({ useMobileClient: useMobile }),
       useMobileClient: false,
@@ -80,6 +88,7 @@ export const useUIStore = create<UIState>()(
         skipFirstBattle: state.skipFirstBattle,
         showUntilBeastToggle: state.showUntilBeastToggle,
         referralClicked: state.referralClicked,
+        advancedMode: state.advancedMode,
       }),
       merge: (persistedState, currentState) => {
         const state = persistedState as Partial<UIState> & { skipCombatDelays?: boolean };
@@ -87,6 +96,7 @@ export const useUIStore = create<UIState>()(
           ...currentState,
           ...state,
           fastBattle: state.fastBattle ?? state.skipCombatDelays ?? currentState.fastBattle,
+          advancedMode: true, // Always force advancedMode to true regardless of persisted state
         };
       },
     }

@@ -1,4 +1,4 @@
-import { calculateAttackDamage, calculateBeastDamageDetails, calculateLevel } from '@/utils/game';
+import { calculateAttackDamage, calculateBeastDamage, calculateLevel } from '@/utils/game';
 import type { Adventurer, Beast, Equipment } from '@/types/game';
 
 export const ARMOR_TARGET_SLOTS: Array<keyof Equipment> = ['chest', 'head', 'waist', 'foot', 'hand'];
@@ -109,15 +109,15 @@ const buildHeroDamageOptions = (baseDamage: number, criticalDamage: number, crit
 const buildBeastDamageOptions = (
   adventurer: Adventurer,
   beast: Beast,
-  beastDamageBySlot: Record<string, ReturnType<typeof calculateBeastDamageDetails> | undefined>,
+  beastDamageBySlot: Record<string, ReturnType<typeof calculateBeastDamage> | undefined>,
   beastCritChance: number,
 ): DamageOption[] => {
   const slotSummaries = ARMOR_TARGET_SLOTS.map((slot) => beastDamageBySlot[slot] ?? undefined).filter(
-    (summary): summary is ReturnType<typeof calculateBeastDamageDetails> => !!summary,
+    (summary): summary is ReturnType<typeof calculateBeastDamage> => !!summary,
   );
 
   if (slotSummaries.length === 0) {
-    const fallback = calculateBeastDamageDetails(beast, adventurer, adventurer.equipment.chest);
+    const fallback = calculateBeastDamage(beast, adventurer, adventurer.equipment.chest);
     return [{ damage: fallback.baseDamage, probability: 1 }];
   }
 
@@ -205,10 +205,10 @@ const createSimulationContext = (
     adventurer.stats.luck ?? 0,
   );
 
-  const beastDamageBySlot = ARMOR_TARGET_SLOTS.reduce<Record<string, ReturnType<typeof calculateBeastDamageDetails>>>(
+  const beastDamageBySlot = ARMOR_TARGET_SLOTS.reduce<Record<string, ReturnType<typeof calculateBeastDamage>>>(
     (acc, slot) => {
       const armor = adventurer.equipment[slot];
-      acc[slot] = calculateBeastDamageDetails(beast, adventurer, armor);
+      acc[slot] = calculateBeastDamage(beast, adventurer, armor);
       return acc;
     },
     {},

@@ -4,7 +4,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
-import { Box, Button, Checkbox, Divider, FormControlLabel, IconButton, Slider, Typography } from '@mui/material';
+import { Box, Button, Checkbox, Divider, FormControlLabel, IconButton, Slider, Switch, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
 
 interface SettingsProps {
@@ -27,6 +27,7 @@ export default function Settings({ onBack, showExitGame = false, onExitGame, sho
     setSkipFirstBattle,
     showUntilBeastToggle,
     setShowUntilBeastToggle,
+    advancedMode,
   } = useUIStore();
   const { volume, setVolume, muted, setMuted, musicVolume, setMusicVolume, musicMuted, setMusicMuted } = useSound();
 
@@ -133,6 +134,23 @@ export default function Settings({ onBack, showExitGame = false, onExitGame, sho
               {Math.round(musicVolume * 100)}%
             </Typography>
           </Box>
+        </Box>
+
+        <Divider sx={{ my: 0.5, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+        {/* Advanced Section - Always enabled, toggle disabled */}
+        <Box sx={styles.settingSection}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography sx={[styles.sectionTitle]}>Enable Advanced Mode</Typography>
+            <Switch
+              checked={advancedMode}
+              disabled={true}
+              sx={styles.switch}
+            />
+          </Box>
+          <Typography sx={{ fontSize: '12px', color: 'rgba(208, 201, 141, 0.7)', mt: -0.5 }}>
+            Advanced features (always enabled)
+          </Typography>
         </Box>
 
         <Divider sx={{ my: 0.5, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
@@ -356,6 +374,9 @@ const styles = {
     '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
       backgroundColor: '#d0c98d',
     },
+    '& .MuiSwitch-switchBase.Mui-disabled + .MuiSwitch-track': {
+      opacity: 0.5,
+    },
   },
   mobileButton: {
     borderColor: '#d0c98d',
@@ -405,4 +426,4 @@ const styles = {
       fontWeight: 500,
     },
   },
-}; 
+};

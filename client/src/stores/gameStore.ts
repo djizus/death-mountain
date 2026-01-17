@@ -83,6 +83,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   claimInProgress: false,
   selectedStats: { strength: 0, dexterity: 0, vitality: 0, intelligence: 0, wisdom: 0, charisma: 0, luck: 0 },
   spectating: false,
+
   setGameId: (gameId: number) => {
     set({ gameId });
   },

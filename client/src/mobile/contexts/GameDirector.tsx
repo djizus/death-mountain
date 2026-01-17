@@ -4,6 +4,7 @@ import { useGameEvents } from "@/dojo/useGameEvents";
 import { Settings } from "@/dojo/useGameSettings";
 import { useSystemCalls } from "@/dojo/useSystemCalls";
 import { useGameStore } from "@/stores/gameStore";
+import { useUIStore } from "@/stores/uiStore";
 import { GameAction, Item } from "@/types/game";
 import {
   BattleEvents,
@@ -25,7 +26,6 @@ import { useAnalytics } from "@/utils/analytics";
 import { BEAST_SPECIAL_NAME_LEVEL_UNLOCK } from "@/constants/beast";
 import { useDungeon } from "@/dojo/useDungeon";
 import { optimisticGameEvents } from "@/utils/translation";
-import { useUIStore } from "@/stores/uiStore";
 
 export interface GameDirectorContext {
   executeGameAction: (action: GameAction) => void;
@@ -101,6 +101,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
     useStarknetApi();
   const { getGameEvents } = useGameEvents();
   const { gameStartedEvent } = useAnalytics();
+  const { fastBattle, skipFirstBattle } = useUIStore();
 
   const {
     gameId,
@@ -139,7 +140,6 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
   const [beastDefeated, setBeastDefeated] = useState(false);
   const [optimisticTxs, setOptimisticTxs] = useState<any[]>([]);
   const [startingEvent, setStartingEvent] = useState<GameEvent[] | null>(null);
-  const { skipFirstBattle, fastBattle } = useUIStore();
 
   useEffect(() => {
     if (gameId && !metadata) {
@@ -310,9 +310,15 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
       (delayTimes[event.type] || replayDelayTimes[event.type]) &&
       (!fastBattle || !BattleEvents.includes(event.type))
     ) {
-      await delay(
-        spectating ? replayDelayTimes[event.type] : delayTimes[event.type]
-      );
+      if (
+        spectating ||
+        !fastBattle ||
+        (!["attack", "beast_attack"].includes(event.type))
+      ) {
+        await delay(
+          spectating ? replayDelayTimes[event.type] : delayTimes[event.type]
+        );
+      }
     }
   };
 
@@ -331,6 +337,7 @@ export const GameDirector = ({ children }: PropsWithChildren) => {
           )
         );
       }
+
       txs.push(startGame(action.gameId!));
 
       if (action.settings.adventurer.xp === 0) {

@@ -10,8 +10,10 @@ import ArmorTooltip from '../components/ArmorTooltip';
 import WeaponTooltip from '../components/WeaponTooltip';
 import { useDungeon } from '@/dojo/useDungeon';
 import { useGameTokens } from '@/dojo/useGameTokens';
+import { useUIStore } from '@/stores/uiStore';
 
 export default function Beast() {
+  const { advancedMode } = useUIStore();
   const dungeon = useDungeon();
   const { getBeastOwner } = useGameTokens();
   const { currentNetworkConfig } = useDynamicConnector();

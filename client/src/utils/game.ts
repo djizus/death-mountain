@@ -1,19 +1,15 @@
 import { BEAST_MIN_DAMAGE } from "@/constants/beast";
 import { MIN_DAMAGE } from "@/constants/game";
-import { ItemId } from "@/constants/loot";
 import { Adventurer, Beast, CombatStats, Equipment, Item } from "@/types/game";
 import { getArmorType, getAttackType } from "./beast";
 import { ItemType, ItemUtils } from "./loot";
 
 export const getLocationName = (location: string | object | undefined) => {
-  if (typeof location === "object") {
+  if (typeof location === 'object') {
     return Object.keys(location)[0];
   }
-  return location || "None";
+  return location || 'None';
 };
-
-const SPECIAL2_DAMAGE_MULTIPLIER = 8;
-const SPECIAL3_DAMAGE_MULTIPLIER = 2;
 
 export const calculateLevel = (xp: number) => {
   if (xp === 0) return 1;
@@ -58,15 +54,18 @@ export const incrementBeastsCollected = (gameId: number) => {
   localStorage.setItem(`beast_collected_${gameId}`, (currentCount + 1).toString());
 };
 
-const critical_hit_bonus = (base_damage: number): number => base_damage;
+// Calculate critical hit bonus based on luck and ring
+const critical_hit_bonus = (base_damage: number, ring: Item | null): number => {
+  let total = 0;
 
-const critical_hit_ring_bonus = (base_damage: number, ring: Item | null): number => {
-  if (!ring || ring.id !== ItemId.TitaniumRing || base_damage <= 0) {
-    return 0;
+  total = base_damage;
+
+  // Titanium Ring gives 3% bonus per level on critical hits
+  if (ring && ItemUtils.getItemName(ring.id) === "Titanium Ring" && total > 0) {
+    const ringLevel = calculateLevel(ring.xp);
+    total += Math.floor((total * 3 * ringLevel) / 100);
   }
-
-  const ringLevel = calculateLevel(ring.xp);
-  return Math.floor((base_damage * 3 * ringLevel) / 100);
+  return total;
 };
 
 // Calculate weapon special bonus based on matching specials
@@ -86,7 +85,7 @@ const calculateWeaponSpecialBonus = (weaponId: number, weaponLevel: number, item
   }
 
   // Platinum Ring gives 3% bonus per level on special matches
-  if (ring.id === ItemId.PlatinumRing && bonus > 0) {
+  if (ItemUtils.getItemName(ring.id) === "Platinum Ring" && bonus > 0) {
     const ringLevel = calculateLevel(ring.xp);
     bonus += Math.floor((bonus * 3 * ringLevel) / 100);
   }
@@ -102,13 +101,10 @@ export const calculateAttackDamage = (weapon: Item, adventurer: Adventurer, beas
   const baseAttack = weaponLevel * (6 - Number(weaponTier));
 
   if (!beast) {
-    const ring = adventurer.equipment.ring;
     let strBonus = Math.floor(baseAttack * (adventurer.stats.strength / 10));
-    const critBonus = critical_hit_bonus(baseAttack);
-    const ringBonus = critical_hit_ring_bonus(critBonus, ring);
     return {
       baseDamage: baseAttack + strBonus,
-      criticalDamage: (baseAttack * 2) + strBonus + ringBonus,
+      criticalDamage: (baseAttack * 2) + strBonus,
     };
   }
 
@@ -136,13 +132,8 @@ export const calculateAttackDamage = (weapon: Item, adventurer: Adventurer, beas
   const baseDamage = Math.max(MIN_DAMAGE, (elementalDamage + strengthBonus + specialBonus) - baseArmor);
 
   // Calculate critical hit bonus with ring bonus using adventurer's luck stat
-  const critBonus = critical_hit_bonus(elementalDamage);
-  const ringBonus = critical_hit_ring_bonus(critBonus, ring);
-  const criticalDamageBase = Math.max(
-    MIN_DAMAGE,
-    (elementalDamage + strengthBonus + specialBonus + critBonus) - baseArmor
-  );
-  const criticalDamage = criticalDamageBase + ringBonus;
+  const critBonus = critical_hit_bonus(elementalDamage, ring);
+  let criticalDamage = Math.max(MIN_DAMAGE, (elementalDamage + strengthBonus + specialBonus + critBonus) - baseArmor);
 
   return {
     baseDamage,
@@ -185,66 +176,54 @@ export const ability_based_damage_reduction = (adventurer_xp: number, relevant_s
   return Math.floor((100 * smooth / SCALE));
 }
 
-export interface BeastDamageSummary {
-  baseDamage: number;
-  criticalDamage: number;
-}
-
-export const calculateBeastDamageDetails = (
-  beast: Beast,
-  adventurer: Adventurer,
-  armor: Item,
-): BeastDamageSummary => {
+export const calculateBeastDamage = (beast: Beast, adventurer: Adventurer, armor: Item) => {
   const baseAttack = beast.level * (6 - Number(beast.tier));
-  const hasArmorEquipped = !!armor && armor.id !== 0;
+  let baseDamage = baseAttack;
+  let critDamage = baseAttack;
 
-  if (!hasArmorEquipped) {
-    const elementalDamage = Math.floor(baseAttack * 1.5);
-    const baseDamage = Math.max(BEAST_MIN_DAMAGE, elementalDamage);
-    const criticalDamage = Math.max(BEAST_MIN_DAMAGE, baseDamage + elementalDamage);
-    return { baseDamage, criticalDamage };
-  }
+  if (armor) {
+    const armorLevel = calculateLevel(armor.xp);
+    const armorValue = armorLevel * (6 - ItemUtils.getItemTier(armor.id));
 
-  const armorLevel = calculateLevel(armor.xp);
-  const armorTier = ItemUtils.getItemTier(armor.id);
-  const armorValue = armorLevel * (6 - armorTier);
+    // Apply elemental adjustment
+    const beastAttackType = getAttackType(beast.id);
+    const armorType = ItemUtils.getItemType(armor.id);
+    let elementalDamage = elementalAdjustedDamage(baseAttack, beastAttackType, armorType);
+    let damage = elementalDamage;
 
-  const beastAttackType = getAttackType(beast.id);
-  const armorType = ItemUtils.getItemType(armor.id);
-  const elementalDamage = elementalAdjustedDamage(baseAttack, beastAttackType, armorType);
+    // Apply name match bonus
+    if (beast.specialPrefix && beast.specialSuffix) {
+      const itemSpecials = ItemUtils.getSpecials(armor.id, armorLevel, adventurer.item_specials_seed);
+      if (itemSpecials.suffix === beast.specialSuffix) {
+        damage += elementalDamage * 2; // Suffix match
+      }
+      if (itemSpecials.prefix === beast.specialPrefix) {
+        damage += elementalDamage * 8; // Prefix match
+      }
 
-  const armorSpecials = ItemUtils.getSpecials(armor.id, armorLevel, adventurer.item_specials_seed);
+    }
 
-  let specialBonus = 0;
-  if (beast.specialSuffix && armorSpecials.suffix && armorSpecials.suffix === beast.specialSuffix) {
-    specialBonus += elementalDamage * SPECIAL3_DAMAGE_MULTIPLIER;
-  }
-  if (beast.specialPrefix && armorSpecials.prefix && armorSpecials.prefix === beast.specialPrefix) {
-    specialBonus += elementalDamage * SPECIAL2_DAMAGE_MULTIPLIER;
-  }
+    critDamage = Math.max(BEAST_MIN_DAMAGE, (damage + elementalDamage) - armorValue);
+    baseDamage = Math.max(BEAST_MIN_DAMAGE, damage - armorValue);
 
-  const totalAttack = elementalDamage + specialBonus;
-
-  const reduceWithNeck = (damageValue: number) => {
+    // Check for neck armor reduction
     const neck = adventurer.equipment.neck;
     if (neck_reduction(armor, neck)) {
       const neckLevel = calculateLevel(neck.xp);
-      const neckReduction = Math.floor((armorLevel * (6 - armorTier) * neckLevel * 3) / 100);
-      return Math.max(BEAST_MIN_DAMAGE, damageValue - neckReduction);
+      const neckReduction = Math.floor((armorLevel * (6 - ItemUtils.getItemTier(armor.id)) * neckLevel * 3) / 100);
+
+      baseDamage -= neckReduction;
+      critDamage -= neckReduction;
     }
+  } else {
+    baseDamage = Math.floor(baseAttack * 1.5);
+    critDamage = Math.floor(baseAttack * 1.5) * 2;
+  }
 
-    return Math.max(BEAST_MIN_DAMAGE, damageValue);
-  };
-
-  const baseDamage = reduceWithNeck(Math.max(BEAST_MIN_DAMAGE, totalAttack - armorValue));
-  const criticalAttack = totalAttack + elementalDamage;
-  const criticalDamage = reduceWithNeck(Math.max(BEAST_MIN_DAMAGE, criticalAttack - armorValue));
-
-  return { baseDamage, criticalDamage };
-};
-
-export const calculateBeastDamage = (beast: Beast, adventurer: Adventurer, armor: Item) => {
-  return calculateBeastDamageDetails(beast, adventurer, armor);
+  return {
+    baseDamage: Math.max(BEAST_MIN_DAMAGE, baseDamage),
+    criticalDamage: Math.max(BEAST_MIN_DAMAGE, critDamage),
+  }
 };
 
 // Check if neck item provides bonus armor reduction
@@ -378,7 +357,7 @@ export const calculateGoldReward = (beast: Beast, ring: Item | null) => {
   let goldReward = Math.floor(beast.level * (6 - Number(beast.tier)) / 2);
 
   // Gold Ring gives 3% bonus per level on gold reward
-  if (ring && ring.id === ItemId.GoldRing && goldReward > 0) {
+  if (ring && ItemUtils.getItemName(ring.id) === "Gold Ring" && goldReward > 0) {
     const ringLevel = calculateLevel(ring.xp);
     goldReward += Math.floor((goldReward * 3 * ringLevel) / 100);
   }

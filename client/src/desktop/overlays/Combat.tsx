@@ -1,19 +1,19 @@
 import AnimatedText from '@/desktop/components/AnimatedText';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
-import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useGameStore } from '@/stores/gameStore';
 import { useCombatSimulation } from '@/hooks/useCombatSimulation';
-import { ability_based_percentage, calculateLevel, getNewItemsEquipped } from '@/utils/game';
+import { ability_based_percentage, calculateAttackDamage, calculateCombatStats, calculateLevel, getNewItemsEquipped } from '@/utils/game';
 import { potionPrice } from '@/utils/market';
-import { Box, Button, Checkbox, Typography } from '@mui/material';
+import { Box, Button, Checkbox, Tooltip, Typography } from '@mui/material';
 import { keyframes } from '@emotion/react';
 import { useEffect, useMemo, useState } from 'react';
 import Adventurer from './Adventurer';
 import Beast from './Beast';
 import InventoryOverlay from './Inventory';
+import SettingsOverlay from './Settings';
+import TipsOverlay from './Tips';
 import { JACKPOT_BEASTS, GOLD_MULTIPLIER, GOLD_REWARD_DIVISOR, MINIMUM_XP_REWARD } from '@/constants/beast';
 import { useDynamicConnector } from '@/contexts/starknet';
-import { suggestBestCombatGear } from '@/utils/gearSuggestion';
 import { useUIStore } from '@/stores/uiStore';
 
 const attackMessage = "Attacking";
@@ -59,19 +59,8 @@ const tipPulseGamble = keyframes`
 export default function CombatOverlay() {
   const { executeGameAction, actionFailed, setSkipCombat, skipCombat, showSkipCombat } = useGameDirector();
   const { currentNetworkConfig } = useDynamicConnector();
-  const { scalePx, contentOffset } = useResponsiveScale();
-  const {
-    gameId,
-    adventurer,
-    adventurerState,
-    beast,
-    battleEvent,
-    bag,
-    undoEquipment,
-    applyGearSuggestion,
-    spectating,
-  } = useGameStore();
-  const { fastBattle } = useUIStore();
+  const { gameId, adventurer, adventurerState, beast, battleEvent, bag, undoEquipment, spectating } = useGameStore();
+  const { fastBattle, advancedMode } = useUIStore();
 
   const [untilDeath, setUntilDeath] = useState(false);
   const [untilLastHit, setUntilLastHit] = useState(false);
@@ -80,42 +69,7 @@ export default function CombatOverlay() {
   const [attackInProgress, setAttackInProgress] = useState(false);
   const [fleeInProgress, setFleeInProgress] = useState(false);
   const [equipInProgress, setEquipInProgress] = useState(false);
-  const [suggestInProgress, setSuggestInProgress] = useState(false);
   const [combatLog, setCombatLog] = useState("");
-
-  // Determine if new items are equipped (beast attacks first)
-  const hasNewItemsEquipped = useMemo(() => {
-    if (!adventurer?.equipment || !adventurerState?.equipment) return false;
-    return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
-  }, [adventurer?.equipment, adventurerState?.equipment]);
-
-  // Use optimized combat simulation hook with debouncing and state hashing
-  const { simulationResult, combatStats, simulationActionCount } = useCombatSimulation(
-    adventurer ?? null,
-    beast ?? null,
-    bag,
-    { debounceMs: 150, initialBeastStrike: hasNewItemsEquipped }
-  );
-
-  const fleePercentage = ability_based_percentage(adventurer!.xp, adventurer!.stats.dexterity);
-  const attackPreviewDamage = combatStats.critChance >= 100
-    ? combatStats.criticalDamage
-    : combatStats.baseDamage;
-  const combatControlsDisabled = attackInProgress || fleeInProgress || equipInProgress || suggestInProgress;
-  const isFinalRound = simulationResult.hasOutcome && simulationResult.maxRounds <= 1;
-  const formatNumber = (value: number) => value.toLocaleString();
-  const formatRange = (minValue: number, maxValue: number) => {
-    if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
-      return '-';
-    }
-
-    if (minValue === maxValue) {
-      return formatNumber(minValue);
-    }
-
-    return `${formatNumber(minValue)} - ${formatNumber(maxValue)}`;
-  };
-  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
   useEffect(() => {
     if (adventurer?.xp === 0) {
@@ -168,8 +122,90 @@ export default function CombatOverlay() {
     }
   }, [adventurer!.action_count, untilDeath, autoLastHitActive]);
 
+  const handleAttack = () => {
+    if (!adventurer) {
+      return;
+    }
+
+    if (beast?.isCollectable) {
+      localStorage.setItem('collectable_beast', JSON.stringify({
+        gameId,
+        id: beast.id,
+        specialPrefix: beast.specialPrefix,
+        specialSuffix: beast.specialSuffix,
+        name: beast.name,
+        tier: beast.tier,
+      }));
+    }
+
+    setAttackInProgress(true);
+    setCombatLog(attackMessage);
+
+    if (advancedMode && untilLastHit && !isFinalRound) {
+      setAutoLastHitActive(true);
+      setLastHitActionCount(adventurer.action_count);
+    } else {
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+    }
+
+    const fightToDeath = untilDeath && !(advancedMode && untilLastHit);
+    executeGameAction({ type: 'attack', untilDeath: fightToDeath });
+  };
+
+  const handleFlee = () => {
+    localStorage.removeItem('collectable_beast');
+    setAutoLastHitActive(false);
+    setLastHitActionCount(null);
+    setFleeInProgress(true);
+    setCombatLog(fleeMessage);
+    executeGameAction({ type: 'flee', untilDeath });
+  };
+
+  const toggleUntilDeath = (checked: boolean) => {
+    if (checked) {
+      setUntilLastHit(false);
+    }
+    setUntilDeath(checked);
+  };
+
+  const toggleUntilLastHit = (checked: boolean) => {
+    if (checked) {
+      setUntilDeath(false);
+    }
+    setUntilLastHit(checked);
+  };
+
+  const handleEquipItems = () => {
+    setEquipInProgress(true);
+    setCombatLog(equipMessage);
+    executeGameAction({ type: 'equip' });
+  };
+
+  const handleSkipCombat = () => {
+    setSkipCombat(true);
+  };
+
+  // Determine if new items are equipped (beast attacks first)
+  const hasNewItemsEquipped = useMemo(() => {
+    if (!adventurer?.equipment || !adventurerState?.equipment) return false;
+    return getNewItemsEquipped(adventurer.equipment, adventurerState.equipment).length > 0;
+  }, [adventurer?.equipment, adventurerState?.equipment]);
+
+  // Use optimized combat simulation hook with debouncing and state hashing
+  const { simulationResult, simulationActionCount } = useCombatSimulation(
+    adventurer ?? null,
+    beast ?? null,
+    bag,
+    { debounceMs: 150, initialBeastStrike: hasNewItemsEquipped }
+  );
+
+  const combatControlsDisabled = attackInProgress || fleeInProgress || equipInProgress;
+  const isFinalRound = simulationResult.hasOutcome && simulationResult.maxRounds <= 1;
+
+  // Auto last hit logic - continue attacking until final round (only in advanced mode)
   useEffect(() => {
-    if (!autoLastHitActive || !untilLastHit) {
+    if (!advancedMode || !autoLastHitActive || !untilLastHit) {
       return;
     }
 
@@ -180,10 +216,12 @@ export default function CombatOverlay() {
       return;
     }
 
+    // Wait for simulation to be ready
     if (!simulationResult.hasOutcome) {
       return;
     }
 
+    // Check if we've reached the final round - stop auto attacking
     if (isFinalRound) {
       setAutoLastHitActive(false);
       setLastHitActionCount(null);
@@ -191,11 +229,21 @@ export default function CombatOverlay() {
       return;
     }
 
-    if (lastHitActionCount !== null && adventurer.action_count <= lastHitActionCount) {
+    // Stop if there's any chance of dying (winRate < 100%)
+    if (simulationResult.winRate < 100) {
+      setAutoLastHitActive(false);
+      setLastHitActionCount(null);
+      setAttackInProgress(false);
       return;
     }
 
+    // Wait for simulation to match current action count
     if (simulationActionCount === null || simulationActionCount !== adventurer.action_count) {
+      return;
+    }
+
+    // Skip if we already processed this action count
+    if (lastHitActionCount !== null && adventurer.action_count <= lastHitActionCount) {
       return;
     }
 
@@ -216,17 +264,22 @@ export default function CombatOverlay() {
 
     void continueAttacking();
   }, [
+    advancedMode,
     autoLastHitActive,
     untilLastHit,
     simulationResult.hasOutcome,
+    simulationResult.winRate,
+    simulationResult.minRounds,
     simulationResult.maxRounds,
     isFinalRound,
     simulationActionCount,
     executeGameAction,
     adventurer?.action_count,
     beast?.id,
+    lastHitActionCount,
   ]);
 
+  // Stop auto last hit when checkbox is unchecked
   useEffect(() => {
     if (!untilLastHit && autoLastHitActive) {
       setAutoLastHitActive(false);
@@ -235,6 +288,7 @@ export default function CombatOverlay() {
     }
   }, [untilLastHit, autoLastHitActive]);
 
+  // Uncheck until last hit when it's the final round
   useEffect(() => {
     if (isFinalRound && untilLastHit) {
       setUntilLastHit(false);
@@ -243,97 +297,31 @@ export default function CombatOverlay() {
     }
   }, [isFinalRound, untilLastHit]);
 
-  const handleAttack = () => {
-    if (!adventurer) {
-      return;
-    }
-
-    if (beast?.isCollectable) {
-      localStorage.setItem('collectable_beast', JSON.stringify({
-        gameId,
-        id: beast.id,
-        specialPrefix: beast.specialPrefix,
-        specialSuffix: beast.specialSuffix,
-        name: beast.name,
-        tier: beast.tier,
-      }));
-    }
-
-    setAttackInProgress(true);
-    setCombatLog(attackMessage);
-    if (untilLastHit && !isFinalRound) {
-      setAutoLastHitActive(true);
-      setLastHitActionCount(adventurer.action_count);
-    } else {
+  // Reset until last hit when advanced mode is turned off
+  useEffect(() => {
+    if (!advancedMode && (untilLastHit || autoLastHitActive)) {
+      setUntilLastHit(false);
       setAutoLastHitActive(false);
       setLastHitActionCount(null);
     }
+  }, [advancedMode, untilLastHit, autoLastHitActive]);
 
-    const fightToDeath = untilDeath && !untilLastHit;
-    executeGameAction({ type: 'attack', untilDeath: fightToDeath });
-  };
+  const fleePercentage = ability_based_percentage(adventurer!.xp, adventurer!.stats.dexterity);
+  const combatStats = calculateCombatStats(adventurer!, bag, beast);
 
-  const handleFlee = () => {
-    localStorage.removeItem('collectable_beast');
-    setAutoLastHitActive(false);
-    setLastHitActionCount(null);
-    setFleeInProgress(true);
-    setCombatLog(fleeMessage);
-    executeGameAction({ type: 'flee', untilDeath });
-  };
-
-  const handleEquipItems = () => {
-    setEquipInProgress(true);
-    setCombatLog(equipMessage);
-    executeGameAction({ type: 'equip' });
-  };
-
-  const handleSuggestGear = async () => {
-    if (!adventurer || !bag || !beast) {
-      return;
+  const formatNumber = (value: number) => value.toLocaleString();
+  const formatRange = (minValue: number, maxValue: number) => {
+    if (Number.isNaN(minValue) || Number.isNaN(maxValue)) {
+      return '-';
     }
 
-    setSuggestInProgress(true);
-
-    try {
-      const suggestion = await suggestBestCombatGear(adventurer, bag, beast);
-
-      if (!suggestion) {
-        setCombatLog('Best gear already equipped.');
-        return;
-      }
-
-      applyGearSuggestion({ adventurer: suggestion.adventurer, bag: suggestion.bag });
-      setCombatLog('Suggested combat gear equipped.');
-    } catch (error) {
-      console.error('Failed to suggest combat gear', error);
-      setCombatLog('Unable to suggest gear right now.');
-    } finally {
-      setSuggestInProgress(false);
+    if (minValue === maxValue) {
+      return formatNumber(minValue);
     }
-  };
 
-  const handleSkipCombat = () => {
-    setSkipCombat(true);
+    return `${formatNumber(minValue)} - ${formatNumber(maxValue)}`;
   };
-
-  const toggleUntilDeath = (checked: boolean) => {
-    if (checked) {
-      setUntilLastHit(false);
-    }
-    setUntilDeath(checked);
-  };
-
-  const toggleUntilLastHit = (checked: boolean) => {
-    if (checked) {
-      setUntilDeath(false);
-    }
-    setUntilLastHit(checked);
-  };
-
-  const isJackpot = useMemo(() => {
-    return currentNetworkConfig.beasts && JACKPOT_BEASTS.includes(beast?.name!);
-  }, [beast]);
+  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
   const combatOverview = useMemo(() => {
     if (!adventurer || !beast) {
@@ -356,16 +344,12 @@ export default function CombatOverlay() {
     );
     const xpReward = Math.max(MINIMUM_XP_REWARD, adjustedXp);
 
-    const critChance = Math.min(100, Math.max(0, adventurer.stats.luck ?? 0));
-
     return {
-      critChance,
       goldReward,
       xpReward,
     };
   }, [
     adventurer?.xp,
-    adventurer?.stats.luck,
     adventurer?.equipment.weapon.id,
     adventurer?.equipment.weapon.xp,
     beast,
@@ -378,6 +362,16 @@ export default function CombatOverlay() {
 
     return calculateLevel(adventurer.xp);
   }, [adventurer?.xp]);
+
+  const willLevelUp = useMemo(() => {
+    if (!adventurer || !combatOverview) {
+      return false;
+    }
+
+    const currentLevel = calculateLevel(adventurer.xp);
+    const newLevel = calculateLevel(adventurer.xp + combatOverview.xpReward);
+    return newLevel > currentLevel;
+  }, [adventurer?.xp, combatOverview?.xpReward]);
 
   const potionCost = useMemo(() => {
     if (!adventurer) {
@@ -445,6 +439,10 @@ export default function CombatOverlay() {
       : (isPotentialHealthPositive ? styles.outcomeTileHealthPositive : styles.outcomeTileHealthNeutral))
     : styles.outcomeTileHealthNeutral;
 
+  const isJackpot = useMemo(() => {
+    return currentNetworkConfig.beasts && JACKPOT_BEASTS.includes(beast?.name!);
+  }, [beast]);
+
   return (
     <Box sx={[styles.container, spectating && styles.spectating]}>
       {beast?.baseName && <Box sx={[styles.imageContainer, { backgroundImage: `url('/images/battle_scenes/${isJackpot ? `jackpot_${beast!.baseName.toLowerCase()}` : beast!.baseName.toLowerCase()}.png')` }]} />}
@@ -455,35 +453,10 @@ export default function CombatOverlay() {
       {/* Beast */}
       <Beast />
 
-      {beast && combatOverview && (
-        <Box sx={{
-          ...styles.insightsPanel,
-          top: scalePx(162),
-          right: scalePx(30),
-          width: scalePx(360),
-          padding: `${scalePx(12)}px ${scalePx(14)}px`,
-        }}>
+      {/* Combat Insights Panel - only shown in advanced mode */}
+      {advancedMode && beast && combatOverview && (
+        <Box sx={styles.insightsPanel}>
           <Typography sx={styles.insightsTitle}>Combat Insights</Typography>
-
-          <Box sx={styles.insightsSection}>
-            <Typography sx={styles.sectionTitle}>Adventurer Data</Typography>
-            <Box sx={styles.adventurerMetricsRow}>
-              <Box sx={styles.metricItem}>
-                <Typography sx={styles.metricLabel}>Attack DMG</Typography>
-                <Typography sx={styles.metricValue}>{formatNumber(Math.round(combatStats.baseDamage))}</Typography>
-              </Box>
-              <Box sx={styles.metricItem}>
-                <Typography sx={styles.metricLabel}>Crit %</Typography>
-                <Typography sx={styles.metricValue}>{formatPercent(combatStats.critChance)}</Typography>
-              </Box>
-              <Box sx={styles.metricItem}>
-                <Typography sx={styles.metricLabel}>Crit DMG</Typography>
-                <Typography sx={styles.metricValue}>{formatNumber(Math.round(combatStats.criticalDamage))}</Typography>
-              </Box>
-            </Box>
-          </Box>
-
-          <Box sx={styles.sectionDivider} />
 
           <Box sx={styles.insightsSection}>
             <Typography sx={styles.sectionTitle}>Fight Probabilities</Typography>
@@ -492,11 +465,11 @@ export default function CombatOverlay() {
                 <Box sx={styles.tilesRowThree}>
                   <Box
                     sx={[styles.infoTile, styles.tipTile,
-                      simulationResult.winRate >= 100
-                        ? styles.tipTileFight
-                        : simulationResult.winRate < 10
-                          ? styles.tipTileFlee
-                          : styles.tipTileGamble
+                    simulationResult.winRate >= 100
+                      ? styles.tipTileFight
+                      : simulationResult.winRate < 10
+                        ? styles.tipTileFlee
+                        : styles.tipTileGamble
                     ]}
                   >
                     <Typography sx={styles.tileLabel}>Tip</Typography>
@@ -555,32 +528,68 @@ export default function CombatOverlay() {
             <Box sx={styles.tilesRowThree}>
               <Box sx={[styles.infoTile, styles.outcomeTileXp]}>
                 <Typography sx={styles.tileLabel}>XP</Typography>
-                <Typography sx={styles.tileValue}>+{formatNumber(combatOverview.xpReward)}</Typography>
+                <Typography sx={styles.tileValue}>
+                  +{formatNumber(combatOverview.xpReward)}
+                  {willLevelUp && <span style={{ fontSize: '0.65rem', marginLeft: '8px', color: '#d0c98d' }}>LEVEL UP!</span>}
+                </Typography>
               </Box>
               <Box sx={[styles.infoTile, styles.outcomeTileGold]}>
                 <Typography sx={styles.tileLabel}>Gold</Typography>
                 <Typography sx={styles.tileValue}>+{formatNumber(combatOverview.goldReward)}</Typography>
               </Box>
-              <Box sx={[styles.infoTile, healthTileStyles]}>
-                <Typography sx={styles.tileLabel}>HP</Typography>
-                <Typography sx={styles.tileValue}>
-                  {simulationResult.hasOutcome
-                    ? `${potentialHealthChangeText}`
-                    : '-'}
-                </Typography>
-              </Box>
+              <Tooltip
+                title={
+                  <Box sx={styles.tooltipContainer}>
+                    <Typography sx={styles.tooltipTitle}>NET HP</Typography>
+                    <Box sx={styles.tooltipDivider} />
+                    <Typography sx={styles.tooltipText}>
+                      Gold reward converted to potions, minus expected damage taken.
+                    </Typography>
+                    <Box sx={styles.tooltipExampleContainer}>
+                      <Typography sx={styles.tooltipPositive}>
+                        Positive = you gain HP overall
+                      </Typography>
+                      <Typography sx={styles.tooltipNegative}>
+                        Negative = you lose HP overall
+                      </Typography>
+                    </Box>
+                  </Box>
+                }
+                placement="top"
+                slotProps={{
+                  popper: {
+                    modifiers: [
+                      {
+                        name: 'preventOverflow',
+                        enabled: true,
+                        options: { rootBoundary: 'viewport' },
+                      },
+                    ],
+                  },
+                  tooltip: {
+                    sx: {
+                      bgcolor: 'transparent',
+                      border: 'none',
+                    },
+                  },
+                }}
+              >
+                <Box sx={[styles.infoTile, healthTileStyles, { cursor: 'help' }]}>
+                  <Typography sx={styles.tileLabel}>Net HP</Typography>
+                  <Typography sx={styles.tileValue}>
+                    {simulationResult.hasOutcome
+                      ? `${potentialHealthChangeText}`
+                      : '-'}
+                  </Typography>
+                </Box>
+              </Tooltip>
             </Box>
           </Box>
         </Box>
       )}
 
       {/* Combat Log */}
-      <Box sx={{
-        ...styles.middleSection,
-        top: scalePx(30),
-        width: scalePx(340),
-        padding: `${scalePx(4)}px ${scalePx(8)}px`,
-      }}>
+      <Box sx={styles.middleSection}>
         <Box sx={styles.combatLogContainer}>
           <AnimatedText text={combatLog} />
           {(combatLog === fleeMessage || combatLog === attackMessage || combatLog === equipMessage)
@@ -589,18 +598,13 @@ export default function CombatOverlay() {
       </Box>
 
       {/* Skip Animations Toggle */}
-      {showSkipCombat && (untilDeath || autoLastHitActive) && <Box sx={{
-        ...styles.skipContainer,
-        top: scalePx(112),
-      }}>
+      {showSkipCombat && (untilDeath || autoLastHitActive) && <Box sx={styles.skipContainer}>
         <Button
           variant="outlined"
           onClick={handleSkipCombat}
-          sx={{
-            ...styles.skipButton,
-            width: scalePx(90),
-            height: scalePx(32),
-          }}
+          sx={[
+            styles.skipButton,
+          ]}
           disabled={skipCombat}
         >
           <Typography fontWeight={600}>
@@ -612,21 +616,19 @@ export default function CombatOverlay() {
         </Button>
       </Box>}
 
-      <InventoryOverlay disabledEquip={attackInProgress || fleeInProgress || equipInProgress || suggestInProgress} />
+      <InventoryOverlay disabledEquip={attackInProgress || fleeInProgress || equipInProgress} />
+      <TipsOverlay combatStats={combatStats} />
+      <SettingsOverlay />
 
       {/* Combat Buttons */}
-      {!spectating && <Box sx={{
-        ...styles.buttonContainer,
-        bottom: scalePx(32),
-        gap: `${scalePx(16)}px`,
-      }}>
+      {!spectating && <Box sx={styles.buttonContainer}>
         {hasNewItemsEquipped ? (
           <>
             <Box sx={styles.actionButtonContainer}>
               <Button
                 variant="contained"
                 onClick={handleEquipItems}
-                sx={{ ...styles.attackButton, width: scalePx(190), height: scalePx(48) }}
+                sx={styles.attackButton}
                 disabled={equipInProgress}
               >
                 <Box sx={{ opacity: equipInProgress ? 0.5 : 1 }}>
@@ -641,7 +643,7 @@ export default function CombatOverlay() {
               <Button
                 variant="contained"
                 onClick={undoEquipment}
-                sx={{ ...styles.fleeButton, width: scalePx(190), height: scalePx(48) }}
+                sx={styles.fleeButton}
                 disabled={equipInProgress}
               >
                 <Box sx={{ opacity: equipInProgress ? 0.5 : 1 }}>
@@ -658,34 +660,16 @@ export default function CombatOverlay() {
               <Button
                 variant="contained"
                 onClick={handleAttack}
-                sx={{ ...styles.attackButton, width: scalePx(190), height: scalePx(48) }}
-                disabled={!adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
+                sx={styles.attackButton}
+                disabled={!adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress}
               >
-                <Box sx={{ opacity: !adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
+                <Box sx={{ opacity: !adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress ? 0.5 : 1 }}>
                   <Typography sx={styles.buttonText}>
                     ATTACK
                   </Typography>
 
                   <Typography sx={styles.buttonHelperText}>
-                    {`${formatNumber(Math.round(attackPreviewDamage))} damage`}
-                  </Typography>
-                </Box>
-              </Button>
-            </Box>
-
-            <Box sx={styles.actionButtonContainer}>
-              <Button
-                variant="contained"
-                onClick={handleSuggestGear}
-                sx={{ ...styles.suggestButton, width: scalePx(190), height: scalePx(48) }}
-                disabled={!adventurer || !beast || attackInProgress || fleeInProgress || equipInProgress || suggestInProgress}
-              >
-                <Box sx={{ opacity: attackInProgress || fleeInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
-                  <Typography sx={styles.buttonText}>
-                    SUGGEST
-                  </Typography>
-                  <Typography sx={styles.buttonHelperText}>
-                    optimal gear
+                    {`${calculateAttackDamage(adventurer!.equipment.weapon!, adventurer!, beast!).baseDamage} damage`}
                   </Typography>
                 </Box>
               </Button>
@@ -695,10 +679,10 @@ export default function CombatOverlay() {
               <Button
                 variant="contained"
                 onClick={handleFlee}
-                sx={{ ...styles.fleeButton, width: scalePx(190), height: scalePx(48) }}
-                disabled={adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress || equipInProgress || suggestInProgress}
+                sx={styles.fleeButton}
+                disabled={adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress}
               >
-                <Box sx={{ opacity: adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress || equipInProgress || suggestInProgress ? 0.5 : 1 }}>
+                <Box sx={{ opacity: adventurer!.stats.dexterity === 0 || fleeInProgress || attackInProgress ? 0.5 : 1 }}>
                   <Typography sx={styles.buttonText}>
                     FLEE
                   </Typography>
@@ -710,26 +694,6 @@ export default function CombatOverlay() {
             </Box>
 
             <Box sx={styles.deathCheckboxRow}>
-              <Box
-                sx={styles.deathCheckboxContainer}
-                onClick={() => {
-                  if (!combatControlsDisabled && !isFinalRound) {
-                    toggleUntilLastHit(!untilLastHit);
-                  }
-                }}
-              >
-                <Typography sx={styles.deathCheckboxLabel}>
-                  until<br />last hit
-                </Typography>
-                <Checkbox
-                  checked={untilLastHit}
-                  disabled={combatControlsDisabled || isFinalRound}
-                  onChange={(e) => toggleUntilLastHit(e.target.checked)}
-                  size="medium"
-                  sx={styles.deathCheckbox}
-                />
-              </Box>
-
               <Box
                 sx={styles.deathCheckboxContainer}
                 onClick={() => {
@@ -749,6 +713,28 @@ export default function CombatOverlay() {
                   sx={styles.deathCheckbox}
                 />
               </Box>
+
+              {advancedMode && (
+                <Box
+                  sx={styles.deathCheckboxContainer}
+                  onClick={() => {
+                    if (!combatControlsDisabled && !isFinalRound) {
+                      toggleUntilLastHit(!untilLastHit);
+                    }
+                  }}
+                >
+                  <Typography sx={styles.deathCheckboxLabel}>
+                    until<br />last hit
+                  </Typography>
+                  <Checkbox
+                    checked={untilLastHit}
+                    disabled={combatControlsDisabled || isFinalRound}
+                    onChange={(e) => toggleUntilLastHit(e.target.checked)}
+                    size="medium"
+                    sx={styles.deathCheckbox}
+                  />
+                </Box>
+              )}
             </Box>
           </>
         )}
@@ -782,8 +768,10 @@ const styles = {
   },
   middleSection: {
     position: 'absolute',
-    // top, width, padding set dynamically via useResponsiveScale
+    top: 30,
     left: '50%',
+    width: '340px',
+    padding: '4px 8px',
     border: '2px solid #083e22',
     borderRadius: '12px',
     background: 'rgba(24, 40, 24, 0.55)',
@@ -799,10 +787,11 @@ const styles = {
   },
   buttonContainer: {
     position: 'absolute',
-    // bottom, gap set dynamically via useResponsiveScale
+    bottom: 32,
     left: '50%',
-    transform: 'translateX(calc(-32%))',
+    transform: 'translateX(-50%)',
     display: 'flex',
+    gap: '16px',
     alignItems: 'flex-end',
   },
   actionButtonContainer: {
@@ -815,7 +804,8 @@ const styles = {
   attackButton: {
     border: '3px solid rgb(8, 62, 34)',
     background: 'rgba(24, 40, 24, 1)',
-    // width, height set dynamically via useResponsiveScale
+    width: '190px',
+    height: '48px',
     justifyContent: 'center',
     borderRadius: '8px',
     '&:hover': {
@@ -827,7 +817,8 @@ const styles = {
     },
   },
   fleeButton: {
-    // width, height set dynamically via useResponsiveScale
+    width: '190px',
+    height: '48px',
     justifyContent: 'center',
     background: 'rgba(60, 16, 16, 1)',
     borderRadius: '8px',
@@ -838,20 +829,6 @@ const styles = {
     '&:disabled': {
       background: 'rgba(60, 16, 16, 1)',
       borderColor: 'rgba(106, 27, 27, 0.5)',
-    },
-  },
-  suggestButton: {
-    // width, height set dynamically via useResponsiveScale
-    justifyContent: 'center',
-    background: 'rgba(16, 32, 48, 1)',
-    borderRadius: '8px',
-    border: '3px solid #1e3a5c',
-    '&:hover': {
-      background: 'rgba(24, 48, 72, 1)',
-    },
-    '&:disabled': {
-      background: 'rgba(16, 32, 48, 1)',
-      borderColor: 'rgba(30, 58, 92, 0.5)',
     },
   },
   buttonIcon: {
@@ -904,9 +881,29 @@ const styles = {
       color: '#d0c98d',
     },
   },
+  skipContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    position: 'absolute',
+    top: 90,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 10,
+  },
+  skipButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    width: '90px',
+    height: '32px',
+  },
   insightsPanel: {
     position: 'absolute',
-    // top, right, width, padding set dynamically via useResponsiveScale
+    top: 142,
+    right: 30,
+    width: 360,
+    padding: '12px 14px',
     border: '2px solid #083e22',
     borderRadius: '12px',
     background: 'rgba(24, 40, 24, 0.65)',
@@ -956,36 +953,10 @@ const styles = {
     border: '1px solid rgba(120, 150, 130, 0.35)',
     background: 'rgba(16, 28, 20, 0.8)',
   },
-  adventurerMetricsRow: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-    gap: '6px',
-  },
-  metricItem: {
-    borderRadius: '8px',
-    padding: '6px 8px',
-    border: '1px solid rgba(120, 150, 130, 0.35)',
-    background: 'rgba(16, 28, 20, 0.8)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-  },
-  metricLabel: {
-    color: 'rgba(208, 201, 141, 0.7)',
-    fontSize: '0.6rem',
-    letterSpacing: '0.35px',
-    textTransform: 'uppercase',
-  },
-  metricValue: {
-    color: '#ffffff',
-    fontFamily: 'Cinzel, Georgia, serif',
-    fontSize: '0.94rem',
-    fontWeight: 600,
-    lineHeight: 1.1,
-  },
   tileLabel: {
     color: 'rgba(208, 201, 141, 0.8)',
-    fontSize: '0.64rem',
+    fontSize: '0.75rem',
+    fontWeight: 600,
     letterSpacing: '0.4px',
     textTransform: 'uppercase',
   },
@@ -998,7 +969,7 @@ const styles = {
   },
   tileSubValue: {
     color: 'rgba(208, 201, 141, 0.72)',
-    fontSize: '0.68rem',
+    fontSize: '0.75rem',
     fontWeight: 500,
   },
   fightTileWin: {
@@ -1014,16 +985,6 @@ const styles = {
   fightTileNeutral: {
     border: '1px solid rgba(168, 168, 168, 0.35)',
   },
-  fightTilePositive: {
-    border: '1px solid rgba(142, 198, 156, 0.45)',
-  },
-  fightTileNegative: {
-    border: '1px solid rgba(214, 120, 118, 0.45)',
-  },
-  damageTile: {
-    border: '1px solid rgba(168, 168, 168, 0.35)',
-    background: 'linear-gradient(135deg, rgba(68, 72, 60, 0.6), rgba(34, 36, 28, 0.85))',
-  },
   placeholderText: {
     color: 'rgba(208, 201, 141, 0.65)',
     fontSize: '0.72rem',
@@ -1034,6 +995,15 @@ const styles = {
     background: 'linear-gradient(135deg, rgba(156, 39, 176, 0.55), rgba(102, 24, 118, 0.45))',
     border: '1px solid rgba(182, 88, 204, 0.7)',
     boxShadow: '0 0 10px rgba(156, 39, 176, 0.35)',
+  },
+  levelUpTile: {
+    border: '1px solid rgba(128, 255, 0, 0.8)',
+    boxShadow: '0 0 12px rgba(128, 255, 0, 0.5)',
+  },
+  levelUpIndicator: {
+    fontSize: '0.6rem',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
   },
   outcomeTileGold: {
     background: 'linear-gradient(135deg, rgba(156, 118, 36, 0.65), rgba(86, 52, 12, 0.8))',
@@ -1075,20 +1045,46 @@ const styles = {
     boxShadow: '0 0 12px rgba(208, 180, 120, 0.55)',
     animation: `${tipPulseGamble} 1.6s ease-in-out infinite`,
   },
-  skipContainer: {
-    display: 'flex',
-    alignItems: 'center',
-    position: 'absolute',
-    // top set dynamically via useResponsiveScale
-    left: '50%',
-    transform: 'translateX(-50%)',
-    zIndex: 10,
+  tooltipContainer: {
+    backgroundColor: 'rgba(17, 17, 17, 1)',
+    border: '2px solid #083e22',
+    borderRadius: '8px',
+    padding: '10px',
+    minWidth: '200px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
   },
-  skipButton: {
+  tooltipTitle: {
+    color: '#d0c98d',
+    fontSize: '0.85rem',
+    fontWeight: 'bold',
+    fontFamily: 'Cinzel, Georgia, serif',
+  },
+  tooltipDivider: {
+    height: '1px',
+    backgroundColor: '#d7c529',
+    opacity: 0.2,
+    margin: '8px 0',
+  },
+  tooltipText: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: '0.78rem',
+    lineHeight: 1.4,
+    marginBottom: '8px',
+  },
+  tooltipExampleContainer: {
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    // width, height set dynamically via useResponsiveScale
+    flexDirection: 'column',
+    gap: '4px',
+    padding: '6px',
+    borderRadius: '4px',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  tooltipPositive: {
+    color: '#60ba78',
+    fontSize: '0.75rem',
+  },
+  tooltipNegative: {
+    color: '#d46660',
+    fontSize: '0.75rem',
   },
 };

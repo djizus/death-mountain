@@ -35,20 +35,37 @@ const computeInventoryHash = (adventurer: Adventurer | null, bag: Item[]): strin
   return `${equipmentIds}|${bagIds}`;
 };
 
+/** Default empty result - no changes for any preset */
+const EMPTY_PRESETS: Record<GearPreset, PresetResult> = {
+  cloth: { hasChanges: false, changeCount: 0 },
+  hide: { hasChanges: false, changeCount: 0 },
+  metal: { hasChanges: false, changeCount: 0 },
+};
+
 /**
  * Hook to pre-compute gear preset results.
  * Memoizes results based on inventory state to avoid recalculation.
+ *
+ * @param adventurer - The current adventurer
+ * @param bag - Items in the bag
+ * @param enabled - Whether to compute presets (default: true). When false, skips all computation.
  */
 export const useGearPresets = (
   adventurer: Adventurer | null,
   bag: Item[],
+  enabled: boolean = true,
 ): UseGearPresetsResult => {
   const inventoryHash = useMemo(
-    () => computeInventoryHash(adventurer, bag),
-    [adventurer, bag]
+    () => enabled ? computeInventoryHash(adventurer, bag) : '',
+    [adventurer, bag, enabled]
   );
 
   const presets = useMemo(() => {
+    // Skip computation entirely when disabled
+    if (!enabled) {
+      return EMPTY_PRESETS;
+    }
+
     const result: Record<GearPreset, PresetResult> = {
       cloth: { hasChanges: false, changeCount: 0 },
       hide: { hasChanges: false, changeCount: 0 },
@@ -80,7 +97,7 @@ export const useGearPresets = (
     });
 
     return result;
-  }, [adventurer, bag, inventoryHash]);
+  }, [adventurer, bag, inventoryHash, enabled]);
 
   return { presets };
 };

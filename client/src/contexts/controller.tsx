@@ -1,4 +1,5 @@
 import { useStarknetApi } from "@/api/starknet";
+import { useGameTokens } from "@/dojo/useGameTokens";
 import { useSystemCalls } from "@/dojo/useSystemCalls";
 import { useGameStore } from "@/stores/gameStore";
 import { useUIStore } from "@/stores/uiStore";
@@ -26,12 +27,15 @@ export interface ControllerContext {
   playerName: string;
   isPending: boolean;
   tokenBalances: Record<string, string>;
+  goldenPassIds: number[];
   openProfile: () => void;
   login: () => void;
   logout: () => void;
   enterDungeon: (payment: Payment, txs: any[]) => void;
   showTermsOfService: boolean;
   acceptTermsOfService: () => void;
+  openBuyTicket: () => void;
+  bulkMintGames: (amount: number, callback: () => void) => void;
 }
 
 // Create a context
@@ -49,12 +53,15 @@ export const ControllerProvider = ({ children }: PropsWithChildren) => {
   const { disconnect } = useDisconnect();
   const dungeon = useDungeon();
   const { currentNetworkConfig } = useDynamicConnector();
-  const { createBurnerAccount, getTokenBalances } = useStarknetApi();
+  const { createBurnerAccount, getTokenBalances, goldenPassReady } =
+    useStarknetApi();
+  const { getGameTokens } = useGameTokens();
   const { skipIntroOutro } = useUIStore();
   const [burner, setBurner] = useState<Account | null>(null);
   const [userName, setUserName] = useState<string>();
   const [creatingBurner, setCreatingBurner] = useState(false);
   const [tokenBalances, setTokenBalances] = useState({});
+  const [goldenPassIds, setGoldenPassIds] = useState<number[]>([]);
   const [showTermsOfService, setShowTermsOfService] = useState(false);
   const { identifyAddress } = useAnalytics();
 
@@ -151,6 +158,25 @@ export const ControllerProvider = ({ children }: PropsWithChildren) => {
     }
   };
 
+  const bulkMintGames = async (amount: number, callback: () => void) => {
+    amount = Math.min(amount, 50);
+    const resolvedName = resolvePlayerName();
+
+    await buyGame(
+      account,
+      { paymentType: "Ticket" },
+      resolvedName,
+      [],
+      amount,
+      () => {
+        setTokenBalances(prev => ({
+          ...prev,
+          "TICKET": (Number((prev as any)["TICKET"]) - amount).toString()
+        }));
+        callback();
+      }
+    );
+  };
 
   const createBurner = async () => {
     setCreatingBurner(true);
@@ -165,6 +191,14 @@ export const ControllerProvider = ({ children }: PropsWithChildren) => {
   async function fetchTokenBalances() {
     let balances = await getTokenBalances(NETWORKS.SN_MAIN.paymentTokens);
     setTokenBalances(balances);
+
+    let goldenTokenAddress = NETWORKS.SN_MAIN.goldenToken;
+    const allTokens = await getGameTokens(address!, goldenTokenAddress);
+
+    if (allTokens.length > 0) {
+      const cooldowns = await goldenPassReady(goldenTokenAddress, allTokens);
+      setGoldenPassIds(cooldowns);
+    }
   }
 
   const acceptTermsOfService = () => {
@@ -185,16 +219,19 @@ export const ControllerProvider = ({ children }: PropsWithChildren) => {
         playerName: userName || "Adventurer",
         isPending: isConnecting || isPending || creatingBurner,
         tokenBalances,
+        goldenPassIds,
         showTermsOfService,
         acceptTermsOfService,
 
         openProfile: () => (connector as any)?.controller?.openProfile(),
+        openBuyTicket: () => (connector as any)?.controller?.openStarterPack(3),
         login: () =>
           connect({
             connector: connectors.find((conn) => conn.id === "controller"),
           }),
         logout: () => disconnect(),
         enterDungeon,
+        bulkMintGames,
       }}
     >
       {children}

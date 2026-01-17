@@ -30,6 +30,7 @@ import { addAddressPadding } from "starknet";
 import PriceIndicator from "../../components/PriceIndicator";
 import Leaderboard from "../components/Leaderboard";
 import WalletConnect from "../components/WalletConnect";
+import ActivePlayers from "./ActivePlayers";
 
 export default function MainMenu() {
   const navigate = useNavigate();
@@ -404,6 +405,8 @@ export default function MainMenu() {
       }]}>
         <DungeonRewards />
       </Box> : null}
+
+      <ActivePlayers />
     </>
   );
 }

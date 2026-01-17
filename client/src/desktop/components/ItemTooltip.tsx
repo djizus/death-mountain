@@ -1,6 +1,6 @@
 import { useGameStore } from '@/stores/gameStore';
 import { Item } from '@/types/game';
-import { BeastDamageSummary, calculateAttackDamage, calculateBeastDamageDetails, calculateLevel, calculateNextLevelXP, calculateProgress } from '@/utils/game';
+import { calculateAttackDamage, calculateBeastDamage, calculateLevel, calculateNextLevelXP, calculateProgress } from '@/utils/game';
 import { ItemType, ItemUtils } from '@/utils/loot';
 import { Box, LinearProgress, Typography } from '@mui/material';
 
@@ -25,15 +25,15 @@ export default function ItemTooltip({ itemSpecialsSeed, item, style }: ItemToolt
   const futureSpecials = itemSpecialsSeed !== 0 && level < 15 ? ItemUtils.getSpecials(item.id, 15, itemSpecialsSeed) : null;
 
   // Calculate damage if there's a beast and this is an armor or weapon item
-  let damage: ReturnType<typeof calculateAttackDamage> | null = null;
-  let damageTaken: BeastDamageSummary | null = null;
+  let damage = null;
+  let damageTaken = null;
   let isNameMatch = false;
 
   if (beast) {
     isNameMatch = ItemUtils.isNameMatch(item.id, level, itemSpecialsSeed, beast);
 
     if (['Head', 'Chest', 'Foot', 'Hand', 'Waist'].includes(ItemUtils.getItemSlot(item.id))) {
-      damageTaken = calculateBeastDamageDetails(beast, adventurer!, item);
+      damageTaken = calculateBeastDamage(beast, adventurer!, item);
     } else if (ItemUtils.isWeapon(item.id)) {
       damage = calculateAttackDamage(item, adventurer!, beast);
     }

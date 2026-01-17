@@ -289,11 +289,42 @@ const FiatContent = memo(({ styles }: { styles: any }) => (
   </Box>
 ));
 
+// Golden Token content component
+const GoldenTokenContent = memo(({ onUseGoldenToken, styles }: { onUseGoldenToken: () => void; styles: any }) => (
+  <Box sx={styles.ticketCard}>
+    <Box sx={styles.goldenTokenContainer}>
+      <img
+        src="/images/golden_token.svg"
+        alt="Golden Token"
+        style={{
+          width: "150px",
+          height: "150px",
+        }}
+      />
+    </Box>
+    <Box sx={{ textAlign: "center", mb: 1 }}>
+      <Typography sx={styles.ticketCount}>
+        You have a Golden Token!
+      </Typography>
+    </Box>
+    <Box sx={{ display: "flex", justifyContent: "center", px: 2, mb: 2 }}>
+      <Button
+        variant="contained"
+        sx={styles.activateButton}
+        onClick={onUseGoldenToken}
+        fullWidth
+      >
+        <Typography sx={styles.buttonText}>Enter Dungeon</Typography>
+      </Button>
+    </Box>
+  </Box>
+));
+
 export default function PaymentOptionsModal({
   open,
   onClose,
 }: PaymentOptionsModalProps) {
-  const { account, tokenBalances, enterDungeon, address, playerName } =
+  const { account, tokenBalances, enterDungeon, address, playerName, goldenPassIds } =
     useController();
 
   const navigate = useNavigate();
@@ -331,6 +362,8 @@ export default function PaymentOptionsModal({
       ? Number(tokenBalances[dungeonTicketToken.name])
       : 0;
   }, [paymentTokens, tokenBalances]);
+
+  const hasGoldenToken = goldenPassIds && goldenPassIds.length > 0;
 
   const [selectedToken, setSelectedToken] = useState("");
   const [tokenQuote, setTokenQuote] = useState<{
@@ -440,6 +473,20 @@ export default function PaymentOptionsModal({
     onClose();
   };
 
+  const useGoldenToken = () => {
+    enterDungeon(
+      {
+        paymentType: "Golden Pass",
+        goldenPass: {
+          address: NETWORKS.SN_MAIN.goldenToken,
+          tokenId: goldenPassIds[0],
+        },
+      },
+      []
+    );
+    onClose();
+  };
+
   const payWithCrypto = async () => {
     if (isPaying) return;
     if (!account || !address) return;
@@ -475,7 +522,7 @@ export default function PaymentOptionsModal({
       if (!addr) return "";
       return addr.toLowerCase().replace(/^0x0*/, "");
     };
-    
+
     const selectedAddressNorm = normalizeAddress(selectedTokenData?.address);
     const orderAddressNorm = normalizeAddress(order.payToken.address);
 
@@ -559,8 +606,8 @@ export default function PaymentOptionsModal({
       return;
     }
 
-    // If user has ticket, show ticket view (no tabs)
-    if (hasTicket) {
+    // If user has golden token or ticket, don't show tabs
+    if (hasGoldenToken || hasTicket) {
       setOrder(null);
       setTokenQuote({ amount: "", loading: false });
       return;
@@ -576,7 +623,12 @@ export default function PaymentOptionsModal({
     if (selectedToken && activeTab === 0) {
       fetchTokenQuote(selectedToken);
     }
-  }, [open, hasTicket, hasCryptoTokens, selectedToken, fetchTokenQuote, activeTab]);
+  }, [open, hasGoldenToken, hasTicket, hasCryptoTokens, selectedToken, fetchTokenQuote, activeTab]);
+
+  // Determine which view to show: golden > ticket > tabs
+  const showGoldenToken = hasGoldenToken;
+  const showTicket = !showGoldenToken && hasTicket;
+  const showTabs = !showGoldenToken && !showTicket;
 
   return (
     <AnimatePresence>
@@ -604,12 +656,30 @@ export default function PaymentOptionsModal({
                   <Box sx={styles.titleUnderline} />
                 </Box>
                 <Typography sx={styles.subtitle}>
-                  {hasTicket ? "Use your ticket" : "Select payment method"}
+                  {showGoldenToken
+                    ? "Use your Golden Token"
+                    : showTicket
+                      ? "Use your ticket"
+                      : "Select payment method"}
                 </Typography>
               </Box>
 
               <Box sx={{ width: "100%", maxWidth: "330px", mx: "auto", pb: 2 }}>
-                {hasTicket ? (
+                {/* Golden Token View */}
+                {showGoldenToken && (
+                  <motion.div
+                    key="golden"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                  >
+                    <GoldenTokenContent onUseGoldenToken={useGoldenToken} styles={styles} />
+                  </motion.div>
+                )}
+
+                {/* Ticket View */}
+                {showTicket && (
                   <motion.div
                     key="ticket"
                     initial={{ opacity: 0, y: 20 }}
@@ -647,7 +717,10 @@ export default function PaymentOptionsModal({
                       </ActionButton>
                     </Box>
                   </motion.div>
-                ) : (
+                )}
+
+                {/* Tabs View (Crypto/Fiat) */}
+                {showTabs && (
                   <>
                     <Tabs
                       value={activeTab}
