@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/uiStore';
 import CloseIcon from '@mui/icons-material/Close';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import SettingsIcon from '@mui/icons-material/Settings';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -18,10 +19,14 @@ export default function SettingsOverlay() {
   const dungeon = useDungeon();
   const { showSettings, setShowSettings } = useGameStore();
   const { volume, setVolume, muted, setMuted, musicVolume, setMusicVolume, musicMuted, setMusicMuted } = useSound();
-  const { skipAllAnimations, setSkipAllAnimations, fastBattle, setFastBattle, advancedMode, setAdvancedMode } = useUIStore();
+  const { skipAllAnimations, setSkipAllAnimations, fastBattle, setFastBattle, advancedMode, setAdvancedMode, setUseMobileClient } = useUIStore();
   const navigate = useNavigate();
   const handleExitGame = () => {
     navigate('/');
+  };
+
+  const handleSwitchToMobile = () => {
+    setUseMobileClient(true);
   };
 
   const handleVolumeChange = (_: Event, newValue: number | number[]) => {
@@ -191,6 +196,23 @@ export default function SettingsOverlay() {
                   sx={styles.exitGameButton}
                 >
                   Exit Game
+                </Button>
+              </Box>
+
+              <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+              {/* Client Section */}
+              <Box sx={styles.section}>
+                <Typography sx={styles.sectionTitle}>Client</Typography>
+
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  startIcon={<PhoneAndroidIcon />}
+                  onClick={handleSwitchToMobile}
+                  sx={styles.mobileButton}
+                >
+                  Switch to Mobile Client
                 </Button>
               </Box>
 
@@ -416,6 +438,17 @@ const styles = {
     },
     '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
       backgroundColor: '#d0c98d',
+    },
+  },
+  mobileButton: {
+    borderColor: '#d0c98d',
+    color: '#d0c98d',
+    fontFamily: 'Cinzel, Georgia, serif',
+    fontWeight: 500,
+    fontSize: '0.85rem',
+    '&:hover': {
+      borderColor: '#d0c98d',
+      backgroundColor: 'rgba(208, 201, 141, 0.1)',
     },
   },
 };

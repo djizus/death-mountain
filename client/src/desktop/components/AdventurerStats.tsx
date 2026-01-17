@@ -188,12 +188,16 @@ export default function AdventurerStats() {
                   variant="contained"
                   size="small"
                   onClick={() => handleStatDecrement(stat as keyof typeof STAT_DESCRIPTIONS)}
+                  disabled={selectedStats[stat as keyof typeof STAT_DESCRIPTIONS] === 0}
                   sx={styles.controlButton}
                 >
                   -
                 </Button>}
 
-                <Typography sx={styles.statValue}>
+                <Typography sx={{
+                  ...styles.statValue,
+                  color: selectedStats[stat as keyof typeof STAT_DESCRIPTIONS] > 0 ? '#4caf50' : '#d0c98d'
+                }}>
                   {totalStatValue}
                 </Typography>
 
@@ -279,6 +283,7 @@ export default function AdventurerStats() {
               variant="contained"
               size="small"
               onClick={() => handleStatDecrement(stat as keyof typeof STAT_DESCRIPTIONS)}
+              disabled={selectedStats[stat as keyof typeof STAT_DESCRIPTIONS] === 0}
               sx={styles.controlButton}
             >
               -

@@ -649,7 +649,7 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
                 <Box sx={styles.mainContent}>
 
                   {/* Potions Section */}
-                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'flex-end', mb: '6px' }}>
+                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'stretch', mb: '6px' }}>
                     <Box sx={styles.potionsSection}>
                       <Box sx={styles.potionSliderContainer}>
                         <Box sx={styles.potionLeftSection}>
@@ -974,8 +974,8 @@ const styles = {
   },
   potionControls: {
     display: 'flex',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
     width: '95%',
     ml: 1,
   },
@@ -983,6 +983,7 @@ const styles = {
     color: '#d7c529',
     fontSize: '0.9rem',
   },
+
   potionSlider: {
     color: '#d7c529',
     width: '95%',
@@ -1267,9 +1268,9 @@ const styles = {
     },
   },
   filterToggleButton: {
-    width: 36,
-    height: 36,
-    minWidth: 36,
+    width: 44,
+    minWidth: 44,
+    alignSelf: 'stretch',
     padding: 0,
     background: 'rgba(24, 40, 24, 0.95)',
     border: '2px solid #083e22',
