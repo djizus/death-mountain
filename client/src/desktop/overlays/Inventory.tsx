@@ -5,15 +5,17 @@ import { useGameDirector } from '@/desktop/contexts/GameDirector';
 import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useGearPresets } from '@/hooks/useGearPresets';
 import { useGameStore } from '@/stores/gameStore';
+import { useMarketStore } from '@/stores/marketStore';
 import { useUIStore } from '@/stores/uiStore';
 import { Item } from '@/types/game';
 import { calculateAttackDamage, calculateBeastDamage, calculateCombatStats, calculateLevel } from '@/utils/game';
 import { GearPreset } from '@/utils/gearPresets';
 import { ItemUtils } from '@/utils/loot';
+import { getCartItemPlacements } from '@/utils/market';
 import { keyframes } from '@emotion/react';
 import { DeleteOutline, Star } from '@mui/icons-material';
 import { Box, Button, Tooltip, Typography } from '@mui/material';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type EquipmentSlot = 'weapon' | 'chest' | 'head' | 'waist' | 'foot' | 'hand' | 'neck' | 'ring';
 
@@ -32,13 +34,14 @@ interface InventoryOverlayProps {
   disabledEquip?: boolean;
 }
 
-function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, onItemHover, disabledEquip }: {
+function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, onItemHover, disabledEquip, previewEquipped }: {
   isDropMode: boolean,
   itemsToDrop: number[],
   onItemClick: (item: any) => void,
   newItems: number[],
   onItemHover: (itemId: number) => void,
   disabledEquip?: boolean;
+  previewEquipped?: Record<string, Item>;
 }) {
   const { adventurer, beast, bag, equipGearPreset } = useGameStore();
   const { advancedMode } = useUIStore();
@@ -58,7 +61,12 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
       <Box sx={styles.characterPortraitWrapper}>
         <img src={'/images/adventurer.png'} alt="adventurer" style={{ ...styles.characterPortrait, objectFit: 'contain', position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 1, filter: 'drop-shadow(0 0 8px #000a)' }} />
         {equipmentSlots.map(slot => {
-          const item = adventurer?.equipment[slot.key];
+          // Check for preview item first, then actual equipped item
+          const previewItem = previewEquipped?.[slot.key];
+          const actualItem = adventurer?.equipment[slot.key];
+          const item = previewItem || actualItem;
+          const isPreview = !!previewItem;
+          
           const metadata = item ? ItemUtils.getMetadata(item.id) : null;
           const isSelected = item?.id ? itemsToDrop.includes(item.id) : false;
           const highlight = item?.id ? (isDropMode && itemsToDrop.length === 0) : false;
@@ -162,11 +170,12 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
                   ...(isNew ? [styles.newItem] : []),
                   ...(!isDropMode ? [styles.nonInteractive] : []),
                   ...(isNameMatchDanger ? [styles.nameMatchDangerSlot] : []),
-                  ...(isNameMatchPower ? [styles.nameMatchPowerSlot] : [])
+                  ...(isNameMatchPower ? [styles.nameMatchPowerSlot] : []),
+                  ...(isPreview ? [styles.previewItem] : [])
                 ]}
                 style={{ ...slot.style, position: 'absolute' }}
-                onClick={() => isDropMode && item?.id && onItemClick(item)}
-                onMouseEnter={() => item?.id && onItemHover(item.id)}
+                onClick={() => isDropMode && item?.id && !isPreview && onItemClick(item)}
+                onMouseEnter={() => item?.id && !isPreview && onItemHover(item.id)}
               >
                 {item?.id && metadata ? (
                   <Box sx={styles.itemImageContainer}>
@@ -293,16 +302,21 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
   );
 }
 
-function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, newItems, onItemHover }: {
+function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, newItems, onItemHover, previewBag }: {
   isDropMode: boolean,
   itemsToDrop: number[],
   onItemClick: (item: any) => void,
   onDropModeToggle: () => void,
   newItems: number[],
-  onItemHover: (itemId: number) => void
+  onItemHover: (itemId: number) => void,
+  previewBag?: Item[]
 }) {
   const { bag, adventurer, beast } = useGameStore();
   const { advancedMode } = useUIStore();
+
+  // Combine actual bag with preview items
+  const displayBag = [...(bag || []), ...(previewBag || [])];
+  const previewItemIds = new Set((previewBag || []).map(item => item.id));
 
   // Calculate combat stats to get bestItems for defense highlighting
   const combatStats = beast ? calculateCombatStats(adventurer!, bag, beast) : null;
@@ -311,34 +325,35 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
   return (
     <Box sx={styles.bagPanel}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-        <Typography variant="h6">Bag ({bag?.length || 0}/{15})</Typography>
+        <Typography variant="h6">Bag ({displayBag?.length || 0}/{15})</Typography>
         <Typography variant="h6" color="secondary">{adventurer?.gold || 0} gold</Typography>
       </Box>
 
       <Box sx={styles.bagGrid}>
-        {bag?.map((item, index) => {
+        {displayBag?.map((item, index) => {
+          const isPreview = previewItemIds.has(item.id);
           const metadata = ItemUtils.getMetadata(item.id);
-          const isSelected = itemsToDrop.includes(item.id);
-          const highlight = isDropMode && itemsToDrop.length === 0;
-          const isNew = newItems.includes(item.id);
+          const isSelected = !isPreview && itemsToDrop.includes(item.id);
+          const highlight = !isPreview && isDropMode && itemsToDrop.length === 0;
+          const isNew = !isPreview && newItems.includes(item.id);
           const tier = ItemUtils.getItemTier(item.id);
           const tierColor = ItemUtils.getTierColor(tier);
           const level = calculateLevel(item.xp);
           const isNameMatch = beast ? ItemUtils.isNameMatch(item.id, level, adventurer!.item_specials_seed, beast) : false;
           const isArmorSlot = ['head', 'chest', 'foot', 'hand', 'waist'].includes(ItemUtils.getItemSlot(item.id).toLowerCase());
           const isWeaponSlot = ItemUtils.getItemSlot(item.id).toLowerCase() === 'weapon';
-          const isNameMatchDanger = isNameMatch && isArmorSlot;
-          const isNameMatchPower = isNameMatch && isWeaponSlot;
-          const isDefenseItem = bestItemIds.includes(item.id);
+          const isNameMatchDanger = !isPreview && isNameMatch && isArmorSlot;
+          const isNameMatchPower = !isPreview && isNameMatch && isWeaponSlot;
+          const isDefenseItem = !isPreview && bestItemIds.includes(item.id);
           const hasSpecials = level >= 15;
           const hasGoldSpecials = level >= 20;
 
-          // Calculate damage values for bag items
+          // Calculate damage values for bag items (skip for preview items)
           let damage = 0;
           let damageTaken = 0;
           let critDamage = 0;
           let critDamageTaken = 0;
-          if (beast) {
+          if (beast && !isPreview) {
             if (isArmorSlot) {
               const damageResult = calculateBeastDamage(beast, adventurer!, item);
               damageTaken = damageResult.baseDamage;
@@ -352,7 +367,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
 
           return (
             <Tooltip
-              key={`${item.id}-${index}`}
+              key={`${item.id}-${index}${isPreview ? '-preview' : ''}`}
               title={<ItemTooltip item={item} itemSpecialsSeed={adventurer?.item_specials_seed || 0} style={styles.tooltipContainer} />}
               placement="auto-end"
               slotProps={{
@@ -376,6 +391,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
               <Box
                 sx={[
                   styles.bagSlot,
+                  ...(isPreview ? [styles.previewItem] : []),
                   ...(isSelected ? [styles.selectedItem] : []),
                   ...(highlight ? [styles.highlight] : []),
                   ...(isNew ? [styles.newItem] : []),
@@ -383,8 +399,8 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
                   ...(isNameMatchPower ? [styles.nameMatchPowerSlot] : []),
                   ...(isDefenseItem ? [styles.defenseItemSlot] : [])
                 ]}
-                onClick={() => onItemClick(item)}
-                onMouseEnter={() => onItemHover(item.id)}
+                onClick={() => !isPreview && onItemClick(item)}
+                onMouseEnter={() => !isPreview && onItemHover(item.id)}
               >
                 <Box sx={styles.itemImageContainer}>
                   <Box
@@ -448,7 +464,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
             </Tooltip>
           );
         })}
-        {Array(Math.max(0, 15 - (bag?.length || 0))).fill(null).map((_, idx) => (
+        {Array(Math.max(0, 15 - displayBag.length)).fill(null).map((_, idx) => (
           <Box key={`empty-${idx}`} sx={styles.bagSlot}>
             <Box sx={styles.emptySlot}></Box>
           </Box>
@@ -471,12 +487,18 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
   const { advancedMode } = useUIStore();
   const { executeGameAction, actionFailed } = useGameDirector();
   const { adventurer, bag, showInventory, setShowInventory } = useGameStore();
+  const { cart } = useMarketStore();
   const { scalePx } = useResponsiveScale();
   const { equipItem, newInventoryItems, setNewInventoryItems } = useGameStore();
   const [isDropMode, setIsDropMode] = useState(false);
   const [itemsToDrop, setItemsToDrop] = useState<number[]>([]);
   const [dropInProgress, setDropInProgress] = useState(false);
   const [newItems, setNewItems] = useState<number[]>([]);
+
+  // Calculate preview items from cart (which items would be equipped vs go to bag)
+  const cartPreview = useMemo(() => {
+    return getCartItemPlacements(cart.items, adventurer ?? null);
+  }, [cart.items, adventurer?.equipment]);
 
   // Update newItems when newInventoryItems changes and clear newInventoryItems
   useEffect(() => {
@@ -552,6 +574,7 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
                 newItems={newItems}
                 onItemHover={handleItemHover}
                 disabledEquip={disabledEquip}
+                previewEquipped={cartPreview.previewEquipped}
               />
               {/* Right: Stats */}
               <AdventurerStats />
@@ -565,6 +588,7 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
               onDropModeToggle={() => setIsDropMode(true)}
               newItems={newItems}
               onItemHover={handleItemHover}
+              previewBag={cartPreview.previewBag}
             />
 
             {/* Drop Mode Controls */}
@@ -895,6 +919,11 @@ const styles = {
     '&:hover': {
       backgroundColor: 'rgba(128, 255, 0, 0.15)',
     },
+  },
+  previewItem: {
+    border: '2px solid #d7c529',
+    backgroundColor: 'rgba(215, 197, 41, 0.15)',
+    opacity: 0.85,
   },
   strongItemSlot: {
     border: '2px solid #80FF00',

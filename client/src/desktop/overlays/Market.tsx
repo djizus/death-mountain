@@ -8,7 +8,7 @@ import { getEventIcon, getEventTitle } from '@/utils/events';
 import { getExplorationInsights, type DamageBucket, type SlotDamageSummary } from '@/utils/exploration';
 import { calculateLevel } from '@/utils/game';
 import { ItemUtils, Tier, slotIcons, typeIcons } from '@/utils/loot';
-import { MarketItem, generateMarketItems, potionPrice } from '@/utils/market';
+import { MarketItem, generateMarketItems, getCartItemPlacements, potionPrice } from '@/utils/market';
 import FilterListAltIcon from '@mui/icons-material/FilterListAlt';
 import { Box, Button, IconButton, Slider, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { keyframes } from '@emotion/react';
@@ -79,7 +79,7 @@ const renderTierToggleButton = (tier: Tier) => (
 );
 
 export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: boolean }) {
-  const { adventurer, bag, marketItemIds, setShowInventory, setNewInventoryItems, newMarket, setNewMarket, exploreLog, gameSettings } = useGameStore();
+  const { adventurer, bag, marketItemIds, setShowInventory, newMarket, setNewMarket, exploreLog, gameSettings } = useGameStore();
   const { executeGameAction } = useGameDirector();
   const {
     isOpen,
@@ -176,7 +176,6 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
   // Clear cart when market items change (new market), or when purchase completes (gold/charisma changes)
   useEffect(() => {
     if (cart.items.length > 0) {
-      setNewInventoryItems(cart.items.map(item => item.id));
       setShowInventory(true);
     }
     clearCart();
@@ -531,26 +530,12 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
   const handleCheckout = () => {
     if (disabledPurchase) return;
 
-    const slotsToEquip = new Set<string>();
-    let itemPurchases = cart.items.map(item => {
-      const slot = ItemUtils.getItemSlot(item.id).toLowerCase();
-      const slotEmpty = adventurer?.equipment[slot as keyof typeof adventurer.equipment]?.id === 0;
-      const shouldEquip = (slotEmpty && !slotsToEquip.has(slot))
-        || slot === 'weapon' && [Tier.T1, Tier.T2].includes(ItemUtils.getItemTier(item.id)) && ItemUtils.getItemTier(adventurer?.equipment.weapon.id!) === Tier.T5;
-
-      if (shouldEquip) {
-        slotsToEquip.add(slot);
-      }
-      return {
-        item_id: item.id,
-        equip: shouldEquip,
-      };
-    });
+    const { itemPlacements } = getCartItemPlacements(cart.items, adventurer ?? null);
 
     executeGameAction({
       type: 'buy_items',
       potions: cart.potions,
-      itemPurchases,
+      itemPurchases: itemPlacements,
       remainingGold,
     });
   };

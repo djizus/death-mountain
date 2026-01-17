@@ -1,5 +1,6 @@
 import { NUM_ITEMS, SUFFIX_UNLOCK_GREATNESS } from '@/constants/game';
 import { ItemId } from '@/constants/loot';
+import { Adventurer, Item } from '@/types/game';
 import { ItemType, ItemUtils, Tier } from './loot';
 
 export interface MarketItem {
@@ -272,4 +273,59 @@ export function getTierOneArmorSetStats(itemSpecialsSeed: number): ArmorSetStatS
   const armorSummaries = ARMOR_TYPES.map((type) => summaries[type]);
 
   return [weaponSummary, ringSummary, ...armorSummaries];
+}
+
+export interface CartItemPlacement {
+  item_id: number;
+  equip: boolean;
+}
+
+export interface CartPreviewResult {
+  previewEquipped: Record<string, Item>;
+  previewBag: Item[];
+  itemPlacements: CartItemPlacement[];
+}
+
+/**
+ * Determines which cart items should be equipped vs go to bag.
+ * Items are equipped if:
+ * 1. The slot is empty AND no other cart item has claimed that slot yet
+ * 2. It's a T1/T2 weapon and current weapon is T5
+ */
+export function getCartItemPlacements(
+  cartItems: MarketItem[],
+  adventurer: Adventurer | null
+): CartPreviewResult {
+  const previewEquipped: Record<string, Item> = {};
+  const previewBag: Item[] = [];
+  const itemPlacements: CartItemPlacement[] = [];
+  const slotsToEquip = new Set<string>();
+
+  cartItems.forEach(cartItem => {
+    const slot = ItemUtils.getItemSlot(cartItem.id).toLowerCase();
+    const currentEquipped = adventurer?.equipment[slot as keyof typeof adventurer.equipment];
+    const slotEmpty = currentEquipped?.id === 0;
+    const shouldEquip = (slotEmpty && !slotsToEquip.has(slot))
+      || (slot === 'weapon' && [Tier.T1, Tier.T2].includes(ItemUtils.getItemTier(cartItem.id)) && ItemUtils.getItemTier(adventurer?.equipment.weapon.id!) === Tier.T5);
+
+    // Create a preview Item from the cart item
+    const previewItem: Item = {
+      id: cartItem.id,
+      xp: 0, // New items start at level 1
+    };
+
+    if (shouldEquip) {
+      slotsToEquip.add(slot);
+      previewEquipped[slot] = previewItem;
+    } else {
+      previewBag.push(previewItem);
+    }
+
+    itemPlacements.push({
+      item_id: cartItem.id,
+      equip: shouldEquip,
+    });
+  });
+
+  return { previewEquipped, previewBag, itemPlacements };
 }
