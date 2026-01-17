@@ -860,6 +860,7 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
                             disabled={!specialsUnlocked}
                             aria-label="View loadout stats"
                             title={specialsUnlocked ? "View loadout stats" : "Unlock item specials first"}
+                            sx={{ '&.MuiToggleButton-root': { minWidth: '42px' } }}
                           >
                             <KeyboardDoubleArrowUpIcon sx={{ fontSize: 20, color: '#d7c529' }} />
                           </ToggleButton>
@@ -1022,7 +1023,7 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
                   )}
                   {ringSummary && ringSummary.items.length > 0 && (
                     <>
-                      <Typography sx={[styles.setStatsColumnHeader, weaponSummary?.items.length ? { marginTop: '12px' } : {}]}>RINGS</Typography>
+                      <Typography sx={[styles.setStatsColumnHeader, weaponSummary?.items.length ? { borderTop: '1px solid rgba(215, 198, 41, 0.25)' } : {}]}>RINGS</Typography>
                       <Box sx={styles.setStatsColumnItems}>
                         {ringSummary.items.map(renderSetStatsItem)}
                       </Box>
@@ -1498,7 +1499,7 @@ const styles = {
   filterGroup: {
     display: 'flex',
     flexDirection: 'row',
-    gap: '8px',
+    gap: '4px',
   },
   filterButtons: {
     display: 'flex',
@@ -1539,22 +1540,7 @@ const styles = {
       background: 'rgba(215, 197, 41, 0.2)',
     },
   },
-  chevronButton: {
-    minWidth: '32px',
-    height: '40px',
-    padding: '8px',
-    background: 'rgba(24, 40, 24, 0.95)',
-    border: '2px solid rgba(215, 197, 41, 0.2)',
-    borderRadius: '4px',
-    color: '#d7c529',
-    '&:hover': {
-      background: 'rgba(215, 197, 41, 0.1)',
-      borderColor: 'rgba(215, 197, 41, 0.4)',
-    },
-    '&.Mui-disabled': {
-      color: 'rgba(215, 197, 41, 0.3)',
-    },
-  },
+
   newIndicator: {
     position: 'absolute',
     top: 6,
@@ -1935,6 +1921,7 @@ const styles = {
     gap: '16px',
     flexWrap: 'nowrap',
     justifyContent: 'center',
+    alignItems: 'stretch',
     overflowX: 'auto',
   },
   setStatsColumn: {
@@ -1964,17 +1951,15 @@ const styles = {
     flexDirection: 'column',
     gap: '4px',
     padding: '10px 12px',
-    flex: 1,
   },
   setStatsColumnTotals: {
     borderTop: '1px solid rgba(215, 198, 41, 0.25)',
-    padding: '10px 12px',
+    padding: '8px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: '1px',
     alignItems: 'flex-end',
     textAlign: 'right',
-    background: 'rgba(215, 198, 41, 0.05)',
   },
   setStatsTotalValue: {
     color: '#d7c529',
