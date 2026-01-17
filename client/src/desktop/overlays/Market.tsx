@@ -591,10 +591,7 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
   return (
     <>
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'absolute', bottom: 24, right: 24, zIndex: 100 }}>
-        <Box sx={{
-          ...styles.buttonWrapper,
-          ...(newMarket && styles.buttonWrapperHighlighted)
-        }} onClick={handleOpen}>
+        <Box sx={styles.buttonWrapper} onClick={handleOpen}>
           <img src={'/images/market.png'} alt="Market" style={{ width: '90%', height: '90%', objectFit: 'contain', display: 'block', filter: 'hue-rotate(50deg) brightness(0.93) saturate(1.05)' }} />
           {newMarket && marketAvailable && (
             <Box sx={styles.newIndicator}>!</Box>

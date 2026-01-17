@@ -1,12 +1,12 @@
 import { MAX_STAT_VALUE } from '@/constants/game';
 import { useGameStore } from '@/stores/gameStore';
 import { useUIStore } from '@/stores/uiStore';
-import { ability_based_percentage, calculateCombatStats, calculateLevel } from '@/utils/game';
+import { ability_based_percentage, calculateLevel } from '@/utils/game';
 import { suggestBestCombatGear } from '@/utils/gearSuggestion';
 import { ItemUtils } from '@/utils/loot';
 import { potionPrice } from '@/utils/market';
-import { Box, Button, FormControl, MenuItem, Select, Tooltip, Typography } from '@mui/material';
-import { useEffect, useState, useMemo } from 'react';
+import { Box, Button, Tooltip, Typography } from '@mui/material';
+import { useState, useMemo } from 'react';
 
 const STAT_DESCRIPTIONS = {
   strength: "Increases attack damage.",
@@ -18,35 +18,11 @@ const STAT_DESCRIPTIONS = {
   luck: "Increases chance of critical hits. Based on the total level of all your equipped and bagged jewelry."
 } as const;
 
-const COMBAT_STAT_DESCRIPTIONS = {
-  baseDamage: "Damage you deal per hit.",
-  criticalDamage: "Damage you deal if critical hit.",
-  critChance: "Chance to land a critical hit. Based on the total level of all your equipped and bagged jewelry.",
-  gearScore: "Combined power of your equipment and bag."
-} as const;
-
-type ViewMode = 'stats' | 'combat';
-
 export default function AdventurerStats() {
   const { advancedMode } = useUIStore();
   const { adventurer, bag, beast, selectedStats, setSelectedStats, applyGearSuggestion } = useGameStore();
-  const [viewMode, setViewMode] = useState<ViewMode>('stats');
   const [suggestInProgress, setSuggestInProgress] = useState(false);
   const [suggestMessage, setSuggestMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    setViewMode((beast && adventurer?.beast_health! > 0) ? 'combat' : 'stats');
-  }, [adventurer?.beast_health!]);
-
-  useEffect(() => {
-    if (adventurer?.stat_upgrades_available! > 0) {
-      setViewMode('stats');
-    }
-  }, [adventurer?.stat_upgrades_available]);
-
-  const combatStats = useMemo(() => {
-    return calculateCombatStats(adventurer!, bag, beast);
-  }, [adventurer, bag, beast]);
 
   const equippedItemStats = useMemo(() => {
     return ItemUtils.getEquippedItemStats(adventurer!, bag);
@@ -114,20 +90,6 @@ export default function AdventurerStats() {
     return stat.charAt(0).toUpperCase() + stat.slice(1);
   }
 
-  function COMBAT_STAT_TITLE(stat: string) {
-    if (stat === 'baseDamage') {
-      return 'Attack Dmg';
-    } else if (stat === 'critChance') {
-      return 'Crit Chance';
-    } else if (stat === 'criticalDamage') {
-      return 'Crit Dmg';
-    } else if (stat === 'gearScore') {
-      return 'Gear Score';
-    }
-
-    return stat.charAt(0).toUpperCase() + stat.slice(1);
-  }
-
   function STAT_HELPER_TEXT(stat: string, currentValue: number) {
     const level = calculateLevel(adventurer!.xp);
 
@@ -151,19 +113,6 @@ export default function AdventurerStats() {
         );
     } else if (stat === 'luck') {
       return `${currentValue}% chance of critical hits`;
-    }
-    return null;
-  }
-
-  function COMBAT_STAT_HELPER_TEXT(stat: string, currentValue: number) {
-    if (stat === 'baseDamage') {
-      return `${currentValue} damage`;
-    } else if (stat === 'critChance') {
-      return `${currentValue}% chance`;
-    } else if (stat === 'criticalDamage') {
-      return `${currentValue} damage`;
-    } else if (stat === 'gearScore') {
-      return `${currentValue}`;
     }
     return null;
   }
@@ -319,90 +268,6 @@ export default function AdventurerStats() {
     </>
   );
 
-  const renderCombatView = () => (
-    <>
-      {Object.entries(COMBAT_STAT_DESCRIPTIONS).map(([stat, description]) => (
-        <Box sx={styles.statRow} key={stat}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Tooltip
-              title={
-                <Box sx={styles.tooltipContainer}>
-                  <Box sx={styles.tooltipTypeRow}>
-                    <Typography sx={styles.tooltipTypeText}>
-                      {COMBAT_STAT_TITLE(stat)}
-                    </Typography>
-                    <Typography sx={styles.tooltipTypeText}>
-                      {(combatStats as any)?.[stat]}
-                    </Typography>
-                  </Box>
-                  <Box sx={styles.sectionDivider} />
-                  <Box sx={styles.tooltipSection}>
-                    <Typography sx={styles.tooltipDescription}>
-                      {description}
-                    </Typography>
-                    <Box sx={styles.tooltipRow}>
-                      <Typography sx={styles.tooltipLabel}>Current Value:</Typography>
-                      <Typography sx={styles.tooltipValue}>
-                        {COMBAT_STAT_HELPER_TEXT(stat, (combatStats as any)?.[stat]!)}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Box>
-              }
-              arrow
-              placement="right"
-              slotProps={{
-                popper: {
-                  modifiers: [
-                    {
-                      name: 'preventOverflow',
-                      enabled: true,
-                      options: { rootBoundary: 'viewport' },
-                    },
-                  ],
-                },
-                tooltip: {
-                  sx: {
-                    bgcolor: 'transparent',
-                    border: 'none',
-                  },
-                },
-              }}
-            >
-              <Box sx={styles.infoIcon}>i</Box>
-            </Tooltip>
-            <Typography sx={styles.statLabel}>{COMBAT_STAT_TITLE(stat)}</Typography>
-          </Box>
-          <Box sx={styles.statControls}>
-            <Typography sx={{ width: '28px', textAlign: 'center', pt: '1px' }}>
-              {(combatStats as any)?.[stat]}{stat === 'critChance' && '%'}
-            </Typography>
-          </Box>
-        </Box>
-      ))}
-
-      {advancedMode && beast && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, marginTop: 'auto' }}>
-          {suggestMessage && (
-            <Typography sx={styles.suggestMessage}>
-              {suggestMessage}
-            </Typography>
-          )}
-          <Button
-            variant="contained"
-            onClick={handleSuggestGear}
-            sx={styles.suggestButton}
-            disabled={suggestInProgress}
-          >
-            <Typography sx={styles.suggestButtonText}>
-              {suggestInProgress ? 'Suggesting...' : 'Suggest Optimal Gear'}
-            </Typography>
-          </Button>
-        </Box>
-      )}
-    </>
-  );
-
   return (
     <>
       <Box sx={{
@@ -410,31 +275,35 @@ export default function AdventurerStats() {
         ...(adventurer?.stat_upgrades_available! > 0 && pointsRemaining > 0 && styles.statsPanelHighlighted),
         ...(adventurer?.stat_upgrades_available! > 0 && pointsRemaining === 0 && styles.statsPanelBorderOnly)
       }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          {adventurer?.stat_upgrades_available! > 0 ? (
+        {adventurer?.stat_upgrades_available! > 0 && (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
             <Typography sx={styles.selectStatsText}>
               Select Stats
             </Typography>
-          ) : (
-            <FormControl size="small" sx={styles.dropdown}>
-              <Select
-                value={viewMode}
-                onChange={(e) => setViewMode(e.target.value as ViewMode)}
-                sx={styles.select}
-                fullWidth
-                MenuProps={{
-                  PaperProps: {
-                    sx: styles.menuPaper
-                  }
-                }}
-              >
-                <MenuItem value="stats">Stats</MenuItem>
-                <MenuItem value="combat">Combat</MenuItem>
-              </Select>
-            </FormControl>
-          )}
-        </Box>
-        {viewMode === 'stats' ? advancedMode ? renderAdvancedStatsView() : renderStatsView() : renderCombatView()}
+          </Box>
+        )}
+        {advancedMode ? renderAdvancedStatsView() : renderStatsView()}
+        
+        {/* Suggest Optimal Gear Button - shown during combat */}
+        {advancedMode && beast && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, mt: 1 }}>
+            {suggestMessage && (
+              <Typography sx={styles.suggestMessage}>
+                {suggestMessage}
+              </Typography>
+            )}
+            <Button
+              variant="contained"
+              onClick={handleSuggestGear}
+              sx={styles.suggestButton}
+              disabled={suggestInProgress}
+            >
+              <Typography sx={styles.suggestButtonText}>
+                {suggestInProgress ? 'Suggesting...' : 'Suggest Optimal Gear'}
+              </Typography>
+            </Button>
+          </Box>
+        )}
       </Box>
     </>
   );

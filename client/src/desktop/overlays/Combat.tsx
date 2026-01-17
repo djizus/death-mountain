@@ -460,6 +460,25 @@ export default function CombatOverlay() {
         <Box sx={{ ...styles.insightsPanel, right: scalePx(30), width: scalePx(440) }}>
           <Typography sx={styles.insightsTitle}>Combat Insights</Typography>
 
+          {/* Adventurer Data Section */}
+          <Box sx={styles.insightsSection}>
+            <Typography sx={styles.sectionTitle}>Adventurer Data</Typography>
+            <Box sx={styles.tilesRowThree}>
+              <Box sx={[styles.infoTile, styles.adventurerTile]}>
+                <Typography sx={styles.tileLabel}>Attack Dmg</Typography>
+                <Typography sx={styles.tileValue}>{combatStats.baseDamage}</Typography>
+              </Box>
+              <Box sx={[styles.infoTile, styles.adventurerTile]}>
+                <Typography sx={styles.tileLabel}>Crit %</Typography>
+                <Typography sx={styles.tileValue}>{combatStats.critChance}%</Typography>
+              </Box>
+              <Box sx={[styles.infoTile, styles.adventurerTile]}>
+                <Typography sx={styles.tileLabel}>Crit Dmg</Typography>
+                <Typography sx={styles.tileValue}>{combatStats.criticalDamage}</Typography>
+              </Box>
+            </Box>
+          </Box>
+
           <Box sx={styles.insightsSection}>
             <Typography sx={styles.sectionTitle}>Fight Probabilities</Typography>
             {simulationResult.hasOutcome ? (
@@ -985,6 +1004,9 @@ const styles = {
     boxShadow: '0 0 10px rgba(212, 102, 96, 0.25)',
   },
   fightTileNeutral: {
+    border: '1px solid rgba(168, 168, 168, 0.35)',
+  },
+  adventurerTile: {
     border: '1px solid rgba(168, 168, 168, 0.35)',
   },
   placeholderText: {
