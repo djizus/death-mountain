@@ -135,16 +135,13 @@ export default function SettingsOverlay() {
               {/* Advanced Section */}
               <Box sx={styles.section}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Typography sx={styles.sectionTitle}>Enable Advanced Mode</Typography>
+                  <Typography sx={styles.sectionTitle}>Advanced Mode</Typography>
                   <Switch
                     checked={advancedMode}
-                    onChange={(e) => setAdvancedMode(e.target.checked)}
+                    disabled={true}
                     sx={styles.switch}
                   />
                 </Box>
-                <Typography sx={{ fontSize: '11px', color: 'rgba(208, 201, 141, 0.7)', mt: -1 }}>
-                  Advanced features and simulations
-                </Typography>
               </Box>
 
               <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />

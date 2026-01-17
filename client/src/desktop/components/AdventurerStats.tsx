@@ -520,6 +520,10 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    background: 'rgba(12, 24, 14, 0.9)',
+    borderRadius: '6px',
+    padding: '6px 8px',
+    border: '1px solid rgba(8, 62, 34, 0.6)',
   },
   statLabel: {
     fontSize: '14px',
@@ -625,7 +629,7 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: '1fr',
     columnGap: 0,
-    rowGap: 0.75,
+    rowGap: '6px',
   },
   statInfo: {
     display: 'flex',
@@ -661,24 +665,24 @@ const styles = {
   },
   suggestButton: {
     width: '100%',
-    background: 'rgba(24, 40, 24, 0.95)',
+    background: 'rgba(28, 40, 60, 0.95)',
     borderRadius: '6px',
-    border: '2px solid #1a6b3a',
+    border: '2px solid #5a7ac4',
     padding: '6px 12px',
     boxShadow: '0 0 6px rgba(0, 0, 0, 0.3)',
     '&:hover': {
-      background: 'rgba(34, 55, 34, 1)',
-      borderColor: '#2a8b4a',
+      background: 'rgba(36, 50, 80, 1)',
+      borderColor: '#7090e0',
     },
     '&:disabled': {
-      background: 'rgba(24, 40, 24, 0.5)',
-      borderColor: 'rgba(26, 107, 58, 0.4)',
+      background: 'rgba(28, 40, 60, 0.5)',
+      borderColor: 'rgba(90, 122, 196, 0.4)',
     },
   },
   suggestButtonText: {
     fontSize: '12px',
     fontWeight: 600,
-    color: '#d0c98d',
+    color: '#90b0f0',
     textTransform: 'none',
   },
   suggestMessage: {

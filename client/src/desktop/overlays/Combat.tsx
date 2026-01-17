@@ -12,6 +12,7 @@ import Beast from './Beast';
 import InventoryOverlay from './Inventory';
 import SettingsOverlay from './Settings';
 import TipsOverlay from './Tips';
+import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { JACKPOT_BEASTS, GOLD_MULTIPLIER, GOLD_REWARD_DIVISOR, MINIMUM_XP_REWARD } from '@/constants/beast';
 import { useDynamicConnector } from '@/contexts/starknet';
 import { useUIStore } from '@/stores/uiStore';
@@ -61,6 +62,7 @@ export default function CombatOverlay() {
   const { currentNetworkConfig } = useDynamicConnector();
   const { gameId, adventurer, adventurerState, beast, battleEvent, bag, undoEquipment, spectating } = useGameStore();
   const { fastBattle, advancedMode } = useUIStore();
+  const { scalePx } = useResponsiveScale();
 
   const [untilDeath, setUntilDeath] = useState(false);
   const [untilLastHit, setUntilLastHit] = useState(false);
@@ -455,7 +457,7 @@ export default function CombatOverlay() {
 
       {/* Combat Insights Panel - only shown in advanced mode */}
       {advancedMode && beast && combatOverview && (
-        <Box sx={styles.insightsPanel}>
+        <Box sx={{ ...styles.insightsPanel, right: scalePx(30), width: scalePx(440) }}>
           <Typography sx={styles.insightsTitle}>Combat Insights</Typography>
 
           <Box sx={styles.insightsSection}>

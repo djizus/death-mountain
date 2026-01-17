@@ -173,13 +173,12 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
     }
   }, [specialsUnlocked, showSetStats]);
 
+  // Clear cart when market items change (new market), or when purchase completes (gold/charisma changes)
   useEffect(() => {
     if (cart.items.length > 0) {
       setNewInventoryItems(cart.items.map(item => item.id));
       setShowInventory(true);
     }
-    setIsOpen(false);
-
     clearCart();
   }, [marketItemIds, adventurer?.gold, adventurer?.stats?.charisma]);
 
@@ -579,7 +578,7 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
   const maxPotionsByHealth = Math.ceil((maxHealth - (adventurer?.health || 0)) / 10);
   const maxPotionsByGold = Math.floor((adventurer!.gold - cart.items.reduce((sum, item) => sum + item.price, 0)) / potionCost);
   const maxPotions = Math.min(maxPotionsByHealth, maxPotionsByGold);
-  const inventoryFull = bag.length + cart.items.length === MAX_BAG_SIZE;
+  const inventoryFull = bag.length + cart.items.length >= MAX_BAG_SIZE;
   const marketAvailable = adventurer?.stat_upgrades_available! === 0;
 
   const filteredItems = marketItems.filter(item => {

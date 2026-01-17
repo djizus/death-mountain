@@ -2,6 +2,7 @@ import { BEAST_MIN_DAMAGE } from '@/constants/beast';
 import AdventurerStats from '@/desktop/components/AdventurerStats';
 import ItemTooltip from '@/desktop/components/ItemTooltip';
 import { useGameDirector } from '@/desktop/contexts/GameDirector';
+import { useResponsiveScale } from '@/desktop/hooks/useResponsiveScale';
 import { useGearPresets } from '@/hooks/useGearPresets';
 import { useGameStore } from '@/stores/gameStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -17,14 +18,14 @@ import { useCallback, useEffect, useState } from 'react';
 type EquipmentSlot = 'weapon' | 'chest' | 'head' | 'waist' | 'foot' | 'hand' | 'neck' | 'ring';
 
 const equipmentSlots = [
-  { key: 'head' as EquipmentSlot, label: 'Head', style: { top: '8px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/head.svg' },
-  { key: 'chest' as EquipmentSlot, label: 'Chest', style: { top: '68px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/chest.svg' },
-  { key: 'waist' as EquipmentSlot, label: 'Waist', style: { top: '128px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/waist.svg' },
-  { key: 'foot' as EquipmentSlot, label: 'Feet', style: { top: '188px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/foot.svg' },
-  { key: 'hand' as EquipmentSlot, label: 'Hands', style: { top: '98px', left: '8px' }, icon: '/images/types/hand.svg' },
-  { key: 'ring' as EquipmentSlot, label: 'Ring', style: { top: '98px', right: '8px' }, icon: '/images/types/ring.svg' },
-  { key: 'weapon' as EquipmentSlot, label: 'Weapon', style: { top: '158px', left: '8px' }, icon: '/images/types/weapon.svg' },
-  { key: 'neck' as EquipmentSlot, label: 'Neck', style: { top: '38px', right: '8px' }, icon: '/images/types/neck.svg' },
+  { key: 'head' as EquipmentSlot, label: 'Head', style: { top: '35px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/head.svg' },
+  { key: 'chest' as EquipmentSlot, label: 'Chest', style: { top: '95px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/chest.svg' },
+  { key: 'waist' as EquipmentSlot, label: 'Waist', style: { top: '155px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/waist.svg' },
+  { key: 'foot' as EquipmentSlot, label: 'Feet', style: { top: '215px', left: '50%', transform: 'translate(-50%, 0)' }, icon: '/images/types/foot.svg' },
+  { key: 'hand' as EquipmentSlot, label: 'Hands', style: { top: '125px', left: '8px' }, icon: '/images/types/hand.svg' },
+  { key: 'ring' as EquipmentSlot, label: 'Ring', style: { top: '125px', right: '8px' }, icon: '/images/types/ring.svg' },
+  { key: 'weapon' as EquipmentSlot, label: 'Weapon', style: { top: '185px', left: '8px' }, icon: '/images/types/weapon.svg' },
+  { key: 'neck' as EquipmentSlot, label: 'Neck', style: { top: '65px', right: '8px' }, icon: '/images/types/neck.svg' },
 ];
 
 interface InventoryOverlayProps {
@@ -53,9 +54,9 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
   };
 
   return (
-    <Box sx={[styles.equipmentPanel, { height: advancedMode ? '315px' : '250px' }]}>
+    <Box sx={styles.equipmentPanel}>
       <Box sx={styles.characterPortraitWrapper}>
-        <img src={'/images/adventurer.png'} alt="adventurer" style={{ ...styles.characterPortrait, objectFit: 'contain', position: 'absolute', left: '50%', top: '30%', transform: 'translate(-50%, -30%)', zIndex: 1, filter: 'drop-shadow(0 0 8px #000a)' }} />
+        <img src={'/images/adventurer.png'} alt="adventurer" style={{ ...styles.characterPortrait, objectFit: 'contain', position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 1, filter: 'drop-shadow(0 0 8px #000a)' }} />
         {equipmentSlots.map(slot => {
           const item = adventurer?.equipment[slot.key];
           const metadata = item ? ItemUtils.getMetadata(item.id) : null;
@@ -315,7 +316,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
       </Box>
 
       <Box sx={styles.bagGrid}>
-        {bag?.map((item) => {
+        {bag?.map((item, index) => {
           const metadata = ItemUtils.getMetadata(item.id);
           const isSelected = itemsToDrop.includes(item.id);
           const highlight = isDropMode && itemsToDrop.length === 0;
@@ -351,7 +352,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
 
           return (
             <Tooltip
-              key={item.id}
+              key={`${item.id}-${index}`}
               title={<ItemTooltip item={item} itemSpecialsSeed={adventurer?.item_specials_seed || 0} style={styles.tooltipContainer} />}
               placement="auto-end"
               slotProps={{
@@ -447,7 +448,7 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
             </Tooltip>
           );
         })}
-        {Array(15 - (bag?.length || 0)).fill(null).map((_, idx) => (
+        {Array(Math.max(0, 15 - (bag?.length || 0))).fill(null).map((_, idx) => (
           <Box key={`empty-${idx}`} sx={styles.bagSlot}>
             <Box sx={styles.emptySlot}></Box>
           </Box>
@@ -470,6 +471,7 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
   const { advancedMode } = useUIStore();
   const { executeGameAction, actionFailed } = useGameDirector();
   const { adventurer, bag, showInventory, setShowInventory } = useGameStore();
+  const { scalePx } = useResponsiveScale();
   const { equipItem, newInventoryItems, setNewInventoryItems } = useGameStore();
   const [isDropMode, setIsDropMode] = useState(false);
   const [itemsToDrop, setItemsToDrop] = useState<number[]>([]);
@@ -540,7 +542,7 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
       {showInventory && (
         <>
           {/* Inventory popup */}
-          <Box sx={[styles.popup, advancedMode && styles.advancedPopup]}>
+          <Box sx={[styles.popup, advancedMode && styles.advancedPopup, { left: scalePx(8) }]}>
             <Box sx={styles.inventoryRoot}>
               {/* Left: Equipment */}
               <CharacterEquipment
@@ -666,7 +668,7 @@ const styles = {
   },
   popup: {
     position: 'absolute',
-    top: '120px',
+    top: '130px',
     left: '24px',
     width: '440px',
     maxHeight: '90vh',
@@ -708,9 +710,13 @@ const styles = {
   characterPortraitWrapper: {
     position: 'relative',
     width: 200,
-    height: 250,
+    flex: 1,
+    minHeight: 300,
     margin: '0 auto',
-    background: 'rgba(20, 20, 20, 0.7)',
+    backgroundImage: 'url(/images/gear_background.png)',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
     borderRadius: '8px',
   },
   characterPortrait: {

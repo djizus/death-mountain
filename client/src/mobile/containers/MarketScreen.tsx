@@ -217,7 +217,7 @@ export default function MarketScreen() {
   const maxPotionsByHealth = Math.ceil((maxHealth - (adventurer?.health || 0)) / 10);
   const maxPotionsByGold = Math.floor((adventurer!.gold - cart.items.reduce((sum, item) => sum + item.price, 0)) / potionCost);
   const maxPotions = Math.min(maxPotionsByHealth, maxPotionsByGold);
-  const inventoryFull = bag.length + cart.items.length === MAX_BAG_SIZE;
+  const inventoryFull = bag.length + cart.items.length >= MAX_BAG_SIZE;
   const marketAvailable = adventurer?.stat_upgrades_available! === 0;
 
   const filteredItems = marketItems.filter(item => {
