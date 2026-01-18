@@ -13,7 +13,7 @@ import { GearPreset } from '@/utils/gearPresets';
 import { ItemUtils } from '@/utils/loot';
 import { getCartItemPlacements } from '@/utils/market';
 import { keyframes } from '@emotion/react';
-import { DeleteOutline, Star } from '@mui/icons-material';
+import { Check, Close, DeleteOutline, Star } from '@mui/icons-material';
 import { Box, Button, Tooltip, Typography } from '@mui/material';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -302,11 +302,14 @@ function CharacterEquipment({ isDropMode, itemsToDrop, onItemClick, newItems, on
   );
 }
 
-function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, newItems, onItemHover, previewBag }: {
+function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, onConfirmDrop, onCancelDrop, dropInProgress, newItems, onItemHover, previewBag }: {
   isDropMode: boolean,
   itemsToDrop: number[],
   onItemClick: (item: any) => void,
   onDropModeToggle: () => void,
+  onConfirmDrop: () => void,
+  onCancelDrop: () => void,
+  dropInProgress: boolean,
   newItems: number[],
   onItemHover: (itemId: number) => void,
   previewBag?: Item[]
@@ -369,14 +372,22 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
             <Tooltip
               key={`${item.id}-${index}${isPreview ? '-preview' : ''}`}
               title={<ItemTooltip item={item} itemSpecialsSeed={adventurer?.item_specials_seed || 0} style={styles.tooltipContainer} />}
-              placement="auto-end"
+              placement="top-start"
               slotProps={{
                 popper: {
                   modifiers: [
                     {
+                      name: 'flip',
+                      enabled: false,
+                    },
+                    {
                       name: 'preventOverflow',
                       enabled: true,
-                      options: { rootBoundary: 'viewport' },
+                      options: { rootBoundary: 'viewport', altAxis: true },
+                    },
+                    {
+                      name: 'offset',
+                      options: { offset: [30, 200] },
                     },
                   ],
                 },
@@ -469,14 +480,40 @@ function InventoryBag({ isDropMode, itemsToDrop, onItemClick, onDropModeToggle, 
             <Box sx={styles.emptySlot}></Box>
           </Box>
         ))}
-        {(!isDropMode && !beast) && (
-          <Box
-            sx={styles.dropButtonSlot}
-            onClick={onDropModeToggle}
-          >
-            <DeleteOutline sx={styles.dropIcon} />
-            <Typography sx={styles.dropText}>drop</Typography>
-          </Box>
+        {!beast && (
+          <>
+            {!isDropMode ? (
+              <Box
+                sx={styles.dropButtonSlot}
+                onClick={onDropModeToggle}
+              >
+                <DeleteOutline sx={styles.dropIcon} />
+                <Typography sx={styles.dropText}>drop</Typography>
+              </Box>
+            ) : (
+              <>
+                <Box
+                  sx={styles.cancelButtonSlot}
+                  onClick={onCancelDrop}
+                >
+                  <Close sx={styles.cancelIcon} />
+                  <Typography sx={styles.cancelText}>cancel</Typography>
+                </Box>
+                <Box
+                  sx={[
+                    styles.confirmButtonSlot,
+                    (dropInProgress || itemsToDrop.length === 0) && styles.confirmButtonDisabled
+                  ]}
+                  onClick={() => !dropInProgress && itemsToDrop.length > 0 && onConfirmDrop()}
+                >
+                  <Check sx={styles.confirmIcon} />
+                  <Typography sx={styles.confirmText}>
+                    {dropInProgress ? '...' : 'drop'}
+                  </Typography>
+                </Box>
+              </>
+            )}
+          </>
         )}
       </Box>
     </Box>
@@ -586,43 +623,13 @@ export default function InventoryOverlay({ disabledEquip }: InventoryOverlayProp
               itemsToDrop={itemsToDrop}
               onItemClick={handleItemClick}
               onDropModeToggle={() => setIsDropMode(true)}
+              onConfirmDrop={handleConfirmDrop}
+              onCancelDrop={handleCancelDrop}
+              dropInProgress={dropInProgress}
               newItems={newItems}
               onItemHover={handleItemHover}
               previewBag={cartPreview.previewBag}
             />
-
-            {/* Drop Mode Controls */}
-            {isDropMode && (
-              <Box sx={styles.dropControls}>
-                <Button
-                  variant="contained"
-                  color="error"
-                  onClick={handleCancelDrop}
-                  sx={styles.cancelDropButton}
-                  disabled={dropInProgress}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="contained"
-                  onClick={handleConfirmDrop}
-                  sx={styles.dropControlButton}
-                  disabled={dropInProgress || itemsToDrop.length === 0}
-                >
-                  {dropInProgress
-                    ? <Box display={'flex'} alignItems={'baseline'}>
-                      <Typography>
-                        Dropping items
-                      </Typography>
-                      <div className='dotLoader yellow' />
-                    </Box>
-                    : <Typography>
-                      Confirm
-                    </Typography>
-                  }
-                </Button>
-              </Box>
-            )}
           </Box>
         </>
       )}
@@ -856,32 +863,68 @@ const styles = {
     lineHeight: 1,
     mt: 0.5,
   },
-  dropControls: {
-    display: 'flex',
-    gap: 1,
-    mt: 1,
-  },
-  cancelDropButton: {
-    flex: 1,
-    justifyContent: 'center',
-    fontSize: '0.9rem',
+  cancelButtonSlot: {
+    width: 48,
+    height: 48,
     background: 'rgba(255, 0, 0, 0.1)',
-    color: '#FF0000',
-    '&:disabled': {
-      background: 'rgba(255, 0, 0, 0.05)',
-      color: 'rgba(255, 0, 0, 0.3)',
+    border: '2px solid rgba(255, 0, 0, 0.2)',
+    boxShadow: '0 0 4px #000a',
+    boxSizing: 'border-box',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    '&:hover': {
+      background: 'rgba(255, 0, 0, 0.2)',
     },
   },
-  dropControlButton: {
-    flex: 1,
+  cancelIcon: {
+    width: 16,
+    height: 16,
+    color: 'rgba(255, 0, 0, 0.7)',
+  },
+  cancelText: {
+    fontSize: '0.65rem',
+    color: 'rgba(255, 0, 0, 0.7)',
+    lineHeight: 1,
+    mt: 0.5,
+  },
+  confirmButtonSlot: {
+    width: 48,
+    height: 48,
+    background: 'rgba(0, 200, 0, 0.15)',
+    border: '2px solid rgba(0, 200, 0, 0.4)',
+    boxShadow: '0 0 4px #000a',
+    boxSizing: 'border-box',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '0.9rem',
-    background: 'rgba(128, 255, 0, 0.15)',
-    color: '#80FF00',
-    '&:disabled': {
-      background: 'rgba(128, 255, 0, 0.1)',
-      color: 'rgba(128, 255, 0, 0.5)',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    '&:hover': {
+      background: 'rgba(0, 200, 0, 0.25)',
     },
+  },
+  confirmButtonDisabled: {
+    opacity: 0.4,
+    cursor: 'not-allowed',
+    '&:hover': {
+      background: 'rgba(0, 200, 0, 0.15)',
+    },
+  },
+  confirmIcon: {
+    width: 16,
+    height: 16,
+    color: 'rgba(0, 220, 0, 0.9)',
+  },
+  confirmText: {
+    fontSize: '0.65rem',
+    color: 'rgba(0, 220, 0, 0.9)',
+    lineHeight: 1,
+    mt: 0.5,
   },
   selectedItem: {
     border: '2px solid #FF0000',
