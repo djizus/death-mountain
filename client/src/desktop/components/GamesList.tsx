@@ -8,9 +8,9 @@ import { getContractByName } from "@dojoengine/core";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import VisibilityIcon from "@mui/icons-material/Visibility";
+import TheatersIcon from "@mui/icons-material/Theaters";
 import WatchIcon from "@mui/icons-material/Watch";
-import { Box, Button, Divider, Typography } from "@mui/material";
+import { Box, Button, Tab, Tabs, Typography } from "@mui/material";
 import { motion } from "framer-motion";
 import { useGameTokens as useMetagameTokens } from "metagame-sdk/sql";
 import { useEffect, useState } from "react";
@@ -57,6 +57,11 @@ export default function GamesList({ onBack }: GamesListProps) {
   const [activeGames, setActiveGames] = useState<GameData[]>([]);
   const [completedGames, setCompletedGames] = useState<GameData[]>([]);
   const [hasFetched, setHasFetched] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
+
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
 
   useEffect(() => {
     async function fetchGames() {
@@ -227,19 +232,19 @@ export default function GamesList({ onBack }: GamesListProps) {
         delay: (activeGames.length + index) * 0.08,
       }}
     >
-      <Box sx={[styles.listItem, styles.completedItem]}>
+      <Box sx={styles.listItem}>
         <Box sx={styles.gameInfo}>
           <Box sx={styles.nameColumn}>
             <Typography
               color="primary"
               lineHeight={1}
-              sx={[styles.playerName, { opacity: 0.7 }]}
+              sx={styles.playerName}
             >
               {game.player_name}
             </Typography>
             <Typography
               color="secondary"
-              sx={{ fontSize: "12px", opacity: 0.6 }}
+              sx={{ fontSize: "12px", opacity: 0.8 }}
             >
               ID: #{game.adventurer_id}
             </Typography>
@@ -248,10 +253,10 @@ export default function GamesList({ onBack }: GamesListProps) {
 
         {game.xp ? (
           <Box sx={styles.statsColumn}>
-            <Typography fontSize="13px" lineHeight={1.2} color="secondary" sx={{ opacity: 0.7 }}>
+            <Typography fontSize="13px" lineHeight={1.2} color="secondary">
               Lvl: {calculateLevel(game.xp)}
             </Typography>
-            <Typography fontSize="13px" lineHeight={1.2} sx={{ opacity: 0.7 }}>
+            <Typography fontSize="13px" lineHeight={1.2}>
               XP: {game.xp.toLocaleString()}
             </Typography>
           </Box>
@@ -260,7 +265,7 @@ export default function GamesList({ onBack }: GamesListProps) {
             fontSize="13px"
             color="secondary"
             flex={1}
-            sx={{ minWidth: "55px", opacity: 0.7 }}
+            sx={{ minWidth: "55px" }}
           >
             -
           </Typography>
@@ -273,7 +278,7 @@ export default function GamesList({ onBack }: GamesListProps) {
           sx={styles.watchButton}
           onClick={() => handleWatchGame(game.adventurer_id)}
         >
-          <VisibilityIcon fontSize="small" />
+          <TheatersIcon fontSize="small" />
         </Button>
       </Box>
     </motion.div>
@@ -304,6 +309,18 @@ export default function GamesList({ onBack }: GamesListProps) {
         </Button>
       </Box>
 
+      <Box sx={styles.tabsContainer}>
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          variant="fullWidth"
+          sx={styles.tabs}
+        >
+          <Tab label={`Active (${activeGames.length})`} sx={styles.tab} />
+          <Tab label={`Completed (${completedGames.length})`} sx={styles.tab} />
+        </Tabs>
+      </Box>
+
       <Box sx={styles.listContainer}>
         {isLoading ? (
           <Typography sx={{ textAlign: "center", py: 2 }}>
@@ -313,31 +330,22 @@ export default function GamesList({ onBack }: GamesListProps) {
           <Typography sx={{ textAlign: "center", py: 2, opacity: 0.7 }}>
             No games yet. Enter the dungeon to start your adventure!
           </Typography>
+        ) : activeTab === 0 ? (
+          hasActiveGames ? (
+            activeGames.map((game, index) => renderActiveGame(game, index))
+          ) : (
+            <Typography sx={{ textAlign: "center", py: 2, opacity: 0.7 }}>
+              No active games
+            </Typography>
+          )
         ) : (
-          <>
-            {/* Active Games Section */}
-            {hasActiveGames && (
-              <>
-                <Typography sx={styles.sectionTitle}>
-                  Active ({activeGames.length})
-                </Typography>
-                {activeGames.map((game, index) => renderActiveGame(game, index))}
-              </>
-            )}
-
-            {/* Completed Games Section */}
-            {hasCompletedGames && (
-              <>
-                {hasActiveGames && (
-                  <Divider sx={{ my: 1.5, borderColor: "rgba(208, 201, 141, 0.2)" }} />
-                )}
-                <Typography sx={styles.sectionTitle}>
-                  Completed ({completedGames.length})
-                </Typography>
-                {completedGames.map((game, index) => renderCompletedGame(game, index))}
-              </>
-            )}
-          </>
+          hasCompletedGames ? (
+            completedGames.map((game, index) => renderCompletedGame(game, index))
+          ) : (
+            <Typography sx={{ textAlign: "center", py: 2, opacity: 0.7 }}>
+              No completed games
+            </Typography>
+          )
         )}
       </Box>
     </motion.div>
@@ -355,22 +363,33 @@ const styles = {
     minWidth: "auto",
     px: 1,
   },
+  tabsContainer: {
+    width: "100%",
+    mb: 1,
+  },
+  tabs: {
+    minHeight: "36px",
+    "& .MuiTabs-indicator": {
+      backgroundColor: "#d0c98d",
+    },
+  },
+  tab: {
+    minHeight: "36px",
+    fontSize: "0.85rem",
+    fontWeight: 500,
+    color: "rgba(208, 201, 141, 0.6)",
+    "&.Mui-selected": {
+      color: "#d0c98d",
+    },
+  },
   listContainer: {
     width: "100%",
-    maxHeight: "550px",
+    maxHeight: "500px",
     display: "flex",
     flexDirection: "column",
     gap: "6px",
     overflowY: "auto",
     pr: 0.5,
-  },
-  sectionTitle: {
-    fontSize: "0.8rem",
-    fontWeight: 600,
-    color: "#d0c98d",
-    letterSpacing: 0.5,
-    mb: 0.5,
-    mt: 0.5,
   },
   listItem: {
     height: "52px",
