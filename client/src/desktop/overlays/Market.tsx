@@ -846,27 +846,27 @@ export default function MarketOverlay({ disabledPurchase }: { disabledPurchase: 
                         </ToggleButtonGroup>
                       </Box>
 
-                      <Box sx={styles.filterGroup}>
-                        <ToggleButtonGroup
-                          value={statFilter}
-                          exclusive
-                          onChange={handleStatFilter}
-                          aria-label="stat bonus"
-                          sx={[styles.filterButtons, { fontSize: '0.75rem' }]}
-                        >
-                          <ToggleButton
-                            value=""
-                            onClick={(e) => { e.preventDefault(); setShowSetStats(true); }}
-                            disabled={!specialsUnlocked}
-                            aria-label="View loadout stats"
-                            title={specialsUnlocked ? "View loadout stats" : "Unlock item specials first"}
-                            sx={{ '&.MuiToggleButton-root': { minWidth: '42px' } }}
+                      {specialsUnlocked && (
+                        <Box sx={styles.filterGroup}>
+                          <ToggleButtonGroup
+                            value={statFilter}
+                            exclusive
+                            onChange={handleStatFilter}
+                            aria-label="stat bonus"
+                            sx={[styles.filterButtons, { fontSize: '0.75rem' }]}
                           >
-                            <KeyboardDoubleArrowUpIcon sx={{ fontSize: 20, color: '#d7c529' }} />
-                          </ToggleButton>
-                          {STAT_FILTER_OPTIONS.map((stat) => renderStatToggleButton(stat, STAT_ABBREVIATIONS[stat]))}
-                        </ToggleButtonGroup>
-                      </Box>
+                            <ToggleButton
+                              value=""
+                              onClick={(e) => { e.preventDefault(); setShowSetStats(true); }}
+                              aria-label="View loadout stats"
+                              sx={{ '&.MuiToggleButton-root': { minWidth: '42px' } }}
+                            >
+                              <KeyboardDoubleArrowUpIcon sx={{ fontSize: 20, color: '#d7c529' }} />
+                            </ToggleButton>
+                            {STAT_FILTER_OPTIONS.map((stat) => renderStatToggleButton(stat, STAT_ABBREVIATIONS[stat]))}
+                          </ToggleButtonGroup>
+                        </Box>
+                      )}
                     </Box>
                   )}
 

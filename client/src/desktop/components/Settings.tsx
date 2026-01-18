@@ -219,6 +219,17 @@ export default function Settings({ onBack, showExitGame = false, onExitGame, sho
               label="Skip first battle"
               sx={styles.checkboxLabel}
             />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={showUntilBeastToggle}
+                  onChange={(e) => setShowUntilBeastToggle(e.target.checked)}
+                  sx={styles.checkbox}
+                />
+              }
+              label='Show "until beast" toggle'
+              sx={styles.checkboxLabel}
+            />
           </Box>
         </Box>
 
@@ -241,27 +252,6 @@ export default function Settings({ onBack, showExitGame = false, onExitGame, sho
                 </MenuItem>
               ))}
             </Select>
-          </Box>
-        </Box>
-
-        <Divider sx={{ my: 0.5, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
-
-        {/* Exploration Section */}
-        <Box sx={styles.settingSection}>
-          <Typography sx={styles.sectionTitle}>Exploration</Typography>
-
-          <Box sx={styles.animationsControl}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={showUntilBeastToggle}
-                  onChange={(e) => setShowUntilBeastToggle(e.target.checked)}
-                  sx={styles.checkbox}
-                />
-              }
-              label='Show "until beast" toggle'
-              sx={styles.checkboxLabel}
-            />
           </Box>
         </Box>
 

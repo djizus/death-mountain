@@ -68,7 +68,7 @@ export const useUIStore = create<UIState>()(
 
       // Exploration controls
       setShowUntilBeastToggle: (show) => set({ showUntilBeastToggle: show }),
-      showUntilBeastToggle: true,
+      showUntilBeastToggle: false,
 
       // Advanced mode (always enabled - no-op setter)
       setAdvancedMode: () => {},

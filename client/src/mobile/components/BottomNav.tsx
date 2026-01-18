@@ -56,15 +56,14 @@ export default function BottomNav({ activeNavItem, setActiveNavItem, isExploring
     {
       key: 'SETTINGS',
       icon: <SettingsIcon sx={{
-        height: 24,
-        width: 24,
-        opacity: 1,
+        height: 32,
+        width: 32,
         color: 'rgba(128, 255, 0, 1)'
       }} />,
       onClick: () => setActiveNavItem('SETTINGS'),
       active: activeNavItem === 'SETTINGS',
       disabled: isActionInProgress,
-      tooltip: isActionInProgress ? actionInProgressTooltipText : 'Settings'
+      tooltip: isActionInProgress ? actionInProgressTooltipText : ''
     }
   ];
 
@@ -72,7 +71,7 @@ export default function BottomNav({ activeNavItem, setActiveNavItem, isExploring
     <>
       <Box sx={styles.navContainer}>
         <Box sx={styles.mainNavItems}>
-          {navItems.slice(0, 3).map((item) => {
+          {navItems.map((item) => {
             return item.tooltip ? (
               <Box key={item.key} sx={{ position: 'relative' }}>
                 <Tooltip
@@ -153,24 +152,6 @@ export default function BottomNav({ activeNavItem, setActiveNavItem, isExploring
             );
           })}
         </Box>
-        <Box sx={styles.settingsContainer}>
-          <Tooltip title={navItems[3].disabled ? navItems[3].tooltip : ''}>
-            <Box
-              sx={{
-                ml: 1,
-                ...styles.navItem,
-                opacity: navItems[3].disabled ? 0.3 : navItems[3].active ? 1 : 0.5,
-                cursor: navItems[3].disabled ? 'default' : 'pointer',
-                '&:hover': navItems[3].disabled ? {} : {
-                  opacity: 1
-                }
-              }}
-              onClick={navItems[3].disabled ? undefined : navItems[3].onClick}
-            >
-              {navItems[3].icon}
-            </Box>
-          </Tooltip>
-        </Box>
       </Box>
     </>
   );
@@ -185,9 +166,8 @@ const styles = {
     height: '64px',
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     display: 'flex',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: '0 16px',
     boxSizing: 'border-box',
     zIndex: 1000,
   },
@@ -195,13 +175,8 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-evenly',
     alignItems: 'center',
-    gap: '32px',
-    flex: 1,
-  },
-  settingsContainer: {
-    display: 'flex',
-    alignItems: 'center',
-    marginLeft: 'auto',
+    width: '100%',
+    maxWidth: '400px',
   },
   navItem: {
     display: 'flex',

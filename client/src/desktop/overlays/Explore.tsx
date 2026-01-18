@@ -8,7 +8,7 @@ import { getEventTitle } from '@/utils/events';
 import { calculateLevel } from '@/utils/game';
 import { ItemUtils, Tier } from '@/utils/loot';
 import { potionPrice } from '@/utils/market';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, FormControlLabel, Switch, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import BeastCollectedPopup from '../../components/BeastCollectedPopup';
 import Adventurer from './Adventurer';
@@ -22,8 +22,9 @@ export default function ExploreOverlay() {
   const { exploreLog, adventurer, setShowOverlay, collectable, collectableTokenURI,
     setCollectable, selectedStats, setSelectedStats, claimInProgress, spectating, gameSettings } = useGameStore();
   const { cart } = useMarketStore();
-  const { skipAllAnimations, advancedMode } = useUIStore();
+  const { skipAllAnimations, advancedMode, showUntilBeastToggle } = useUIStore();
   const [isExploring, setIsExploring] = useState(false);
+  const [untilBeast, setUntilBeast] = useState(false);
 
   // Use Web Worker for lethal chance calculations (Monte Carlo, 100k samples)
   const { ambushLethalChance, trapLethalChance } = useExplorationWorker(
@@ -57,7 +58,7 @@ export default function ExploreOverlay() {
       setIsExploring(true);
     }
 
-    executeGameAction({ type: 'explore', untilBeast: false });
+    executeGameAction({ type: 'explore', untilBeast });
   };
 
   const handleSelectStats = async () => {
@@ -224,23 +225,38 @@ export default function ExploreOverlay() {
             <Typography sx={styles.buttonText}>Select Stats</Typography>
           </Button>
         ) : (
-          <Button
-            variant="contained"
-            onClick={cart.items.length > 0 || cart.potions > 0 ? handleCheckout : handleExplore}
-            sx={styles.exploreButton}
-            disabled={isExploring}
-          >
-            {isExploring ? (
-              <Box display={'flex'} alignItems={'baseline'}>
-                <Typography sx={styles.buttonText}>Exploring</Typography>
-                <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
-              </Box>
-            ) : (
-              <Typography sx={styles.buttonText}>
-                {cart.items.length > 0 || cart.potions > 0 ? 'BUY ITEMS' : 'EXPLORE'}
-              </Typography>
+          <>
+            <Button
+              variant="contained"
+              onClick={cart.items.length > 0 || cart.potions > 0 ? handleCheckout : handleExplore}
+              sx={styles.exploreButton}
+              disabled={isExploring}
+            >
+              {isExploring ? (
+                <Box display={'flex'} alignItems={'baseline'}>
+                  <Typography sx={styles.buttonText}>Exploring</Typography>
+                  <div className='dotLoader yellow' style={{ opacity: 0.5 }} />
+                </Box>
+              ) : (
+                <Typography sx={styles.buttonText}>
+                  {cart.items.length > 0 || cart.potions > 0 ? 'BUY ITEMS' : 'EXPLORE'}
+                </Typography>
+              )}
+            </Button>
+            {showUntilBeastToggle && cart.items.length === 0 && cart.potions === 0 && (
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={untilBeast}
+                    onChange={(e) => setUntilBeast(e.target.checked)}
+                    sx={styles.untilBeastSwitch}
+                  />
+                }
+                label="Until Beast"
+                sx={styles.untilBeastLabel}
+              />
             )}
-          </Button>
+          </>
         )}
       </Box>}
 
@@ -425,5 +441,21 @@ const styles = {
     border: '1px solid rgba(8, 62, 34, 0.8)',
     background: 'rgba(24, 40, 24, 0.85)',
     backdropFilter: 'blur(8px)',
+  },
+  untilBeastSwitch: {
+    '& .MuiSwitch-switchBase.Mui-checked': {
+      color: '#d0c98d',
+    },
+    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+      backgroundColor: '#d0c98d',
+    },
+  },
+  untilBeastLabel: {
+    color: '#d0c98d',
+    '& .MuiFormControlLabel-label': {
+      fontFamily: 'Cinzel, Georgia, serif',
+      fontSize: '0.9rem',
+      fontWeight: 500,
+    },
   },
 };

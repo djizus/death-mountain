@@ -19,7 +19,7 @@ export default function SettingsOverlay() {
   const dungeon = useDungeon();
   const { showSettings, setShowSettings } = useGameStore();
   const { volume, setVolume, muted, setMuted, musicVolume, setMusicVolume, musicMuted, setMusicMuted } = useSound();
-  const { skipAllAnimations, setSkipAllAnimations, fastBattle, setFastBattle, advancedMode, setAdvancedMode, setUseMobileClient } = useUIStore();
+  const { skipAllAnimations, setSkipAllAnimations, skipIntroOutro, setSkipIntroOutro, fastBattle, setFastBattle, skipFirstBattle, setSkipFirstBattle, showUntilBeastToggle, setShowUntilBeastToggle, advancedMode, setAdvancedMode, setUseMobileClient } = useUIStore();
   const navigate = useNavigate();
   const handleExitGame = () => {
     navigate('/');
@@ -158,6 +158,20 @@ export default function SettingsOverlay() {
                   <FormControlLabel
                     control={
                       <Checkbox
+                        checked={skipIntroOutro}
+                        onChange={(e) => setSkipIntroOutro(e.target.checked)}
+                        sx={styles.checkbox}
+                      />
+                    }
+                    label="Skip intro and outro"
+                    sx={styles.checkboxLabel}
+                  />
+                </Box>
+
+                <Box sx={styles.animationsControl} mt={-1}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
                         checked={skipAllAnimations}
                         onChange={(e) => setSkipAllAnimations(e.target.checked)}
                         sx={styles.checkbox}
@@ -187,7 +201,33 @@ export default function SettingsOverlay() {
 
               {/* Game Section */}
               <Box sx={styles.section}>
-                <Typography sx={styles.sectionTitle}>Game</Typography>
+                <Typography sx={[styles.sectionTitle, { mb: -0.5 }]}>Game</Typography>
+                <Box sx={styles.animationsControl}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={skipFirstBattle}
+                        onChange={(e) => setSkipFirstBattle(e.target.checked)}
+                        sx={styles.checkbox}
+                      />
+                    }
+                    label="Skip first battle"
+                    sx={styles.checkboxLabel}
+                  />
+                </Box>
+                <Box sx={styles.animationsControl} mt={-1}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={showUntilBeastToggle}
+                        onChange={(e) => setShowUntilBeastToggle(e.target.checked)}
+                        sx={styles.checkbox}
+                      />
+                    }
+                    label='Show "until beast" toggle'
+                    sx={styles.checkboxLabel}
+                  />
+                </Box>
 
                 <Button
                   variant="contained"
